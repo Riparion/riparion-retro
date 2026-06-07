@@ -15,7 +15,9 @@ pub fn NumberEntry(
     #[props(default)] price: Option<f64>,
     #[props(default = "Confirm".to_string())] confirm: String,
     on_submit: EventHandler<i64>,
-    on_cancel: EventHandler<()>,
+    /// Omit to hide the Cancel button (e.g. when there is no screen to
+    /// cancel back to).
+    #[props(default)] on_cancel: Option<EventHandler<()>>,
 ) -> Element {
     let mut value = use_signal(String::new);
     let parsed = use_memo(move || value.read().parse::<i64>().unwrap_or(0).clamp(0, i64::MAX));
@@ -47,10 +49,12 @@ pub fn NumberEntry(
                 p { class: "text-sm opacity-80", "= {fmt_money(cost)}" }
             }
             div { class: "flex gap-2",
-                button {
-                    class: "{BTN} flex-1",
-                    onclick: move |_| on_cancel.call(()),
-                    "Cancel"
+                if let Some(on_cancel) = on_cancel {
+                    button {
+                        class: "{BTN} flex-1",
+                        onclick: move |_| on_cancel.call(()),
+                        "Cancel"
+                    }
                 }
                 button {
                     class: "{BTN_PRIMARY} flex-1",
