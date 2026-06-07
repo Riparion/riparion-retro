@@ -61,6 +61,30 @@ pub fn fmt_num(x: f64) -> String {
     }
 }
 
+/// Money with grouped cents and a leading sign: "$1,234.50" / "-$1,234.50".
+/// For ledgers and prompts that mirror the BASIC classics' `PRINT "$";I`.
+pub fn fmt_dollars(v: f64) -> String {
+    let cents = (v.abs() * 100.0).round() as i64;
+    let body = format!("${}.{:02}", group_thousands(cents / 100), cents % 100);
+    if v < 0.0 {
+        format!("-{body}")
+    } else {
+        body
+    }
+}
+
+/// Compact money with a leading sign for tight spots like status chips:
+/// "$1,234" / "-$1,234" / "$1.23 Million" (uses [`fmt_money`]'s magnitude
+/// words for large values).
+pub fn fmt_dollars_compact(v: f64) -> String {
+    let body = fmt_money(v.abs());
+    if v < 0.0 {
+        format!("-${body}")
+    } else {
+        format!("${body}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -81,5 +105,16 @@ mod tests {
         assert_eq!(fmt_money(12_300_000.0), "12.3 Million");
         assert_eq!(fmt_money(1.23e9), "1.23 Billion");
         assert_eq!(fmt_money(-5000.0), "-5,000");
+    }
+
+    #[test]
+    fn dollar_formatting() {
+        assert_eq!(fmt_dollars(600.0), "$600.00");
+        assert_eq!(fmt_dollars(1234.5), "$1,234.50");
+        assert_eq!(fmt_dollars(0.0), "$0.00");
+        assert_eq!(fmt_dollars(-40.25), "-$40.25");
+        assert_eq!(fmt_dollars_compact(645.0), "$645");
+        assert_eq!(fmt_dollars_compact(-5000.0), "-$5,000");
+        assert_eq!(fmt_dollars_compact(1_230_000.0), "$1.23 Million");
     }
 }
