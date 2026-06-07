@@ -79,3 +79,23 @@ Then build screens from `retro_kit::theme` classes (`crt-btn`, `crt-panel`,
 `chip`, `action-bar`…), `retro_kit::components` (e.g. `NumberEntry`), and the
 `rng`/`format`/`storage` primitives. Keep game-specific CSS in the game's own
 `assets/`, layered on top of `crt.css` — don't fork the shared palette.
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
+  <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or
+  <http://opensource.org/licenses/MIT>)
+
+at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally
+submitted for inclusion in the work by you, as defined in the Apache-2.0
+license, shall be dual licensed as above, without any additional terms or
+conditions.
+
+Game designs ported here (e.g. Taipan, by Art Canfil) belong to their
+original creators; this repository's licenses cover the source code of
+these reimplementations.

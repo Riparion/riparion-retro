@@ -6,7 +6,7 @@ members = ["crates/*", "games/*"]
 [workspace.package]
 authors = ["Tony Bierman <tonybierman@gmail.com>"]
 edition = "2021"
-license = "MIT"
+license = "MIT OR Apache-2.0"
 
 # One version of everything, shared across games.
 [workspace.dependencies]
