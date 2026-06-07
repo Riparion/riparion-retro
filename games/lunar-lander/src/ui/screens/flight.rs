@@ -1,6 +1,7 @@
 //! The descent: telemetry log, altitude strip, and the burn controls. Turn
-//! results play back line-by-line (fuel-out auto-advance, contact banners)
-//! before the mode flips to the reckoning.
+//! results reveal line-by-line into a shared `pending` signal (the status
+//! chips and descent strip track the same reveal), then commit to the
+//! engine log in one write once playback finishes.
 
 use dioxus::prelude::*;
 use gloo_timers::future::TimeoutFuture;
@@ -8,15 +9,18 @@ use gloo_timers::future::TimeoutFuture;
 use crate::engine::state::{LogLine, MissionKind};
 use crate::engine::Game;
 use retro_kit::components::number_entry::NumberEntry;
-use retro_kit::theme::{ACTION_BAR, BTN};
+use retro_kit::playback::play_paced;
+use retro_kit::theme::{ACTION_BAR, BTN, PANEL};
 
 use crate::ui::components::descent_strip::DescentStrip;
 
 const LINE_MS: u32 = 350;
+const CONTACT_MS: u32 = 1_000;
 
 #[component]
 pub fn Flight() -> Element {
     let mut game = use_context::<Signal<Game>>();
+    let mut pending = use_context::<Signal<Vec<LogLine>>>();
     let mut busy = use_signal(|| false);
 
     let mut do_burn = move |burn: i64| {
@@ -26,15 +30,11 @@ pub fn Flight() -> Element {
         busy.set(true);
         spawn(async move {
             let lines = game.write().take_turn(burn);
-            let count = lines.len();
-            for (idx, line) in lines.into_iter().enumerate() {
-                game.write().push_log(line);
-                if idx + 1 < count {
-                    TimeoutFuture::new(LINE_MS).await;
-                }
-            }
+            play_paced(lines, LINE_MS, false, move |line| pending.write().push(line)).await;
+            let revealed: Vec<LogLine> = pending.write().drain(..).collect();
+            game.write().extend_log(revealed);
             if game.peek().decided() {
-                TimeoutFuture::new(1_000).await;
+                TimeoutFuture::new(CONTACT_MS).await;
                 game.write().finish_flight();
             }
             busy.set(false);
@@ -42,9 +42,10 @@ pub fn Flight() -> Element {
     };
 
     let g = game.read();
-    let mission = g.mission;
-    let log = g.log.clone();
-    drop(g);
+    let p = pending.read();
+    let mission = g.mission();
+    let max = g.burn_max();
+    let locked = busy() || g.outcome.is_some();
 
     let (alt_head, presets, prompt) = match mission {
         MissionKind::Lunar => (
@@ -58,14 +59,12 @@ pub fn Flight() -> Element {
             "Fuel units to burn this second. Each unit slows you 1 ft/s.",
         ),
     };
-    let max = game.read().burn_max();
-    let locked = busy() || game.read().decided();
     let lock_class = if locked { "opacity-50 pointer-events-none" } else { "" };
 
     rsx! {
         div { class: "flex-1 flex flex-col min-h-0",
             div { class: "flex-1 flex min-h-0 gap-2 px-3 pt-2",
-                div { class: "crt-panel flex-1 flex flex-col min-h-0 text-xs",
+                div { class: "{PANEL} flex-1 flex flex-col min-h-0 text-xs",
                     div { class: "log-grid chip-label border-b border-current/30 px-2 py-1",
                         span { "SEC" }
                         span { "{alt_head}" }
@@ -75,7 +74,7 @@ pub fn Flight() -> Element {
                     }
                     div { class: "flex-1 overflow-y-auto flex flex-col-reverse px-2 py-1",
                         div {
-                            for (i, line) in log.iter().enumerate() {
+                            for (i, line) in g.log.iter().chain(p.iter()).enumerate() {
                                 match line {
                                     LogLine::Row(row) => rsx! {
                                         div { key: "{i}", class: "log-grid py-0.5",

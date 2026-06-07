@@ -21,7 +21,12 @@ fn scores_key(mission: MissionKind) -> &'static str {
 
 /// Resume a saved descent, or start at the splash screen.
 pub fn load_or_new() -> Game {
-    storage::load(SAVE_KEY, SAVE_VERSION).unwrap_or_default()
+    let mut game: Game = storage::load(SAVE_KEY, SAVE_VERSION).unwrap_or_default();
+    // A save written during contact playback is decided but still in
+    // Mode::Flight; the only finish_flight caller is the flight screen's
+    // paced task, which a reload kills. Heal here or the game soft-locks.
+    game.finish_flight();
+    game
 }
 
 pub fn save(game: &Game) {

@@ -2237,6 +2237,7 @@ dependencies = [
  "dioxus",
  "getrandom 0.2.17",
  "gloo-storage",
+ "gloo-timers",
  "rand 0.8.6",
  "rand_pcg",
  "serde",

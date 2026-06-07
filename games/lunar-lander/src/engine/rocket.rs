@@ -28,6 +28,9 @@ pub fn report_row(st: &RocketState, burn: &str) -> TurnRow {
         vel: format!("{} ft/s", fmt_num(st.v)),
         fuel: fmt_num(st.f),
         burn: burn.to_string(),
+        alt_frac: (st.h / START_HEIGHT).clamp(0.0, 1.0),
+        vel_raw: st.v,
+        fuel_raw: st.f,
     }
 }
 

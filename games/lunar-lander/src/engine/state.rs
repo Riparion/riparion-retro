@@ -121,7 +121,10 @@ pub enum LogLine {
     Banner(String),
 }
 
-/// Pre-formatted telemetry, mirroring the original report tables.
+/// Pre-formatted telemetry, mirroring the original report tables, plus the
+/// raw numbers behind it so the status chips and descent strip can track the
+/// *revealed* log during paced playback instead of jumping ahead to the live
+/// engine state.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TurnRow {
     pub sec: String,
@@ -129,6 +132,12 @@ pub struct TurnRow {
     pub vel: String,
     pub fuel: String,
     pub burn: String,
+    /// Altitude over the mission's starting height, clamped 0..=1.
+    pub alt_frac: f64,
+    /// Velocity in display units (MPH for LUNAR, ft/s for ROCKET).
+    pub vel_raw: f64,
+    /// Fuel in display units (lb for LUNAR, units for ROCKET).
+    pub fuel_raw: f64,
 }
 
 pub use retro_kit::format::fmt_num;

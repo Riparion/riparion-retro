@@ -8,6 +8,7 @@ use crate::engine::interaction::Order;
 use crate::engine::state::ITEM_NAMES;
 use crate::engine::Game;
 use retro_kit::components::number_entry::NumberEntry;
+use retro_kit::playback::play_paced;
 use crate::ui::components::ship_display::ShipDisplay;
 use retro_kit::theme::{ACTION_BAR, BTN, PANEL};
 
@@ -28,10 +29,7 @@ pub fn Combat() -> Element {
         busy.set(true);
         spawn(async move {
             let msgs = game.write().battle_order(order);
-            for msg in msgs {
-                log.write().push(msg);
-                TimeoutFuture::new(MESSAGE_MS).await;
-            }
+            play_paced(msgs, MESSAGE_MS, true, move |msg| log.write().push(msg)).await;
             let decided = game
                 .peek()
                 .battle

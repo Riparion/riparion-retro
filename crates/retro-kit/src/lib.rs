@@ -10,6 +10,7 @@
 
 pub mod components;
 pub mod format;
+pub mod playback;
 pub mod rng;
 pub mod storage;
 pub mod theme;

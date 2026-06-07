@@ -2,6 +2,8 @@
 
 use dioxus::prelude::*;
 
+use retro_kit::theme::PANEL;
+
 use crate::engine::combat::Battle;
 
 #[component]
@@ -10,7 +12,7 @@ pub fn ShipDisplay(battle: ReadSignal<Battle>) -> Element {
     let off_screen = b.ships - b.on_screen.len() as i64;
 
     rsx! {
-        div { class: "crt-panel mx-3 p-2",
+        div { class: "{PANEL} mx-3 p-2",
             div { class: "grid grid-cols-5 gap-2",
                 for (i, ship) in b.on_screen.iter().enumerate() {
                     div { key: "{i}", class: "enemy-ship text-center",

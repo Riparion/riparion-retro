@@ -138,8 +138,10 @@ on game over: clear the save and `record_score` exactly once (guard with a
   preview; omit `on_cancel` to hide the Cancel button), `chip::Chip` for
   status-bar chips (label/value + `danger`), and `stat_row::StatRow` for
   label/value reckoning rows. Number display: `retro_kit::format`
-  (`fmt_money`, `group_thousands`, `fmt_num`). If you find yourself copying
-  a component from another game, generalize it **into retro-kit** instead.
+  (`fmt_money`, `group_thousands`, `fmt_num`). Timed message playback:
+  `retro_kit::playback::play_paced` (await it inside the spawned task; the
+  finish logic stays game-side). If you find yourself copying a component
+  from another game, generalize it **into retro-kit** instead.
 
 ## Porting a classic? Spec first
 

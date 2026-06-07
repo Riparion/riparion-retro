@@ -4,7 +4,7 @@
 use dioxus::prelude::*;
 
 use crate::engine::scoring::HighScore;
-use crate::engine::state::Mode;
+use crate::engine::state::{LogLine, Mode};
 use crate::storage;
 use crate::ui::components::status_bar::StatusBar;
 use crate::ui::screens;
@@ -33,6 +33,11 @@ pub fn App() -> Element {
 fn GameRoot() -> Element {
     let mut game = use_signal(storage::load_or_new);
     use_context_provider(|| game);
+    // Mid-playback lines being revealed; not part of the saved Game. The
+    // flight screen pushes here and commits to game.log once per turn, so
+    // autosave fires per turn, not per paced line.
+    let pending = use_signal(Vec::<LogLine>::new);
+    use_context_provider(|| pending);
 
     // Persist mid-flight; finished descents clear the save and, when the
     // craft survived, post a flight record exactly once.

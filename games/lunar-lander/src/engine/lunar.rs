@@ -31,6 +31,9 @@ pub fn report_row(st: &LunarState, burn: &str) -> TurnRow {
         vel: format!("{:.0} mph", 3600.0 * st.v),
         fuel: format!("{:.0} lb", fuel(st)),
         burn: burn.to_string(),
+        alt_frac: (st.a / START_ALTITUDE).clamp(0.0, 1.0),
+        vel_raw: 3600.0 * st.v,
+        fuel_raw: fuel(st),
     }
 }
 

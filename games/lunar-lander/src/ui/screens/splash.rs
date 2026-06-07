@@ -5,7 +5,7 @@ use dioxus::prelude::*;
 use crate::engine::state::{MissionKind, Mode};
 use crate::engine::Game;
 use crate::storage;
-use retro_kit::theme::BTN_PRIMARY;
+use retro_kit::theme::{BTN_PRIMARY, PANEL};
 
 #[component]
 pub fn Splash() -> Element {
@@ -28,7 +28,7 @@ pub fn Splash() -> Element {
             }
             for (title, scores) in [("LUNAR", lunar), ("ROCKET", rocket)] {
                 if !scores.is_empty() {
-                    div { class: "crt-panel p-3 w-full max-w-xs text-left",
+                    div { class: "{PANEL} p-3 w-full max-w-xs text-left",
                         h2 { class: "chip-label mb-2 text-center", "── {title} FLIGHT RECORDS ──" }
                         for (i, hs) in scores.iter().take(5).enumerate() {
                             div { key: "{i}", class: "flex justify-between text-sm gap-2",

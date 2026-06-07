@@ -14,10 +14,9 @@ use state::{EndGame, Flight, LogLine, LunarState, MissionKind, Mode, RocketState
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Game {
     pub mode: Mode,
-    pub mission: MissionKind,
     pub flight: Flight,
-    /// The mission log (telemetry rows + banners), grown by the UI as it
-    /// paces through what `take_turn` returns.
+    /// The mission log (telemetry rows + banners), committed by the UI once
+    /// it has paced through what `take_turn` returned.
     pub log: Vec<LogLine>,
     pub outcome: Option<EndGame>,
 }
@@ -26,26 +25,39 @@ impl Game {
     pub fn new() -> Self {
         Self {
             mode: Mode::Splash,
-            mission: MissionKind::Lunar,
             flight: Flight::Lunar(LunarState::new()),
             log: Vec::new(),
             outcome: None,
         }
     }
 
+    /// Which mission is being flown — derived from the flight state so the
+    /// two can never disagree.
+    pub fn mission(&self) -> MissionKind {
+        match self.flight {
+            Flight::Lunar(_) => MissionKind::Lunar,
+            Flight::Rocket(_) => MissionKind::Rocket,
+        }
+    }
+
     /// Begin a descent: fresh craft, fresh log seeded with the first report.
     pub fn start(&mut self, mission: MissionKind) {
-        self.mission = mission;
         self.outcome = None;
         self.flight = match mission {
             MissionKind::Lunar => Flight::Lunar(LunarState::new()),
             MissionKind::Rocket => Flight::Rocket(RocketState::new()),
         };
-        self.log = vec![LogLine::Row(match &self.flight {
+        self.log = vec![LogLine::Row(self.current_report())];
+        self.mode = Mode::Flight;
+    }
+
+    /// A telemetry row for the live craft state (the fallback when the log
+    /// holds no row yet).
+    pub fn current_report(&self) -> state::TurnRow {
+        match &self.flight {
             Flight::Lunar(st) => lunar::report_row(st, "—"),
             Flight::Rocket(st) => rocket::report_row(st, "—"),
-        })];
-        self.mode = Mode::Flight;
+        }
     }
 
     /// Resolve one burn input. Returns the new log lines for paced playback
@@ -75,8 +87,9 @@ impl Game {
         }
     }
 
-    pub fn push_log(&mut self, line: LogLine) {
-        self.log.push(line);
+    /// Commit a turn's paced lines to the persistent log in one write.
+    pub fn extend_log(&mut self, lines: impl IntoIterator<Item = LogLine>) {
+        self.log.extend(lines);
     }
 
     /// Contact made — the current turn's playback is the last one.
@@ -92,27 +105,10 @@ impl Game {
     }
 
     pub fn burn_max(&self) -> i64 {
-        match self.mission {
+        match self.mission() {
             MissionKind::Lunar => lunar::BURN_MAX,
             MissionKind::Rocket => rocket::BURN_MAX,
         }
-    }
-
-    pub fn fuel_remaining(&self) -> f64 {
-        match &self.flight {
-            Flight::Lunar(st) => lunar::fuel(st),
-            Flight::Rocket(st) => st.f,
-        }
-    }
-
-    /// Altitude as a fraction of the mission's starting height, for the
-    /// descent strip. Clamped to 0..=1.
-    pub fn altitude_frac(&self) -> f64 {
-        let frac = match &self.flight {
-            Flight::Lunar(st) => st.a / lunar::START_ALTITUDE,
-            Flight::Rocket(st) => st.h / rocket::START_HEIGHT,
-        };
-        frac.clamp(0.0, 1.0)
     }
 }
 
@@ -128,14 +124,16 @@ mod tests {
     use state::Landing;
 
     fn assert_sane(game: &Game) {
-        assert!(game.fuel_remaining() >= -1e-9, "fuel went negative");
-        let (alt, vel, time) = match &game.flight {
-            Flight::Lunar(st) => (st.a, st.v, st.l),
-            Flight::Rocket(st) => (st.h, st.v, st.t),
+        let (alt, vel, time, fuel) = match &game.flight {
+            Flight::Lunar(st) => (st.a, st.v, st.l, lunar::fuel(st)),
+            Flight::Rocket(st) => (st.h, st.v, st.t, st.f),
         };
+        assert!(fuel >= -1e-9, "fuel went negative");
         for x in [alt, vel, time] {
             assert!(x.is_finite(), "non-finite state");
         }
+        let row = game.current_report();
+        assert!((0.0..=1.0).contains(&row.alt_frac), "alt_frac out of range");
     }
 
     /// Play a whole mission through the public API and check invariants.
@@ -145,9 +143,7 @@ mod tests {
         let mut last_time = -1.0;
         for turn in 0..300 {
             let lines = game.take_turn(burns(turn));
-            for line in lines {
-                game.push_log(line);
-            }
+            game.extend_log(lines);
             assert_sane(&game);
             let time = match &game.flight {
                 Flight::Lunar(st) => st.l,
@@ -204,12 +200,34 @@ mod tests {
     fn save_round_trip_mid_flight() {
         let mut game = Game::new();
         game.start(MissionKind::Lunar);
-        for line in game.take_turn(50) {
-            game.push_log(line);
-        }
+        let lines = game.take_turn(50);
+        game.extend_log(lines);
         let json = serde_json::to_string(&game).expect("serialize");
         let back: Game = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(game, back);
+    }
+
+    /// A save written during contact playback has outcome set but mode still
+    /// Flight; loading must heal it to GameOver (`load_or_new` calls
+    /// `finish_flight`), otherwise the flight screen soft-locks — no input
+    /// dispatches a turn once `decided()`, so nothing else flips the mode.
+    #[test]
+    fn decided_flight_save_heals_to_game_over() {
+        let mut game = Game::new();
+        game.start(MissionKind::Rocket);
+        game.flight = Flight::Rocket(RocketState { t: 0.0, h: 1.0, v: 50.0, f: 0.0 });
+        game.take_turn(0);
+        assert!(game.decided());
+        assert_eq!(game.mode, Mode::Flight, "mode flips only in finish_flight");
+        let json = serde_json::to_string(&game).expect("serialize");
+        let mut back: Game = serde_json::from_str(&json).expect("deserialize");
+        back.finish_flight(); // what load_or_new does on every load
+        assert_eq!(back.mode, Mode::GameOver);
+        // ...and an undecided save is left alone.
+        let mut fresh = Game::new();
+        fresh.start(MissionKind::Lunar);
+        fresh.finish_flight();
+        assert_eq!(fresh.mode, Mode::Flight);
     }
 
     #[test]
