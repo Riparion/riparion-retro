@@ -58,8 +58,10 @@ cat > "$dir/Dioxus.toml" <<EOF
 title = "$name"
 EOF
 
-# Tailwind: dx auto-compiles the root input into assets/tailwind.css.
-echo '@import "tailwindcss";' > "$dir/tailwind.css"
+# Tailwind: dx auto-compiles the root input into assets/tailwind.css. The
+# @source pulls in utility classes used inside retro-kit's shared components
+# (the scan only covers the game crate's own sources by default).
+printf '@import "tailwindcss";\n@source "../../crates/retro-kit/src";\n' > "$dir/tailwind.css"
 : > "$dir/assets/tailwind.css"
 
 cat > "$dir/assets/main.css" <<EOF

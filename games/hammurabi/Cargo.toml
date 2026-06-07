@@ -1,0 +1,20 @@
+[package]
+name = "hammurabi"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+retro-kit = { workspace = true }
+
+dioxus = { workspace = true }
+serde = { workspace = true }
+gloo-timers = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[features]
+default = ["web"]
+web = ["dioxus/web"]
