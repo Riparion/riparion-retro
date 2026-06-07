@@ -7,7 +7,6 @@ Cargo workspace — one crate per game under `games/`.
 | Game | | Description |
 |---|---|---|
 | [taipan](games/taipan/) | <img src="games/taipan/screenshot.png" width="120" alt="Taipan screenshot"> | Faithful port of Art Canfil's 1982 Apple ][ trading classic |
-| [lunar-lander](games/lunar-lander/) | <img src="games/lunar-lander/screenshot.png" width="120" alt="Lunar Lander screenshot"> | The 1969/1978 BASIC classic — LUNAR and ROCKET mission modes |
 | [hammurabi](games/hammurabi/) | <img src="games/hammurabi/screenshot.png" width="120" alt="Hammurabi screenshot"> | The 1968/1978 BASIC city-state classic — rule Sumeria for ten years |
 | [fur-trader](games/fur-trader/) | <img src="games/fur-trader/screenshot.png" width="120" alt="Fur Trader screenshot"> | The 1976 BASIC fur-trading classic — outfit expeditions from Lake Ontario |
 
