@@ -5,7 +5,8 @@ use dioxus::prelude::*;
 use crate::engine::state::Mode;
 use crate::engine::Game;
 use crate::storage;
-use retro_kit::theme::{BTN_PRIMARY, PANEL};
+use retro_kit::components::score_board::ScoreBoard;
+use retro_kit::theme::BTN_PRIMARY;
 
 #[component]
 pub fn Splash() -> Element {
@@ -25,16 +26,12 @@ pub fn Splash() -> Element {
                 onclick: move |_| game.write().mode = Mode::NewGame,
                 "SET SAIL"
             }
-            if !scores.is_empty() {
-                div { class: "{PANEL} p-3 w-full max-w-xs text-left",
-                    h2 { class: "chip-label mb-2 text-center", "── HALL OF TAIPANS ──" }
-                    for (i, hs) in scores.iter().enumerate() {
-                        div { key: "{i}", class: "flex justify-between text-sm gap-2",
-                            span { class: "truncate", "{hs.firm}" }
-                            span { class: "opacity-80 shrink-0", "{hs.score} · {hs.rank}" }
-                        }
-                    }
-                }
+            ScoreBoard {
+                title: "HALL OF TAIPANS".to_string(),
+                rows: scores
+                    .iter()
+                    .map(|hs| (hs.firm.clone(), format!("{} · {}", hs.score, hs.rank)))
+                    .collect::<Vec<_>>(),
             }
             p { class: "text-xs opacity-60", "After the 1982 Apple ][ classic by Art Canfil" }
         }

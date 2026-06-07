@@ -48,8 +48,11 @@ manual steps, for reference:
    New shared dependencies go in root `[workspace.dependencies]`, never
    pinned in a game crate.
 3. `games/<name>/Dioxus.toml`: minimal `[application]` + `[web.app] title`.
-4. `games/<name>/tailwind.css` containing `@import "tailwindcss";` and an
-   empty `games/<name>/assets/tailwind.css` — dx auto-compiles input → output.
+4. `games/<name>/tailwind.css` containing `@import "tailwindcss";` plus
+   `@source "../../crates/retro-kit/src";` (the scan only covers the game's
+   own sources — without the @source, utilities used only inside retro-kit
+   components silently vanish from the build), and an empty
+   `games/<name>/assets/tailwind.css` — dx auto-compiles input → output.
 5. App root (see `games/taipan/src/app.rs`) must link, in this order:
 
    ```rust

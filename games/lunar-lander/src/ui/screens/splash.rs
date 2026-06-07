@@ -5,7 +5,8 @@ use dioxus::prelude::*;
 use crate::engine::state::{MissionKind, Mode};
 use crate::engine::Game;
 use crate::storage;
-use retro_kit::theme::{BTN_PRIMARY, PANEL};
+use retro_kit::components::score_board::ScoreBoard;
+use retro_kit::theme::BTN_PRIMARY;
 
 #[component]
 pub fn Splash() -> Element {
@@ -27,16 +28,13 @@ pub fn Splash() -> Element {
                 "BEGIN MISSION"
             }
             for (title, scores) in [("LUNAR", lunar), ("ROCKET", rocket)] {
-                if !scores.is_empty() {
-                    div { class: "{PANEL} p-3 w-full max-w-xs text-left",
-                        h2 { class: "chip-label mb-2 text-center", "── {title} FLIGHT RECORDS ──" }
-                        for (i, hs) in scores.iter().take(5).enumerate() {
-                            div { key: "{i}", class: "flex justify-between text-sm gap-2",
-                                span { class: "truncate", "{hs.quality} · {hs.impact}" }
-                                span { class: "opacity-80 shrink-0", "{hs.score}" }
-                            }
-                        }
-                    }
+                ScoreBoard {
+                    title: format!("{title} FLIGHT RECORDS"),
+                    rows: scores
+                        .iter()
+                        .take(5)
+                        .map(|hs| (format!("{} · {}", hs.quality, hs.impact), hs.score.to_string()))
+                        .collect::<Vec<_>>(),
                 }
             }
             p { class: "text-xs opacity-60 max-w-xs",

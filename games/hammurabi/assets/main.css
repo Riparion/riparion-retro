@@ -1,0 +1,24 @@
+/* hammurabi — game-specific styling. The CRT identity (palette, scanlines,
+   buttons, inputs, panels) comes from retro-kit's crt.css; layer on the
+   shared CSS vars (--phosphor, --phosphor-dim, ...) — don't fork them. */
+
+/* The steward's report scroll. */
+.log-line {
+    line-height: 1.4;
+}
+
+.log-head {
+    margin-top: 0.75rem;
+    opacity: 0.85;
+}
+
+.log-alert {
+    color: var(--danger);
+    text-shadow: 0 0 4px rgba(255, 184, 77, 0.55);
+}
+
+/* Reckoning banner: splash-title glow at a size that fits 390px wide
+   (crt.css is unlayered, so Tailwind's text-* utilities can't shrink it). */
+.endgame-banner {
+    font-size: 1.6rem;
+}
