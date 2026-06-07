@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 
 use crate::engine::state::fmt_money;
 use crate::engine::Game;
+use retro_kit::components::chip::Chip;
 
 #[component]
 pub fn StatusBar() -> Element {
@@ -19,8 +20,8 @@ pub fn StatusBar() -> Element {
     let sw = s.seaworthiness();
     let sw_title = s.seaworthiness_title();
     let danger = if sw < 40 { "chip-danger" } else { "" };
-    let debt_class = if s.debt > 10_000.0 { "chip-danger" } else { "" };
-    let hold_class = if hold_free < 0 { "chip-danger" } else { "" };
+    let debt_danger = s.debt > 10_000.0;
+    let hold_danger = hold_free < 0;
 
     rsx! {
         header { class: "status-bar shrink-0",
@@ -33,21 +34,13 @@ pub fn StatusBar() -> Element {
                 span { class: "{danger}", "Ship: {sw_title} ({sw}%)" }
             }
             div { class: "grid grid-cols-4 gap-px text-center text-xs pb-1 px-1",
-                div { class: "chip",
-                    div { class: "chip-label", "CASH" }
-                    div { "{fmt_money(s.cash)}" }
-                }
-                div { class: "chip",
-                    div { class: "chip-label", "BANK" }
-                    div { "{fmt_money(s.bank)}" }
-                }
-                div { class: "chip {debt_class}",
-                    div { class: "chip-label", "DEBT" }
-                    div { "{fmt_money(s.debt)}" }
-                }
-                div { class: "chip {hold_class}",
-                    div { class: "chip-label", "HOLD · GUNS" }
-                    div { "{hold_free} · {s.guns}" }
+                Chip { label: "CASH", value: fmt_money(s.cash) }
+                Chip { label: "BANK", value: fmt_money(s.bank) }
+                Chip { label: "DEBT", value: fmt_money(s.debt), danger: debt_danger }
+                Chip {
+                    label: "HOLD · GUNS",
+                    value: format!("{hold_free} · {}", s.guns),
+                    danger: hold_danger,
                 }
             }
         }

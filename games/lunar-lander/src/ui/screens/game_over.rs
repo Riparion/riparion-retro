@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 
 use crate::engine::state::{fmt_num, Mode};
 use crate::engine::Game;
+use retro_kit::components::stat_row::StatRow;
 use retro_kit::theme::{BTN, BTN_PRIMARY, PANEL};
 
 #[component]
@@ -28,12 +29,12 @@ pub fn GameOver() -> Element {
                 p { class: "max-w-sm leading-snug text-sm opacity-80", "{end.detail}" }
             }
             div { class: "{PANEL} p-4 w-full max-w-sm text-left text-sm flex flex-col gap-1",
-                Row { label: "Mission", value: end.mission.title().to_string() }
-                Row { label: "Outcome", value: end.quality.label().to_string() }
-                Row { label: "Impact velocity", value: end.impact.clone() }
-                Row { label: "Flight time", value: format!("{} seconds", fmt_num(end.elapsed.round())) }
-                Row { label: "Fuel remaining", value: fmt_num(end.fuel_left.floor()) }
-                Row { label: "Score", value: end.score.to_string() }
+                StatRow { label: "Mission", value: end.mission.title().to_string() }
+                StatRow { label: "Outcome", value: end.quality.label().to_string() }
+                StatRow { label: "Impact velocity", value: end.impact.clone() }
+                StatRow { label: "Flight time", value: format!("{} seconds", fmt_num(end.elapsed.round())) }
+                StatRow { label: "Fuel remaining", value: fmt_num(end.fuel_left.floor()) }
+                StatRow { label: "Score", value: end.score.to_string() }
             }
             div { class: "flex gap-2 w-full max-w-sm",
                 button {
@@ -51,12 +52,3 @@ pub fn GameOver() -> Element {
     }
 }
 
-#[component]
-fn Row(label: String, value: String) -> Element {
-    rsx! {
-        div { class: "flex justify-between gap-3",
-            span { class: "chip-label", "{label}" }
-            span { class: "text-right", "{value}" }
-        }
-    }
-}

@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 
 use crate::engine::state::{fmt_money, Mode};
 use crate::engine::Game;
+use retro_kit::components::stat_row::StatRow;
 use retro_kit::theme::{BTN, BTN_PRIMARY, PANEL};
 
 #[component]
@@ -30,15 +31,15 @@ pub fn GameOver() -> Element {
             h1 { class: if end.retired { "splash-title" } else { "splash-title chip-danger" }, "{banner}" }
             p { class: "max-w-sm leading-snug", "{end.cause}" }
             div { class: "{PANEL} p-4 w-full max-w-sm text-left text-sm flex flex-col gap-1",
-                Row { label: "Firm", value: firm }
-                Row { label: "Net cash", value: fmt_money(end.net_worth) }
-                Row { label: "Ship", value: format!("{} units, {} guns", end.capacity, end.guns) }
-                Row {
+                StatRow { label: "Firm", value: firm }
+                StatRow { label: "Net cash", value: fmt_money(end.net_worth) }
+                StatRow { label: "Ship", value: format!("{} units, {} guns", end.capacity, end.guns) }
+                StatRow {
                     label: "Time traded",
                     value: format!("{} year(s), {} month(s)", end.years, end.months),
                 }
-                Row { label: "Score", value: end.score.to_string() }
-                Row { label: "Rating", value: end.rank.clone() }
+                StatRow { label: "Score", value: end.score.to_string() }
+                StatRow { label: "Rating", value: end.rank.clone() }
             }
             if let Some(advice) = advice {
                 p { class: "text-sm opacity-80 max-w-sm", "{advice}" }
@@ -59,12 +60,3 @@ pub fn GameOver() -> Element {
     }
 }
 
-#[component]
-fn Row(label: String, value: String) -> Element {
-    rsx! {
-        div { class: "flex justify-between gap-3",
-            span { class: "chip-label", "{label}" }
-            span { class: "text-right", "{value}" }
-        }
-    }
-}

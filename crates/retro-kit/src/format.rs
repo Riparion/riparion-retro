@@ -52,9 +52,26 @@ pub fn group_thousands(mut n: i64) -> String {
     }
 }
 
+/// Trim a float for display: integers bare, otherwise one decimal.
+pub fn fmt_num(x: f64) -> String {
+    if (x - x.round()).abs() < 1e-9 {
+        format!("{:.0}", x.round())
+    } else {
+        format!("{x:.1}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn number_trimming() {
+        assert_eq!(fmt_num(947.5), "947.5");
+        assert_eq!(fmt_num(890.0), "890");
+        assert_eq!(fmt_num(-35.0), "-35");
+        assert_eq!(fmt_num(0.0), "0");
+    }
 
     #[test]
     fn money_formatting() {

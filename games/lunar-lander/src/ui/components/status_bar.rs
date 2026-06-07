@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 
 use crate::engine::state::{fmt_lunar_alt, fmt_num, Flight, MissionKind};
 use crate::engine::Game;
+use retro_kit::components::chip::Chip;
 
 #[component]
 pub fn StatusBar() -> Element {
@@ -35,9 +36,6 @@ pub fn StatusBar() -> Element {
         MissionKind::Lunar => "Apollo capsule · manual control",
         MissionKind::Rocket => "Final approach · 1-second bursts",
     };
-    let vel_class = if vel_danger { "chip-danger" } else { "" };
-    let fuel_class = if fuel_danger { "chip-danger" } else { "" };
-
     rsx! {
         header { class: "status-bar shrink-0",
             div { class: "flex justify-between items-baseline px-3 pt-2 pb-1",
@@ -45,22 +43,10 @@ pub fn StatusBar() -> Element {
                 span { class: "opacity-80 text-sm", "{subtitle}" }
             }
             div { class: "grid grid-cols-4 gap-px text-center text-xs pb-1 px-1",
-                div { class: "chip",
-                    div { class: "chip-label", "TIME" }
-                    div { "{time}" }
-                }
-                div { class: "chip",
-                    div { class: "chip-label", "ALT" }
-                    div { "{alt}" }
-                }
-                div { class: "chip {vel_class}",
-                    div { class: "chip-label", "VEL" }
-                    div { "{vel}" }
-                }
-                div { class: "chip {fuel_class}",
-                    div { class: "chip-label", "FUEL" }
-                    div { "{fuel}" }
-                }
+                Chip { label: "TIME", value: time }
+                Chip { label: "ALT", value: alt }
+                Chip { label: "VEL", value: vel, danger: vel_danger }
+                Chip { label: "FUEL", value: fuel, danger: fuel_danger }
             }
         }
     }

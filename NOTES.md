@@ -135,8 +135,11 @@ on game over: clear the save and `record_score` exactly once (guard with a
   (`var(--phosphor)` etc.). Never fork the palette in a game.
 - Reusable UI: `retro_kit::components::number_entry::NumberEntry` for all
   quantity/amount input (numeric soft keyboard + "All" button + live cost
-  preview). If you build a second game and find yourself copying a taipan
-  component, generalize it **into retro-kit** instead.
+  preview; omit `on_cancel` to hide the Cancel button), `chip::Chip` for
+  status-bar chips (label/value + `danger`), and `stat_row::StatRow` for
+  label/value reckoning rows. Number display: `retro_kit::format`
+  (`fmt_money`, `group_thousands`, `fmt_num`). If you find yourself copying
+  a component from another game, generalize it **into retro-kit** instead.
 
 ## Porting a classic? Spec first
 

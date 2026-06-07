@@ -131,14 +131,7 @@ pub struct TurnRow {
     pub burn: String,
 }
 
-/// Trim a float for display: integers bare, otherwise one decimal.
-pub fn fmt_num(x: f64) -> String {
-    if (x - x.round()).abs() < 1e-9 {
-        format!("{:.0}", x.round())
-    } else {
-        format!("{x:.1}")
-    }
-}
+pub use retro_kit::format::fmt_num;
 
 /// LUNAR altitude the way line 150 reports it: `INT(A)` miles + leftover feet.
 pub fn fmt_lunar_alt(a: f64) -> String {
