@@ -1,0 +1,44 @@
+/* ───────────────────────────────────────────────────────────────
+   Taipan! — game-specific styling. The CRT identity (palette,
+   scanlines, buttons, inputs, panels) comes from retro-kit's crt.css.
+   ─────────────────────────────────────────────────────────────── */
+
+.price-row td {
+    padding: 0.35rem 0;
+    border-bottom: 1px dotted var(--phosphor-faint);
+}
+
+.enemy-ship {
+    animation: bob 2.4s ease-in-out infinite;
+}
+
+.enemy-ship:nth-child(2n) {
+    animation-delay: -1.2s;
+}
+
+@media (prefers-reduced-motion) {
+    .enemy-ship {
+        animation: none;
+    }
+}
+
+@keyframes bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(2px); }
+}
+
+.hull-bar {
+    height: 4px;
+    border: 1px solid var(--phosphor-faint);
+    margin-top: 2px;
+}
+
+.hull-fill {
+    height: 100%;
+    background: var(--phosphor);
+    transition: width 300ms;
+}
+
+.battle-flash {
+    border-bottom: 1px double var(--phosphor-dim);
+}

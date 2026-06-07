@@ -1,0 +1,27 @@
+[workspace]
+resolver = "2"
+members = ["crates/*", "games/*"]
+
+# Shared metadata for all game crates (inherit with `key.workspace = true`).
+[workspace.package]
+authors = ["Tony Bierman <tonybierman@gmail.com>"]
+edition = "2021"
+license = "MIT"
+
+# One version of everything, shared across games.
+[workspace.dependencies]
+retro-kit = { path = "crates/retro-kit" }
+dioxus = { version = "0.7.1", features = ["web"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+gloo-storage = "0.3"
+gloo-timers = { version = "0.3", features = ["futures"] }
+rand = { version = "0.8", default-features = false }
+rand_pcg = { version = "0.3", features = ["serde1"] }
+getrandom = { version = "0.2", features = ["js"] }
+
+# Small, lean wasm bundles for every game.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1

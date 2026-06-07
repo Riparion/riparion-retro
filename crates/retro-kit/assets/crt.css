@@ -1,0 +1,185 @@
+/* ───────────────────────────────────────────────────────────────
+   retro-kit — shared green-phosphor CRT theme.
+   Tailwind handles layout in each game; identity lives here.
+   Game-specific flourishes belong in the game's own stylesheet.
+   ─────────────────────────────────────────────────────────────── */
+
+:root {
+    --phosphor: #33ff66;
+    --phosphor-dim: #1f9c3f;
+    --phosphor-faint: #145f28;
+    --danger: #ffb84d;
+    --bg: #020402;
+    --glow: 0 0 4px rgba(51, 255, 102, 0.55);
+}
+
+* {
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--bg);
+    overscroll-behavior: none;
+}
+
+body {
+    color: var(--phosphor);
+    font-family: ui-monospace, 'Cascadia Mono', 'JetBrains Mono', Menlo,
+        Consolas, 'Courier New', monospace;
+    text-shadow: var(--glow);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* The whole app sits inside the tube. */
+.crt {
+    position: relative;
+    background:
+        radial-gradient(ellipse at center, rgba(51, 255, 102, 0.05) 0%, transparent 70%),
+        var(--bg);
+}
+
+/* Scanlines + faint vignette overlay. */
+.crt::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 50;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0) 0px,
+        rgba(0, 0, 0, 0) 2px,
+        rgba(0, 0, 0, 0.18) 2px,
+        rgba(0, 0, 0, 0.18) 4px
+    );
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .crt::after {
+        animation: crt-flicker 6s infinite;
+    }
+    @keyframes crt-flicker {
+        0%, 100% { opacity: 1; }
+        92% { opacity: 1; }
+        93% { opacity: 0.85; }
+        94% { opacity: 1; }
+    }
+}
+
+/* ── Panels & chrome ─────────────────────────────────────────── */
+
+.crt-panel {
+    border: 1px solid var(--phosphor-dim);
+    border-radius: 2px;
+    background: rgba(51, 255, 102, 0.03);
+}
+
+.status-bar {
+    border-bottom: 1px double var(--phosphor-dim);
+    background: rgba(51, 255, 102, 0.04);
+    padding-top: env(safe-area-inset-top);
+}
+
+.chip {
+    border: 1px solid var(--phosphor-faint);
+    padding: 2px 1px;
+}
+
+.chip-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    color: var(--phosphor-dim);
+    text-shadow: none;
+}
+
+.chip-danger {
+    color: var(--danger);
+    text-shadow: 0 0 4px rgba(255, 184, 77, 0.5);
+}
+
+.action-bar {
+    position: sticky;
+    bottom: 0;
+    padding: 0.5rem 0.75rem;
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+    border-top: 1px double var(--phosphor-dim);
+    background: var(--bg);
+}
+
+/* ── Touch buttons ───────────────────────────────────────────── */
+
+.crt-btn {
+    min-height: 48px;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--phosphor);
+    border-radius: 2px;
+    background: transparent;
+    color: var(--phosphor);
+    font: inherit;
+    text-shadow: var(--glow);
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    touch-action: manipulation;
+    user-select: none;
+    transition: background 80ms, color 80ms;
+}
+
+.crt-btn:active:not(:disabled),
+.crt-btn:focus-visible {
+    background: var(--phosphor);
+    color: var(--bg);
+    text-shadow: none;
+}
+
+.crt-btn:disabled {
+    border-color: var(--phosphor-faint);
+    color: var(--phosphor-faint);
+    text-shadow: none;
+    cursor: default;
+}
+
+.crt-btn-primary {
+    background: rgba(51, 255, 102, 0.12);
+    border-width: 2px;
+    font-weight: bold;
+}
+
+/* ── Inputs ──────────────────────────────────────────────────── */
+
+.crt-input {
+    min-height: 48px;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--phosphor-dim);
+    border-radius: 2px;
+    background: rgba(51, 255, 102, 0.05);
+    color: var(--phosphor);
+    font: inherit;
+    text-shadow: var(--glow);
+    width: 100%;
+}
+
+.crt-input:focus {
+    outline: none;
+    border-color: var(--phosphor);
+}
+
+.crt-input::-webkit-outer-spin-button,
+.crt-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+}
+
+/* ── Title screens ───────────────────────────────────────────── */
+
+.splash-title {
+    font-size: 2.8rem;
+    letter-spacing: 0.25em;
+    margin: 0;
+    text-shadow:
+        0 0 6px rgba(51, 255, 102, 0.8),
+        0 0 24px rgba(51, 255, 102, 0.4);
+}
