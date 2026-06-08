@@ -33,6 +33,10 @@ pub fn App() -> Element {
 fn GameRoot() -> Element {
     let mut game = use_signal(storage::load_or_new);
     use_context_provider(|| game);
+    // Every load opens on the title screen, even when a save resumes a journey
+    // (the splash then offers RESUME / NEW GAME). See NOTES.md "Start screen".
+    let on_splash = use_signal(|| true);
+    use_context_provider(|| on_splash);
 
     // Persist every transition; finished journeys clear the save and post a score.
     use_effect(move || {
@@ -54,7 +58,12 @@ fn GameRoot() -> Element {
     });
 
     let mode = game.read().mode.clone();
-    let in_game = !matches!(mode, Mode::Splash | Mode::NewGame | Mode::Outfit | Mode::GameOver);
+    let show_splash = on_splash();
+    let in_game = !show_splash
+        && !matches!(
+            mode,
+            Mode::Splash | Mode::NewGame | Mode::Outfit | Mode::GameOver
+        );
 
     rsx! {
         div { class: "crt flex flex-col h-[100dvh] overflow-hidden",
@@ -62,7 +71,10 @@ fn GameRoot() -> Element {
                 StatusBar {}
             }
             div { class: "flex-1 overflow-y-auto flex flex-col",
-                match mode {
+                if show_splash {
+                    screens::splash::Splash {}
+                } else {
+                    match mode {
                     Mode::Splash => rsx! { screens::splash::Splash {} },
                     Mode::NewGame => rsx! { screens::new_game::NewGame {} },
                     Mode::Outfit => rsx! { screens::outfit::Outfit {} },
@@ -73,6 +85,7 @@ fn GameRoot() -> Element {
                     Mode::Riders => rsx! { screens::riders::Riders {} },
                     Mode::Interaction => rsx! { screens::interaction_host::InteractionHost {} },
                     Mode::GameOver => rsx! { screens::game_over::GameOver {} },
+                    }
                 }
             }
         }

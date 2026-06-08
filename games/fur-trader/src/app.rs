@@ -40,6 +40,11 @@ fn GameRoot() -> Element {
     // Chip snapshot shown while a journal entry is pacing (see StatusBar).
     let frozen = use_signal(|| ChipStats::of(&game.peek()));
     use_context_provider(|| frozen);
+    // Every load opens on the title screen, even when a save resumes an
+    // expedition (the splash then offers RESUME / NEW GAME). See NOTES.md
+    // "Start screen".
+    let on_splash = use_signal(|| true);
+    use_context_provider(|| on_splash);
 
     // Persist mid-run; finished runs clear the save and enter the hall of
     // traders exactly once.
@@ -71,8 +76,12 @@ fn GameRoot() -> Element {
     });
 
     let mode = game.read().mode.clone();
-    let in_game =
-        matches!(mode, Mode::Allocate | Mode::FortSelect | Mode::FortConfirm | Mode::Results);
+    let show_splash = on_splash();
+    let in_game = !show_splash
+        && matches!(
+            mode,
+            Mode::Allocate | Mode::FortSelect | Mode::FortConfirm | Mode::Results
+        );
 
     rsx! {
         div { class: "crt flex flex-col h-[100dvh] overflow-hidden",
@@ -80,13 +89,17 @@ fn GameRoot() -> Element {
                 StatusBar {}
             }
             div { class: "flex-1 overflow-y-auto flex flex-col",
-                match mode {
-                    Mode::Splash => rsx! { screens::splash::Splash {} },
-                    Mode::Allocate => rsx! { screens::allocate::Allocate {} },
-                    Mode::FortSelect => rsx! { screens::fort_select::FortSelect {} },
-                    Mode::FortConfirm => rsx! { screens::fort_confirm::FortConfirm {} },
-                    Mode::Results => rsx! { screens::results::Results {} },
-                    Mode::GameOver => rsx! { screens::game_over::GameOver {} },
+                if show_splash {
+                    screens::splash::Splash {}
+                } else {
+                    match mode {
+                        Mode::Splash => rsx! { screens::splash::Splash {} },
+                        Mode::Allocate => rsx! { screens::allocate::Allocate {} },
+                        Mode::FortSelect => rsx! { screens::fort_select::FortSelect {} },
+                        Mode::FortConfirm => rsx! { screens::fort_confirm::FortConfirm {} },
+                        Mode::Results => rsx! { screens::results::Results {} },
+                        Mode::GameOver => rsx! { screens::game_over::GameOver {} },
+                    }
                 }
             }
         }

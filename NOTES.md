@@ -110,6 +110,27 @@ Auto-save from one `use_effect` in the app root that reads the game signal;
 on game over: clear the save and `record_score` exactly once (guard with a
 `recorded` flag inside the game state).
 
+**Start screen (required).** Every game must open on its title/splash screen
+on every load — never drop the player straight into a resumed game. A save
+loads in a gameplay `Mode`, so gate the splash with a session signal rather
+than the `mode`: `let on_splash = use_signal(|| true)` in the app root,
+provided via context; the root renders `Splash` whenever `on_splash()` is
+true (and hides the `StatusBar`), otherwise it matches on `mode`. The splash
+detects a resumable save with `game.peek().mode != Mode::Splash` and, when
+true, shows **RESUME** (just `on_splash.set(false)` — the loaded `mode`
+renders) alongside **NEW GAME** (the normal start action + `on_splash.set
+(false)`); a fresh game shows only the single start button. Keep the start
+action in one button whose label/class varies by `resumable` — a closure
+shared across two `if`-branch buttons fails to compile (closures aren't
+`Copy`, so they can't move into two `onclick`s). The auto-save effect is
+unaffected: while the resume splash shows, `mode` is still the gameplay mode,
+so the existing save arm re-persists the identical state harmlessly.
+
+The splash also ends with two muted footer lines: the period attribution
+(`text-xs opacity-60`, "After … as published in …"), then a porting credit
+`p { class: "text-xs opacity-50", "Ported to mobile by Tony Bierman" }` —
+include both on every game's title screen.
+
 ## Dioxus 0.7 pitfalls (each of these bit once)
 
 - **Never hold a signal borrow across `.await`** — root `clippy.toml` makes
@@ -185,3 +206,58 @@ shows the game being played — edit the localStorage save via
 `data.mode`, then reload). Embed it in the game's README and add it to the
 table in the root README (`<img src="games/<name>/screenshot.png"
 width="120">`). Re-capture whenever the look changes materially.
+
+## Icons
+
+Every game ships a PWA/home-screen icon set in `games/<name>/assets/`, all in
+the CRT palette (`#020402` field, `#33ff66` phosphor glyph, faint glow):
+
+- `icon.svg` — scalable master / favicon source (the `any` framing).
+- `icon-192.png`, `icon-512.png` — `purpose: any`; transparent rounded tile
+  with a dim keyline.
+- `icon-192-maskable.png`, `icon-512-maskable.png` — `purpose: maskable`;
+  **opaque, full-bleed**, glyph kept inside the adaptive safe zone (inner
+  ~80%, the radius-40% circle) so Android's circle/squircle crop never clips
+  it.
+- `apple-touch-icon.png` — 180×180, **opaque, full-bleed, square** (iOS
+  ignores the manifest for Add-to-Home-Screen, composites transparency on
+  black, and rounds the corners itself).
+
+**The one required file is `games/<name>/assets/icon-512.png`.** riparion-cms's
+builder auto-discovers it at build (priority `icon-512.png` → `icon.png` →
+`apple-touch-icon.png`, searched in the game's `assets/` then the repo root),
+materializes it into the media library at publish, and serves it as the run
+surface's manifest + apple-touch icon and the Launch-button thumbnail. PNG only
+(iOS won't take an SVG apple-touch icon). No `icon-512.png` ⇒ the game still
+runs, just with no custom icon. The other files in the set are derived for
+completeness / future use.
+
+The glyph masters and the render pipeline live in `scripts/gen-icons.mjs`
+(authored in a 0..100 design space, rasterised with headless Chromium for
+SVG-filter/glow fidelity — same playwright-core recipe as the screenshots).
+Regenerate the whole set with `node scripts/gen-icons.mjs`.
+
+**Adding a game's icon** (the only manual step — authoring the silhouette is a
+small creative act the tooling can't do for you):
+
+1. Add a `<game-dir>: { adj: 1.0, svg: \`…\` }` entry to the `GLYPHS` map in
+   `scripts/gen-icons.mjs` — one bold silhouette in the `#33ff66` phosphor,
+   drawn to fill roughly the central 80% of the 0..100 canvas (use the four
+   existing glyphs as the model; keep it legible at 48px, no fine detail).
+2. `node scripts/gen-icons.mjs --sheet` — writes the six files into the game's
+   `assets/` and a `/tmp/icon-contact-sheet.png` QA sheet.
+3. **Look at the sheet.** Each row shows any / maskable (with the Android
+   adaptive crop circle overlaid) / apple-touch. Confirm the glyph reads at
+   size and sits inside the crop circle; tweak the glyph (or its `adj` scale)
+   and re-run until it does.
+
+**The manifest is not in the bundle.** dx content-hashes anything routed
+through `asset!()` (that's why bare `/favicon.ico` 404s — the real one is
+hashed), so a manifest can't reference stable icon URLs from inside the
+bundle. riparion-cms serves each game standalone at `/apps/<slug>/run/` (a
+top-level document, not an iframe — verified in its `reader/apps.rs` /
+`apps_static.rs`) and already rewrites that `index.html` + owns the canonical
+apps origin and the app's display name. So the CMS is the right owner of the
+per-slug manifest (`name`, `start_url`/`scope` = `/apps/<slug>/run/`, shared
+`theme_color`/`background_color`) and the `<head>` links (`manifest`,
+`apple-touch-icon`, `theme-color`); this repo only provides the art.

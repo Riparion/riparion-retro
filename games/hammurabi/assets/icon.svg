@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 100 100">
+  <defs><filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.1" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+  <rect x="3" y="3" width="94" height="94" rx="20" ry="20" fill="#020402"/>
+       <rect x="4.6" y="4.6" width="90.8" height="90.8" rx="18" ry="18" fill="none" stroke="#1f9c3f" stroke-width="1.3"/>
+  <g filter="url(#glow)" transform="translate(50 50) scale(0.9250) translate(-50 -50)">
+    <polygon points="16,86 84,86 76,74 24,74" fill="#33ff66"/>
+    <polygon points="26,72 74,72 67,60 33,60" fill="#33ff66"/>
+    <polygon points="35,58 65,58 59,48 41,48" fill="#33ff66"/>
+    <rect x="44" y="38" width="12" height="8" fill="#33ff66"/>
+    <polygon points="50,29 45.5,38 54.5,38" fill="#33ff66"/>
+    <rect x="46.5" y="48" width="7" height="38" fill="#020402"/>
+    <g fill="#33ff66">
+      <rect x="46.5" y="52" width="7" height="1.6"/><rect x="46.5" y="58" width="7" height="1.6"/>
+      <rect x="46.5" y="64" width="7" height="1.6"/><rect x="46.5" y="70" width="7" height="1.6"/>
+      <rect x="46.5" y="76" width="7" height="1.6"/><rect x="46.5" y="82" width="7" height="1.6"/>
+    </g></g>
+</svg>

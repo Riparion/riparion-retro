@@ -40,6 +40,10 @@ fn GameRoot() -> Element {
     // Chip snapshot shown while a report is pacing (see StatusBar).
     let frozen = use_signal(|| ChipStats::of(&game.peek()));
     use_context_provider(|| frozen);
+    // Every load opens on the title screen, even when a save resumes mid-reign
+    // (the splash then offers RESUME / NEW REIGN). See NOTES.md "Start screen".
+    let on_splash = use_signal(|| true);
+    use_context_provider(|| on_splash);
 
     // Persist mid-reign; finished terms clear the save and, when the reign
     // ended honourably, enter the hall of rulers exactly once.
@@ -69,7 +73,8 @@ fn GameRoot() -> Element {
     });
 
     let mode = game.read().mode.clone();
-    let in_game = matches!(mode, Mode::Year);
+    let show_splash = on_splash();
+    let in_game = !show_splash && matches!(mode, Mode::Year);
 
     rsx! {
         div { class: "crt flex flex-col h-[100dvh] overflow-hidden",
@@ -77,10 +82,14 @@ fn GameRoot() -> Element {
                 StatusBar {}
             }
             div { class: "flex-1 overflow-y-auto flex flex-col",
-                match mode {
-                    Mode::Splash => rsx! { screens::splash::Splash {} },
-                    Mode::Year => rsx! { screens::year::Year {} },
-                    Mode::GameOver => rsx! { screens::game_over::GameOver {} },
+                if show_splash {
+                    screens::splash::Splash {}
+                } else {
+                    match mode {
+                        Mode::Splash => rsx! { screens::splash::Splash {} },
+                        Mode::Year => rsx! { screens::year::Year {} },
+                        Mode::GameOver => rsx! { screens::game_over::GameOver {} },
+                    }
                 }
             }
         }
