@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 100 100">
+  <defs><filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.1" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+  <rect x="3" y="3" width="94" height="94" rx="20" ry="20" fill="#020402"/>
+       <rect x="4.6" y="4.6" width="90.8" height="90.8" rx="18" ry="18" fill="none" stroke="#1f9c3f" stroke-width="1.3"/>
+  <g filter="url(#glow)" transform="translate(50 50) scale(0.9250) translate(-50 -50)">
+    <path d="M26,53 Q26,24 50,24 Q74,24 74,53 Z" fill="#33ff66"/>
+    <g stroke="#020402" stroke-width="1.5" fill="none">
+      <line x1="38" y1="28.5" x2="38" y2="53"/><line x1="50" y1="25" x2="50" y2="53"/><line x1="62" y1="28.5" x2="62" y2="53"/>
+    </g>
+    <ellipse cx="27.5" cy="40" rx="3.4" ry="10" fill="#020402"/>
+    <path d="M20,52 L80,52 Q82,60 75,64 L25,64 Q18,60 20,52 Z" fill="#33ff66"/>
+    <g stroke="#33ff66" stroke-width="3" fill="none"><circle cx="64" cy="71" r="12"/><circle cx="33" cy="72" r="10"/></g>
+    <g stroke="#33ff66" stroke-width="1.5">
+      <line x1="64" y1="60" x2="64" y2="82"/><line x1="53" y1="71" x2="75" y2="71"/>
+      <line x1="56.5" y1="63.5" x2="71.5" y2="78.5"/><line x1="56.5" y1="78.5" x2="71.5" y2="63.5"/>
+      <line x1="33" y1="63" x2="33" y2="81"/><line x1="24" y1="72" x2="42" y2="72"/>
+      <line x1="26.5" y1="65.5" x2="39.5" y2="78.5"/><line x1="26.5" y1="78.5" x2="39.5" y2="65.5"/>
+    </g>
+    <circle cx="64" cy="71" r="2.4" fill="#33ff66"/><circle cx="33" cy="72" r="2.2" fill="#33ff66"/></g>
+</svg>
