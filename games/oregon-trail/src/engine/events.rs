@@ -1,0 +1,377 @@
+//! Trail incidents: the rider encounters, the random-event table, the mountain
+//! passes and blizzards, illness, hunting, and gunfights. Every probability and
+//! formula is transcribed from the 1975 MECC BASIC (see the spec in the port
+//! plan); the RNG draw order is preserved so seeded play is reproducible.
+
+use super::interaction::{ShotPurpose, Tactic};
+use super::state::{EatLevel, BLUE_MOUNTAINS_AT, MOUNTAINS_AT};
+use super::{Flow, Game, RiderEncounter};
+
+impl Game {
+    // ===== Riders =====
+
+    /// Roll for riders. They're rarer in mid-trail (the original's curve) and
+    /// may not be what they appear. Pauses for the player's tactics if they show.
+    pub(crate) fn do_riders(&mut self) -> Flow {
+        // Encounter chance: appear when rand*10*((u+72)/(u+12)) <= 1, u=(M/100-4)^2.
+        let u = (self.state.miles / 100.0 - 4.0).powi(2);
+        let mult = 10.0 * (u + 72.0) / (u + 12.0);
+        if self.rng.uniform() * mult > 1.0 {
+            return Flow::Continue; // no riders this fortnight
+        }
+        let looks_hostile = self.rng.uniform() < 0.8;
+        // 20% of the time the truth differs from the appearance.
+        let hostile = if self.rng.uniform() > 0.2 {
+            looks_hostile
+        } else {
+            !looks_hostile
+        };
+        self.riders = Some(RiderEncounter {
+            looks_hostile,
+            hostile,
+        });
+        self.mode = super::Mode::Riders;
+        Flow::Pause
+    }
+
+    pub(crate) fn resolve_hostile_tactic(&mut self, tactic: Tactic) {
+        match tactic {
+            Tactic::Run => {
+                self.message("You make a run for it, outpacing the riders but scattering supplies.");
+                self.state.miles += 20.0;
+                self.state.misc -= 15.0;
+                self.state.bullets -= 150.0;
+                self.state.oxen -= 40.0;
+            }
+            Tactic::Attack => {
+                self.begin_shot(ShotPurpose::Riders { circle: false });
+                return;
+            }
+            Tactic::Continue => {
+                if self.rng.uniform() > 0.8 {
+                    self.message("You keep riding, and the riders turn off — they did not attack.");
+                } else {
+                    self.message("The riders harry you as you press on.");
+                    self.state.bullets -= 150.0;
+                    self.state.misc -= 15.0;
+                }
+            }
+            Tactic::CircleWagons => {
+                self.begin_shot(ShotPurpose::Riders { circle: true });
+                return;
+            }
+        }
+        self.finish_hostile();
+    }
+
+    pub(crate) fn resolve_friendly_tactic(&mut self, tactic: Tactic) {
+        match tactic {
+            Tactic::Run => {
+                self.message("You ride hard away from them, tiring the oxen.");
+                self.state.miles += 15.0;
+                self.state.oxen -= 10.0;
+            }
+            Tactic::Attack => {
+                self.message("You open fire on a friendly band — a waste of bullets and time.");
+                self.state.miles -= 5.0;
+                self.state.bullets -= 100.0;
+            }
+            Tactic::Continue => {
+                self.message("You wave and ride on by.");
+            }
+            Tactic::CircleWagons => {
+                self.message("You circle the wagons for nothing, losing time.");
+                self.state.miles -= 20.0;
+            }
+        }
+        self.message("The riders were friendly. Check the wagon for any losses.");
+        self.riders = None;
+        self.advance();
+    }
+
+    /// The gunfight half of an Attack / Circle-wagons against hostile riders.
+    pub(crate) fn finish_rider_fight(&mut self, b1: f64, circle: bool) {
+        self.state.bullets -= if circle {
+            b1 * 30.0 + 80.0
+        } else {
+            b1 * 40.0 + 80.0
+        };
+        if circle {
+            self.state.miles -= 25.0;
+        }
+        if b1 <= 1.0 {
+            self.message("Nice shooting — you drove them off!");
+        } else if b1 > 4.0 {
+            self.message("Lousy shot — you got knifed. You'll need to see the doctor.");
+            self.state.injured = true;
+        } else {
+            self.message("Kinda slow with your Colt .45, but you held them off.");
+        }
+        self.finish_hostile();
+    }
+
+    /// Shared tail of every hostile outcome: tally losses, check for a massacre.
+    fn finish_hostile(&mut self) {
+        self.message("The riders were hostile! Check the wagon for losses.");
+        self.riders = None;
+        if self.state.bullets < 0.0 {
+            self.die("You ran out of bullets and were massacred by the riders.");
+        }
+        self.advance();
+    }
+
+    // ===== The random-event table =====
+
+    /// Deal one random trail event. Thresholds are cumulative percentages from
+    /// the BASIC `DATA` list; the first one `r1` falls under selects the event.
+    pub(crate) fn do_event(&mut self) -> Flow {
+        let r1 = self.rng.uniform() * 100.0;
+        const THRESH: [f64; 15] = [
+            6.0, 11.0, 13.0, 15.0, 17.0, 22.0, 32.0, 35.0, 37.0, 42.0, 44.0, 54.0, 64.0, 69.0, 95.0,
+        ];
+        let mut idx = 16usize; // r1 > 95 → helpful Indians
+        for (i, t) in THRESH.iter().enumerate() {
+            if r1 <= *t {
+                idx = i + 1;
+                break;
+            }
+        }
+        match idx {
+            1 => {
+                self.message("One of your wagon wheels breaks down. Lose time and supplies.");
+                self.state.miles -= 15.0 + 5.0 * self.rng.uniform();
+                self.state.misc -= 8.0;
+            }
+            2 => {
+                self.message("An ox injures its leg — it slows you down the rest of the way.");
+                self.state.miles -= 25.0;
+                self.state.oxen -= 20.0;
+            }
+            3 => {
+                self.message("Your daughter breaks her arm. You splint it and lose time.");
+                self.state.miles -= 5.0 + 4.0 * self.rng.uniform();
+                self.state.misc -= 2.0 + 3.0 * self.rng.uniform();
+            }
+            4 => {
+                self.message("An ox wanders off. You spend time rounding it up.");
+                self.state.miles -= 17.0;
+            }
+            5 => {
+                self.message("Your son gets lost. You hunt for him and lose time.");
+                self.state.miles -= 10.0;
+            }
+            6 => {
+                self.message("Unsafe water — you lose time looking for a clean spring.");
+                self.state.miles -= 10.0 * self.rng.uniform() + 2.0;
+            }
+            7 => {
+                if self.state.miles > MOUNTAINS_AT {
+                    self.cold_weather();
+                } else {
+                    self.message("Heavy rains — time, food, and supplies lost.");
+                    self.state.food -= 10.0;
+                    self.state.bullets -= 500.0;
+                    self.state.misc -= 15.0;
+                    self.state.miles -= 10.0 * self.rng.uniform() + 5.0;
+                }
+            }
+            8 => {
+                self.message("Bandits attack!");
+                self.begin_shot(ShotPurpose::Bandits);
+                return Flow::Pause;
+            }
+            9 => {
+                self.message("Fire in the wagon — food and supplies destroyed!");
+                self.state.food -= 40.0;
+                self.state.bullets -= 400.0;
+                self.state.misc -= self.rng.uniform() * 8.0 + 3.0;
+                self.state.miles -= 15.0;
+            }
+            10 => {
+                self.message("Heavy fog — you lose your way for a time.");
+                self.state.miles -= 10.0 + 5.0 * self.rng.uniform();
+            }
+            11 => {
+                self.message("You're bitten by a poisonous snake!");
+                self.state.bullets -= 10.0;
+                self.state.misc -= 5.0;
+                if self.state.misc < 0.0 {
+                    self.die("You die of snakebite — you had no medicine left.");
+                }
+            }
+            12 => {
+                self.message("Your wagon is swamped fording a river — supplies lost.");
+                self.state.food -= 30.0;
+                self.state.clothing -= 20.0;
+                self.state.miles -= 20.0 + 20.0 * self.rng.uniform();
+            }
+            13 => {
+                self.message("Wild animals attack!");
+                self.begin_shot(ShotPurpose::WildAnimals);
+                return Flow::Pause;
+            }
+            14 => {
+                self.message("A hail storm batters the wagon — supplies lost.");
+                self.state.miles -= 5.0 + self.rng.uniform() * 10.0;
+                self.state.bullets -= 200.0;
+                self.state.misc -= 4.0 + self.rng.uniform() * 3.0;
+            }
+            15 => {
+                // The common "did the way you ate catch up with you?" roll.
+                let sick = match self.state.eat_level {
+                    EatLevel::Poorly => true,
+                    EatLevel::Moderately => self.rng.uniform() > 0.25, // 75%
+                    EatLevel::Well => self.rng.uniform() < 0.5,         // 50%
+                };
+                if sick {
+                    self.illness();
+                }
+            }
+            _ => {
+                self.message("Helpful Indians show you where to find more food.");
+                self.state.food += 14.0;
+            }
+        }
+        Flow::Continue
+    }
+
+    /// Cold-weather check (heavy rains in the mountains): too little clothing
+    /// and you fall ill.
+    fn cold_weather(&mut self) {
+        let needed = 22.0 + 4.0 * self.rng.uniform();
+        if self.state.clothing > needed {
+            self.message("Cold weather ahead — but you have enough clothing to stay warm.");
+        } else {
+            self.message("Cold weather ahead — and you don't have enough clothing to keep warm!");
+            self.illness();
+        }
+    }
+
+    /// The illness routine: severity skews by how well you've been eating.
+    fn illness(&mut self) {
+        let e = self.state.eat_level as i64 as f64; // 1 / 2 / 3
+        if self.rng.uniform() * 100.0 < 10.0 + 35.0 * (e - 1.0) {
+            self.message("A mild illness — medicine used.");
+            self.state.miles -= 5.0;
+            self.state.misc -= 2.0;
+        } else if self.rng.uniform() * 100.0 < 100.0 - 40.0 / 4f64.powf(e - 1.0) {
+            self.message("A bad illness — medicine used.");
+            self.state.miles -= 5.0;
+            self.state.misc -= 5.0;
+        } else {
+            self.message("A serious illness — you must stop for medical attention.");
+            self.state.misc -= 10.0;
+            self.state.ill = true;
+        }
+        if self.state.misc < 0.0 {
+            self.die("You ran out of medical supplies and died of pneumonia.");
+        }
+    }
+
+    // ===== Mountains =====
+
+    /// The mountain passes, reached past mile 950: South Pass and, beyond mile
+    /// 1700, the Blue Mountains — each a one-time blizzard gamble.
+    pub(crate) fn do_mountains(&mut self) -> Flow {
+        if self.state.miles <= MOUNTAINS_AT {
+            return Flow::Continue;
+        }
+        // Faithful rugged-mountains roll: the controlling expression is non-zero
+        // for every reachable mileage, so the terrain incidents below virtually
+        // never fire — the original quirk.
+        let v = (self.state.miles / 100.0 - 15.0).powi(2);
+        let rugged = self.rng.uniform() * 10.0 * ((9.0 - (v + 72.0)) / (v + 12.0));
+        if rugged == 0.0 {
+            self.message("Rugged mountains — the going gets slow.");
+            self.state.miles -= 45.0 + 50.0 * self.rng.uniform();
+        }
+
+        // South Pass — once.
+        if !self.state.cleared_south_pass {
+            self.state.cleared_south_pass = true;
+            if self.rng.uniform() < 0.8 {
+                return self.blizzard();
+            }
+            self.message("You made it safely through the South Pass — no snow.");
+        }
+
+        // Blue Mountains — once, past mile 1700.
+        if self.state.miles >= BLUE_MOUNTAINS_AT && !self.state.cleared_blue_mountains {
+            self.state.cleared_blue_mountains = true;
+            if self.rng.uniform() < 0.7 {
+                return self.blizzard();
+            }
+        }
+        Flow::Continue
+    }
+
+    fn blizzard(&mut self) -> Flow {
+        self.message("Blizzard in the mountain pass! Time and supplies lost.");
+        self.state.food -= 25.0;
+        self.state.misc -= 10.0;
+        self.state.bullets -= 300.0;
+        self.state.miles -= 30.0 + 40.0 * self.rng.uniform();
+        if self.state.clothing < 18.0 + 2.0 * self.rng.uniform() {
+            self.illness();
+        }
+        Flow::Continue
+    }
+
+    // ===== Hunting & gunfights (resolve the reaction game) =====
+
+    pub(crate) fn finish_hunt(&mut self, b1: f64) {
+        if b1 <= 1.0 {
+            self.state.food += 52.0 + self.rng.uniform() * 6.0;
+            self.state.bullets -= 10.0 + self.rng.uniform() * 4.0;
+            self.message("Right between the eyes — you got a big one! Full bellies tonight!");
+        } else if self.rng.uniform() * 100.0 < 13.0 * b1 {
+            self.message("You missed, and your dinner got away...");
+        } else {
+            self.state.food += 48.0 - 2.0 * b1;
+            self.state.bullets -= 10.0 + 3.0 * b1;
+            self.message("Nice shot — good eatin' tonight!");
+        }
+        self.state.bullets = self.state.bullets.max(0.0);
+        self.resume = super::Resume::Eat;
+        self.advance();
+    }
+
+    pub(crate) fn finish_bandits(&mut self, b1: f64) {
+        self.state.bullets -= 20.0 * b1;
+        let out_of_bullets = self.state.bullets < 0.0;
+        if out_of_bullets {
+            self.message("You ran out of bullets — the bandits make off with two-thirds of your cash!");
+            self.state.cash /= 3.0;
+        }
+        if !out_of_bullets && b1 <= 1.0 {
+            self.message("Quickest draw outside of Dodge City! You got 'em!");
+        } else {
+            self.message(
+                "You got shot in the leg and they took one of your oxen. Better see a doctor.",
+            );
+            self.state.injured = true;
+            self.state.misc -= 5.0;
+            self.state.oxen -= 20.0;
+        }
+        self.advance();
+    }
+
+    pub(crate) fn finish_wolves(&mut self, b1: f64) {
+        if self.state.bullets <= 39.0 {
+            self.message("You were too low on bullets — the wolves overpowered you.");
+            self.state.injured = true;
+            self.die("The wolves overpowered you. You died of your injuries.");
+            self.advance();
+            return;
+        }
+        if b1 > 2.0 {
+            self.state.bullets -= 20.0 * b1;
+            self.message("Slow on the draw — the wolves got at your food and clothes.");
+        } else {
+            self.message("Nice shootin', partner — the wolves didn't get much.");
+        }
+        self.state.clothing -= b1 * 4.0;
+        self.state.food -= b1 * 8.0;
+        self.advance();
+    }
+}
