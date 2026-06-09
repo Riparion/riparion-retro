@@ -2,7 +2,7 @@
 //! that plays whole journeys through the public API, and a behavioral check
 //! that good play beats bad play.
 
-use super::interaction::{Response, Tactic};
+use super::interaction::{Response, ShotPurpose, Tactic};
 use super::state::{EatLevel, Mode};
 use super::*;
 
@@ -113,6 +113,196 @@ fn stale_double_taps_are_ignored() {
     assert_eq!(h.state.food, food_then);
 }
 
+/// Stand a game up mid-encounter with hostile riders, ready for a tactic.
+fn hostile_riders(seed: u64) -> Game {
+    let mut g = fresh(seed);
+    g.outfit(240.0, 200.0, 100.0, 50.0, 60.0).unwrap();
+    g.riders = Some(RiderEncounter {
+        looks_hostile: true,
+        hostile: true,
+    });
+    g.mode = Mode::Riders;
+    g
+}
+
+#[test]
+fn running_from_hostile_riders_opens_the_escape_minigame() {
+    let mut g = hostile_riders(3);
+    g.resolve_tactic(Tactic::Run);
+    // Run no longer resolves instantly — it hands off to the route-memory game.
+    assert_eq!(g.mode, Mode::Flee);
+    assert!(g.riders.is_some(), "encounter is still pending its outcome");
+}
+
+#[test]
+fn a_clean_escape_loses_the_riders_and_gains_ground() {
+    let mut g = hostile_riders(4);
+    g.resolve_tactic(Tactic::Run);
+    let (misc0, oxen0, miles0) = (g.state.misc, g.state.oxen, g.state.miles);
+    g.resolve_flee(true, 1.0);
+    // Lost them: encounter cleared, ground gained, and a clean line scatters
+    // only the minimum, never dropping into a gunfight.
+    assert!(g.riders.is_none());
+    assert!(g.state.miles > miles0, "a clean getaway gains ground");
+    assert_eq!(g.state.misc, misc0 - 5.0); // drop == 0 at full accuracy
+    assert_eq!(g.state.oxen, oxen0 - 10.0);
+    assert_ne!(g.mode, Mode::Flee);
+    assert_ne!(g.mode, Mode::Shoot);
+}
+
+#[test]
+fn a_botched_escape_drops_you_into_the_gunfight() {
+    let mut g = hostile_riders(5);
+    g.resolve_tactic(Tactic::Run);
+    g.resolve_flee(false, 0.0);
+    // Run down: the riders catch you and it's the marksmanship game now.
+    assert_eq!(g.mode, Mode::Shoot);
+    assert_eq!(g.shot, Some(ShotPurpose::Riders { circle: false }));
+}
+
+#[test]
+fn resolve_flee_ignores_stale_double_taps() {
+    let mut g = hostile_riders(6);
+    g.resolve_tactic(Tactic::Run);
+    g.resolve_flee(true, 1.0); // first call lands the escape
+    let snapshot = g.clone();
+    g.resolve_flee(false, 0.0); // stale: mode is no longer Flee
+    assert_eq!(g, snapshot, "a second resolve must be a no-op");
+}
+
+/// Stand a game up at the climb screen with the passes already behind it, so a
+/// `resolve_climb` is a pure miles tally (no blizzard gamble to muddy it).
+fn mid_climb(seed: u64, miles: f64) -> Game {
+    let mut g = fresh(seed);
+    g.outfit(240.0, 200.0, 100.0, 50.0, 60.0).unwrap();
+    g.state.miles = miles;
+    g.state.cleared_south_pass = true;
+    g.state.cleared_blue_mountains = true;
+    g.resume = Resume::NextTurn; // the Mountains leg's resume point
+    g.mode = Mode::Climb;
+    g
+}
+
+#[test]
+fn rugged_mountains_sometimes_launch_the_climb() {
+    // The ~30% rugged roll should put up the climb minigame for some — but not
+    // all — fortnights past mile 950, and a launched climb pauses the leg.
+    let mut launched = 0;
+    for seed in 0..200u64 {
+        let mut g = fresh(seed);
+        g.outfit(240.0, 200.0, 100.0, 50.0, 60.0).unwrap();
+        g.state.miles = 1000.0;
+        g.resume = Resume::NextTurn;
+        g.leg = None;
+        let flow = g.do_mountains();
+        if g.mode == Mode::Climb {
+            assert_eq!(flow, Flow::Pause, "a launched climb pauses the leg");
+            launched += 1;
+        }
+    }
+    assert!(launched > 0, "the rugged climb never fired in 200 seeds");
+    assert!(launched < 200, "the rugged climb fired every single time");
+}
+
+#[test]
+fn a_clean_climb_costs_little_ground() {
+    let mut g = mid_climb(11, 1200.0);
+    g.resolve_climb(true, 1.0);
+    assert_eq!(g.state.miles, 1185.0); // -15 at full accuracy, passes already clear
+    assert_ne!(g.mode, Mode::Climb);
+}
+
+#[test]
+fn a_rough_climb_loses_the_full_stretch() {
+    let mut g = mid_climb(12, 1200.0);
+    g.resolve_climb(false, 0.0);
+    assert_eq!(g.state.miles, 1105.0); // -95 at zero accuracy
+    assert_ne!(g.mode, Mode::Climb);
+}
+
+#[test]
+fn resolving_a_climb_falls_through_to_the_passes() {
+    let mut g = fresh(7);
+    g.outfit(240.0, 200.0, 100.0, 50.0, 60.0).unwrap();
+    g.state.miles = 1000.0;
+    g.resume = Resume::NextTurn;
+    g.mode = Mode::Climb;
+    assert!(!g.state.cleared_south_pass, "South Pass starts pending");
+    g.resolve_climb(true, 1.0);
+    // The crossing flowed on into the one-time South Pass check.
+    assert!(g.state.cleared_south_pass);
+}
+
+#[test]
+fn resolve_climb_ignores_stale_double_taps() {
+    let mut g = mid_climb(13, 1200.0);
+    g.resolve_climb(true, 1.0); // first call lands the crossing
+    let snapshot = g.clone();
+    g.resolve_climb(false, 0.0); // stale: mode is no longer Climb
+    assert_eq!(g, snapshot, "a second resolve must be a no-op");
+}
+
+/// Stand a game up at the fog screen, mid-trail, ready for a `resolve_fog`.
+fn mid_fog(seed: u64, miles: f64) -> Game {
+    let mut g = fresh(seed);
+    g.outfit(240.0, 200.0, 100.0, 50.0, 60.0).unwrap();
+    g.state.miles = miles;
+    g.resume = Resume::Trail; // drains somewhere harmless after resolving
+    g.leg = None;
+    g.mode = Mode::Fog;
+    g
+}
+
+#[test]
+fn heavy_fog_sometimes_launches_the_navigation_game() {
+    // Event 10 (~5%) should put up the fog minigame for some seeds, and a
+    // launched fog pauses the event leg. Mileage held below the mountains so
+    // only the random-event roll is in play.
+    let mut launched = 0;
+    for seed in 0..400u64 {
+        let mut g = fresh(seed);
+        g.outfit(240.0, 200.0, 100.0, 50.0, 60.0).unwrap();
+        g.state.miles = 300.0;
+        g.resume = Resume::Leg;
+        g.leg = Some(Leg::Mountains);
+        let flow = g.do_event();
+        if g.mode == Mode::Fog {
+            assert_eq!(flow, Flow::Pause, "a launched fog pauses the leg");
+            launched += 1;
+        }
+    }
+    assert!(launched > 0, "heavy fog never fired in 400 seeds");
+}
+
+#[test]
+fn keeping_your_bearings_in_fog_costs_no_time() {
+    let mut g = mid_fog(21, 600.0);
+    g.resolve_fog(true, 1.0);
+    assert_eq!(g.state.miles, 600.0); // held the trail → no time lost
+    assert_ne!(g.mode, Mode::Fog);
+}
+
+#[test]
+fn losing_your_way_in_fog_costs_time_by_how_far_you_drifted() {
+    let mut total = mid_fog(22, 600.0);
+    total.resolve_fog(false, 0.0); // total whiteout from the start
+    assert_eq!(total.state.miles, 585.0); // -(5 + 10) at zero accuracy
+
+    let mut nearly = mid_fog(22, 600.0);
+    nearly.resolve_fog(false, 0.8); // drifted only near the end
+    // A near-miss wanders less than a total loss, but still costs something.
+    assert!(nearly.state.miles > 585.0 && nearly.state.miles < 600.0);
+}
+
+#[test]
+fn resolve_fog_ignores_stale_double_taps() {
+    let mut g = mid_fog(23, 600.0);
+    g.resolve_fog(false, 0.0); // first call lands the wander
+    let snapshot = g.clone();
+    g.resolve_fog(true, 1.0); // stale: mode is no longer Fog
+    assert_eq!(g, snapshot, "a second resolve must be a no-op");
+}
+
 /// Drive a whole journey through the public API with a fixed strategy.
 fn play(seed: u64, good: bool) -> Game {
     let mut g = Game::new(seed);
@@ -160,6 +350,10 @@ fn play(seed: u64, good: bool) -> Game {
                 g.resolve_hunt(good, if good { 1 } else { 6 });
             }
             Mode::Riders => g.resolve_tactic(Tactic::Continue),
+            // Good play threads the route clean; bad play fouls it immediately.
+            Mode::Flee => g.resolve_flee(good, if good { 1.0 } else { 0.0 }),
+            Mode::Climb => g.resolve_climb(good, if good { 1.0 } else { 0.0 }),
+            Mode::Fog => g.resolve_fog(good, if good { 1.0 } else { 0.0 }),
             Mode::Fort => g.leave_fort(),
             Mode::Splash | Mode::NewGame | Mode::Outfit => {
                 unreachable!("unexpected pre-game mode at seed {seed}")

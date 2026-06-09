@@ -192,6 +192,12 @@ pub enum Mode {
     Shoot,
     /// The shooting-gallery hunt.
     Hunt,
+    /// Weaving through the terrain to shake hostile riders (the route-memory game).
+    Flee,
+    /// Picking a line through the rugged mountains (the route-memory game).
+    Climb,
+    /// Finding the trail through heavy fog (the route-memory game).
+    Fog,
     /// Riders ahead — choose your tactics.
     Riders,
     /// Showing the head of the pending message/prompt queue.
