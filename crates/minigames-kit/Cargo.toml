@@ -23,27 +23,6 @@ dioxus = { workspace = true }
 gloo-timers = { workspace = true }
 retro-kit = { workspace = true }
 
-[dev-dependencies]
-# Examples render the shared CRT stylesheet.
-
-# Each example only builds when its minigame's feature is enabled, so a
-# `--no-default-features` build doesn't try to compile a gated-out module.
-[[example]]
-name = "quickdraw"
-required-features = ["quickdraw"]
-
-[[example]]
-name = "timing_bar"
-required-features = ["timing_bar"]
-
-[[example]]
-name = "crowd_threading"
-required-features = ["crowd_threading"]
-
-[[example]]
-name = "hunter"
-required-features = ["hunter"]
-
-[[example]]
-name = "steady_hands"
-required-features = ["steady_hands"]
+# Each minigame now ships a standalone, runnable demo crate under `examples/<name>`
+# at the workspace root (e.g. `dx serve --package minigames-kit-quickdraw`), so
+# this crate no longer carries cargo `[[example]]` binaries.

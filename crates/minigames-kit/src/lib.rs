@@ -17,8 +17,9 @@
 //! A host can take only what it needs with
 //! `minigames-kit = { default-features = false, features = ["quickdraw"] }`.
 //!
-//! More to come (each gets its own module, feature, and a runnable example
-//! under `examples/`).
+//! More to come (each gets its own module, feature, and a standalone runnable
+//! demo crate under `examples/<name>` at the workspace root, served with
+//! `dx serve --package minigames-kit-<name>`).
 
 #[cfg(feature = "crowd_threading")]
 pub mod crowd_threading;
