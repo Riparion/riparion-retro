@@ -52,6 +52,15 @@ pub(crate) enum Flow {
     Pause,
 }
 
+/// How bad the illness turned out to be. Rolled when the sickness strikes, then
+/// held while the dosing minigame runs so the resolve applies the right effect.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Illness {
+    Mild,
+    Bad,
+    Serious,
+}
+
 /// Riders on the trail: what they look like, and what they actually are.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RiderEncounter {
@@ -75,6 +84,8 @@ pub struct Game {
     pub shot: Option<ShotPurpose>,
     /// Which of the four words the gunfight is flashing.
     pub shot_word: usize,
+    /// The severity rolled for the illness the dosing game is resolving.
+    pub pending_illness: Option<Illness>,
     pub outcome: Option<EndGame>,
     pub rng: GameRng,
 }
@@ -90,6 +101,7 @@ impl Game {
             riders: None,
             shot: None,
             shot_word: 0,
+            pending_illness: None,
             outcome: None,
             rng: GameRng::from_seed(seed),
         }
@@ -360,6 +372,83 @@ impl Game {
             let drift = (1.0 - accuracy).clamp(0.0, 1.0);
             self.state.miles -= 5.0 + 10.0 * drift;
             self.message("You lose your way in the fog, wandering before you find the trail again.");
+        }
+        self.advance();
+    }
+
+    // ----- Setting a broken bone -----
+
+    /// Put up the timing game: set the broken bone with one clean strike.
+    fn begin_splint(&mut self) {
+        self.mode = Mode::Splint;
+    }
+
+    /// Resolve splinting the daughter's arm. `set_clean` = the strike landed in
+    /// the zone; `accuracy` (0..=1) is how dead-center it was. A clean set barely
+    /// costs time; a botched one loses ground and burns through supplies — the
+    /// original's `−5..−9` miles / `−2..−5` misc, graded by the hand's steadiness.
+    /// Guarded against stale double-taps like `resolve_shot`.
+    pub fn resolve_splint(&mut self, set_clean: bool, accuracy: f64) {
+        if self.mode != Mode::Splint {
+            return;
+        }
+        let drop = (1.0 - accuracy).clamp(0.0, 1.0);
+        self.state.miles -= 4.0 + 8.0 * drop;
+        self.state.misc -= 2.0 + 4.0 * drop;
+        if set_clean {
+            self.message("You set the bone cleanly and splint it, losing little time.");
+        } else {
+            self.message("It takes a few tries to set the bone — you lose time and supplies.");
+        }
+        self.advance();
+    }
+
+    // ----- Measuring out medicine -----
+
+    /// Put up the timing game: measure out a dose for the illness just rolled.
+    fn begin_dose(&mut self, severity: Illness) {
+        self.pending_illness = Some(severity);
+        self.mode = Mode::Dose;
+    }
+
+    /// Resolve measuring out the medicine. `on_target` = the pour landed in the
+    /// zone; `accuracy` (0..=1) is how close to the mark it was. The illness's
+    /// own toll (the original's per-severity miles/misc) lands either way; a
+    /// shaky pour spills extra medical supplies on top, up to a full dose's
+    /// worth — which can be what tips a thin party into pneumonia. Guarded
+    /// against stale double-taps like `resolve_shot`.
+    pub fn resolve_dose(&mut self, on_target: bool, accuracy: f64) {
+        if self.mode != Mode::Dose {
+            return;
+        }
+        let Some(severity) = self.pending_illness.take() else {
+            return;
+        };
+        match severity {
+            Illness::Mild => {
+                self.message("A mild illness — medicine used.");
+                self.state.miles -= 5.0;
+                self.state.misc -= 2.0;
+            }
+            Illness::Bad => {
+                self.message("A bad illness — medicine used.");
+                self.state.miles -= 5.0;
+                self.state.misc -= 5.0;
+            }
+            Illness::Serious => {
+                self.message("A serious illness — you must stop for medical attention.");
+                self.state.misc -= 10.0;
+                self.state.ill = true;
+            }
+        }
+        // A shaky hand spills medicine — extra supplies lost, up to a dose's worth.
+        let waste = (1.0 - accuracy).clamp(0.0, 1.0);
+        self.state.misc -= 6.0 * waste;
+        if !on_target {
+            self.message("Your hand shook measuring the dose — you spill some medicine.");
+        }
+        if self.state.misc < 0.0 {
+            self.die("You ran out of medical supplies and died of pneumonia.");
         }
         self.advance();
     }

@@ -86,6 +86,8 @@ fn GameRoot() -> Element {
                     Mode::Flee => rsx! { screens::flee::Flee {} },
                     Mode::Climb => rsx! { screens::climb::Climb {} },
                     Mode::Fog => rsx! { screens::fog::Fog {} },
+                    Mode::Splint => rsx! { screens::splint::Splint {} },
+                    Mode::Dose => rsx! { screens::dose::Dose {} },
                     Mode::Riders => rsx! { screens::riders::Riders {} },
                     Mode::Interaction => rsx! { screens::interaction_host::InteractionHost {} },
                     Mode::GameOver => rsx! { screens::game_over::GameOver {} },

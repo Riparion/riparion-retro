@@ -198,6 +198,10 @@ pub enum Mode {
     Climb,
     /// Finding the trail through heavy fog (the route-memory game).
     Fog,
+    /// Setting a broken bone with one clean strike (the timing game).
+    Splint,
+    /// Measuring out a dose of medicine (the timing game).
+    Dose,
     /// Riders ahead — choose your tactics.
     Riders,
     /// Showing the head of the pending message/prompt queue.
