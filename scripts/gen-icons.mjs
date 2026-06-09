@@ -109,6 +109,30 @@ const GLYPHS = {
     </g>
     <rect x="16" y="80" width="68" height="4" fill="${BG}"/>
     <rect x="16" y="80" width="68" height="1.6" fill="${PH}"/>` },
+
+  'santa-paravia': { adj: 1.0, svg: `
+    <rect x="49.2" y="13" width="1.8" height="20" fill="${PH}"/>
+    <polygon points="51,13 62,16.5 51,20" fill="${PH}"/>
+    <rect x="40" y="31" width="20" height="53" fill="${PH}"/>
+    <rect x="40" y="25" width="5" height="7" fill="${PH}"/>
+    <rect x="47.5" y="25" width="5" height="7" fill="${PH}"/>
+    <rect x="55" y="25" width="5" height="7" fill="${PH}"/>
+    <rect x="46.5" y="40" width="7" height="9" rx="1" fill="${BG}"/>
+    <path d="M44.5,84 L44.5,72 Q50,66 55.5,72 L55.5,84 Z" fill="${BG}"/>
+    <rect x="12" y="60" width="28" height="24" fill="${PH}"/>
+    <rect x="12" y="55" width="5" height="6" fill="${PH}"/>
+    <rect x="19" y="55" width="5" height="6" fill="${PH}"/>
+    <rect x="26" y="55" width="5" height="6" fill="${PH}"/>
+    <rect x="33" y="55" width="5" height="6" fill="${PH}"/>
+    <rect x="60" y="60" width="28" height="24" fill="${PH}"/>
+    <rect x="62" y="55" width="5" height="6" fill="${PH}"/>
+    <rect x="69" y="55" width="5" height="6" fill="${PH}"/>
+    <rect x="76" y="55" width="5" height="6" fill="${PH}"/>
+    <rect x="83" y="55" width="5" height="6" fill="${PH}"/>
+    <g fill="${BG}">
+      <rect x="22" y="67" width="4" height="6"/><rect x="30" y="67" width="4" height="6"/>
+      <rect x="66" y="67" width="4" height="6"/><rect x="74" y="67" width="4" height="6"/>
+    </g>` },
 };
 
 function buildSvg(name, mode, size) {
