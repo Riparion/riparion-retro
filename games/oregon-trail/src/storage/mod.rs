@@ -8,7 +8,11 @@ use crate::engine::Game;
 
 const SAVE_KEY: &str = "oregon-trail.save";
 const SCORES_KEY: &str = "oregon-trail.highscores";
-const SAVE_VERSION: u32 = 1;
+// Bumped to 2: dropping the `Hunt` variant of `ShotPurpose` (hunting moved to
+// its own `Mode::Hunt` gallery) makes a v1 save written mid-gunfight-hunt
+// undeserializable. A version bump discards stale saves cleanly instead of
+// letting the load silently fail and reset to a fresh game.
+const SAVE_VERSION: u32 = 2;
 const MAX_SCORES: usize = 10;
 
 /// Resume a saved journey, or start at the title screen.

@@ -1,6 +1,7 @@
 pub mod eat;
 pub mod fort;
 pub mod game_over;
+pub mod hunt;
 pub mod interaction_host;
 pub mod new_game;
 pub mod outfit;

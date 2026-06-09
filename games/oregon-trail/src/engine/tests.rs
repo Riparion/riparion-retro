@@ -63,28 +63,28 @@ fn hunting_needs_bullets() {
 }
 
 #[test]
-fn flubbed_word_misses_the_hunt() {
+fn a_missed_hunt_feeds_no_one() {
     let mut g = fresh(5);
     g.outfit(220.0, 200.0, 100.0, 50.0, 30.0).unwrap(); // 5000 bullets
     let food_before = g.state.food;
     g.choose_hunt().unwrap();
-    assert_eq!(g.mode, Mode::Shoot);
-    g.resolve_shot(0.5, false); // wrong word -> always a miss
+    assert_eq!(g.mode, Mode::Hunt);
+    g.resolve_hunt(false, 6); // ammo exhausted without a hit
     // No food gained on a miss.
     assert_eq!(g.state.food, food_before);
-    // The "you missed" line shows first, then we move on to eating.
+    // The "dinner got away" line shows first, then we move on to eating.
     assert_eq!(g.mode, Mode::Interaction);
     g.resolve(Response::Acknowledge);
     assert_eq!(g.mode, Mode::Eat);
 }
 
 #[test]
-fn fast_clean_shot_is_a_big_kill() {
+fn a_clean_one_shot_kill_is_a_big_haul() {
     let mut g = fresh(9);
     g.outfit(220.0, 50.0, 100.0, 50.0, 30.0).unwrap();
     let food_before = g.state.food;
     g.choose_hunt().unwrap();
-    g.resolve_shot(0.2, true); // instant, correct -> b1 ~ 0 -> big kill
+    g.resolve_hunt(true, 1); // bagged it on the first round
     assert!(g.state.food >= food_before + 52.0);
 }
 
@@ -101,15 +101,15 @@ fn stale_double_taps_are_ignored() {
     g.choose_eat(EatLevel::Well); // stale repeat — guarded, no effect
     assert_eq!(g.state.food, food_after);
 
-    // Firing the gun twice must not resolve the shot twice.
+    // Resolving the hunt twice must not bag the quarry twice.
     let mut h = fresh(5);
     h.outfit(240.0, 200.0, 100.0, 50.0, 30.0).unwrap();
     h.choose_hunt().unwrap();
-    assert_eq!(h.mode, Mode::Shoot);
-    h.resolve_shot(0.3, true);
-    assert_ne!(h.mode, Mode::Shoot);
+    assert_eq!(h.mode, Mode::Hunt);
+    h.resolve_hunt(true, 1);
+    assert_ne!(h.mode, Mode::Hunt);
     let food_then = h.state.food;
-    h.resolve_shot(0.1, true); // stale repeat — guarded, no effect
+    h.resolve_hunt(true, 1); // stale repeat — guarded, no effect
     assert_eq!(h.state.food, food_then);
 }
 
@@ -154,6 +154,10 @@ fn play(seed: u64, good: bool) -> Game {
             Mode::Shoot => {
                 let secs = if good { 0.4 } else { 3.5 };
                 g.resolve_shot(secs, good);
+            }
+            Mode::Hunt => {
+                // Good play bags it cleanly; bad play empties the bag and misses.
+                g.resolve_hunt(good, if good { 1 } else { 6 });
             }
             Mode::Riders => g.resolve_tactic(Tactic::Continue),
             Mode::Fort => g.leave_fort(),

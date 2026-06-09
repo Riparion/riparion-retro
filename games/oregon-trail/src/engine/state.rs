@@ -12,6 +12,8 @@ use serde::{Deserialize, Serialize};
 pub const TRAIL_MILES: f64 = 2040.0;
 /// $1 buys a belt of 50 bullets.
 pub const BULLETS_PER_DOLLAR: f64 = 50.0;
+/// Bullets spent per shot fired in the hunting gallery.
+pub const BULLETS_PER_SHOT: f64 = 5.0;
 /// You start with $700 after the wagon, family of five, spring of 1847.
 pub const STARTING_CASH: f64 = 700.0;
 /// Mile mark past which the mountains (South Pass, blizzards) begin.
@@ -186,8 +188,10 @@ pub enum Mode {
     Fort,
     /// Choosing how well to eat this fortnight.
     Eat,
-    /// The marksmanship reaction game (hunting and gunfights).
+    /// The marksmanship reaction game (gunfights only).
     Shoot,
+    /// The shooting-gallery hunt.
+    Hunt,
     /// Riders ahead — choose your tactics.
     Riders,
     /// Showing the head of the pending message/prompt queue.

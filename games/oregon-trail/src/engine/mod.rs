@@ -193,7 +193,7 @@ impl Game {
             return Err("You need more bullets (40+) to go hunting.".into());
         }
         self.state.miles -= 45.0;
-        self.begin_shot(ShotPurpose::Hunt);
+        self.begin_hunt();
         Ok(())
     }
 
@@ -243,6 +243,35 @@ impl Game {
             200.0 + (self.state.oxen - 220.0) / 5.0 + self.rng.uniform() * 10.0;
     }
 
+    // ----- Hunting gallery -----
+
+    /// Put up the shooting-gallery hunt.
+    fn begin_hunt(&mut self) {
+        self.mode = Mode::Hunt;
+    }
+
+    /// Resolve the hunting gallery. `hit` = the quarry was bagged; `shots_fired`
+    /// = rounds spent. Bullets spent track the shots actually fired; a clean kill
+    /// on fewer shots feeds the party better. Guarded against stale double-taps
+    /// like `resolve_shot`.
+    pub fn resolve_hunt(&mut self, hit: bool, shots_fired: usize) {
+        if self.mode != Mode::Hunt {
+            return;
+        }
+        self.state.bullets -= shots_fired as f64 * state::BULLETS_PER_SHOT;
+        if hit {
+            // Fewer shots → bigger haul.
+            let bonus = (4u32.saturating_sub(shots_fired as u32)) as f64 * 4.0;
+            self.state.food += 48.0 + bonus + self.rng.uniform() * 6.0;
+            self.message("Nice shooting — good eatin' tonight!");
+        } else {
+            self.message("You ran out of rounds, and your dinner got away...");
+        }
+        self.state.bullets = self.state.bullets.max(0.0);
+        self.resume = Resume::Eat;
+        self.advance();
+    }
+
     // ----- Marksmanship reaction game -----
 
     /// Put up the gunfight screen with a fresh word to type.
@@ -266,8 +295,7 @@ impl Game {
         } else {
             9.0
         };
-        match self.shot.take().unwrap_or(ShotPurpose::Hunt) {
-            ShotPurpose::Hunt => self.finish_hunt(b1),
+        match self.shot.take().unwrap_or(ShotPurpose::Bandits) {
             ShotPurpose::Bandits => self.finish_bandits(b1),
             ShotPurpose::WildAnimals => self.finish_wolves(b1),
             ShotPurpose::Riders { circle } => self.finish_rider_fight(b1, circle),
