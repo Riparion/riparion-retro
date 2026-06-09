@@ -11,6 +11,8 @@
 //!   from memory once the map closes.
 //! - [`hunter`] — track a quarry bouncing across the top row and shoot it; a
 //!   single-shot rifle with finite ammo.
+//! - [`steady_hands`] — a touch-first precision trace: drag to keep an offset
+//!   cursor on a drifting target for the duration; accuracy = time on target.
 //!
 //! A host can take only what it needs with
 //! `minigames-kit = { default-features = false, features = ["quickdraw"] }`.
@@ -24,5 +26,7 @@ pub mod crowd_threading;
 pub mod hunter;
 #[cfg(feature = "quickdraw")]
 pub mod quickdraw;
+#[cfg(feature = "steady_hands")]
+pub mod steady_hands;
 #[cfg(feature = "timing_bar")]
 pub mod timing_bar;
