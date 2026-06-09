@@ -82,6 +82,7 @@ fn GameRoot() -> Element {
                     Mode::Fort => rsx! { screens::fort::Fort {} },
                     Mode::Eat => rsx! { screens::eat::Eat {} },
                     Mode::Shoot => rsx! { screens::shoot::Shoot {} },
+                    Mode::Hunt => rsx! { screens::hunt::Hunt {} },
                     Mode::Riders => rsx! { screens::riders::Riders {} },
                     Mode::Interaction => rsx! { screens::interaction_host::InteractionHost {} },
                     Mode::GameOver => rsx! { screens::game_over::GameOver {} },

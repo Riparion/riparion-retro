@@ -317,24 +317,7 @@ impl Game {
         Flow::Continue
     }
 
-    // ===== Hunting & gunfights (resolve the reaction game) =====
-
-    pub(crate) fn finish_hunt(&mut self, b1: f64) {
-        if b1 <= 1.0 {
-            self.state.food += 52.0 + self.rng.uniform() * 6.0;
-            self.state.bullets -= 10.0 + self.rng.uniform() * 4.0;
-            self.message("Right between the eyes — you got a big one! Full bellies tonight!");
-        } else if self.rng.uniform() * 100.0 < 13.0 * b1 {
-            self.message("You missed, and your dinner got away...");
-        } else {
-            self.state.food += 48.0 - 2.0 * b1;
-            self.state.bullets -= 10.0 + 3.0 * b1;
-            self.message("Nice shot — good eatin' tonight!");
-        }
-        self.state.bullets = self.state.bullets.max(0.0);
-        self.resume = super::Resume::Eat;
-        self.advance();
-    }
+    // ===== Gunfights (resolve the reaction game) =====
 
     pub(crate) fn finish_bandits(&mut self, b1: f64) {
         self.state.bullets -= 20.0 * b1;

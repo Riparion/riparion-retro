@@ -16,7 +16,6 @@ use crate::engine::Game;
 
 fn prompt_for(purpose: Option<ShotPurpose>) -> &'static str {
     match purpose {
-        Some(ShotPurpose::Hunt) => "A deer! Take your shot —",
         Some(ShotPurpose::Bandits) => "Bandits! Draw —",
         Some(ShotPurpose::WildAnimals) => "Wolves! Fire —",
         Some(ShotPurpose::Riders { .. }) => "Riders close in! Fire —",

@@ -31,8 +31,6 @@ pub enum Tactic {
 /// measured response time is spent when the shot resolves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ShotPurpose {
-    /// Hunting for food.
-    Hunt,
     /// Bandits attacking on the trail.
     Bandits,
     /// Wild animals attacking.

@@ -7,8 +7,8 @@ license.workspace = true
 
 [dependencies]
 retro-kit = { workspace = true }
-# Only the QuickDraw minigame is used (the shooting screen); skip the rest.
-minigames-kit = { workspace = true, features = ["quickdraw"] }
+# QuickDraw drives gunfights; Hunter drives the hunting gallery. Skip the rest.
+minigames-kit = { workspace = true, features = ["quickdraw", "hunter"] }
 
 dioxus = { workspace = true }
 serde = { workspace = true }
