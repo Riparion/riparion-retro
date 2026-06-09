@@ -6,8 +6,9 @@ use dioxus::prelude::*;
 use crate::engine::interaction::{Interaction, Response};
 use crate::engine::state::fmt_money;
 use crate::engine::Game;
+use retro_kit::components::decision::Decision;
+use retro_kit::components::notice::Notice;
 use retro_kit::components::number_entry::NumberEntry;
-use retro_kit::theme::{BTN, BTN_PRIMARY, PANEL};
 
 #[component]
 pub fn InteractionHost() -> Element {
@@ -18,15 +19,11 @@ pub fn InteractionHost() -> Element {
         return rsx! {};
     };
 
-    let respond = move |r: Response| {
-        move |_| game.write().resolve(r)
-    };
-
     match head {
         Interaction::Message(text) => rsx! {
-            div { class: "flex-1 flex flex-col justify-center p-4 max-w-md w-full mx-auto",
-                div { class: "{PANEL} p-4 text-center text-lg leading-snug", "{text}" }
-                button { class: "{BTN_PRIMARY} mt-4 py-3", onclick: respond(Response::Acknowledge), "▸ ▸ ▸" }
+            Notice {
+                message: text,
+                on_ack: move |_| game.write().resolve(Response::Acknowledge),
             }
         },
         Interaction::LiYuenDonation { amount } => YesNo(
@@ -100,20 +97,12 @@ pub fn InteractionHost() -> Element {
 #[allow(non_snake_case)]
 fn YesNo(mut game: Signal<Game>, prompt: String) -> Element {
     rsx! {
-        div { class: "flex-1 flex flex-col justify-center p-4 max-w-md w-full mx-auto",
-            div { class: "{PANEL} p-4 text-center text-lg leading-snug", "{prompt}" }
-            div { class: "flex gap-2 mt-4",
-                button {
-                    class: "{BTN} flex-1 py-3",
-                    onclick: move |_| game.write().resolve(Response::No),
-                    "NO"
-                }
-                button {
-                    class: "{BTN_PRIMARY} flex-1 py-3",
-                    onclick: move |_| game.write().resolve(Response::Yes),
-                    "YES"
-                }
-            }
+        Decision {
+            prompt,
+            left: "NO".to_string(),
+            on_left: move |_| game.write().resolve(Response::No),
+            right: "YES".to_string(),
+            on_right: move |_| game.write().resolve(Response::Yes),
         }
     }
 }

@@ -1,8 +1,15 @@
 # NOTES — How to build a game in this repo
 
-Instructions for future sessions. Taipan (`games/taipan/`) is the reference
-implementation; when in doubt, read how it does it. These conventions were
-all verified working on 2026-06-07 with Dioxus 0.7.1 / dx 0.7.9.
+Instructions for future sessions. The Oregon Trail (`games/oregon-trail/`) is the
+reference implementation; when in doubt, read how it does it. These conventions
+were all verified working on 2026-06-07 with Dioxus 0.7.1 / dx 0.7.9.
+
+**Version bumps.** When a change modifies `crates/retro-kit` or any existing game
+crate (e.g. extracting a shared component and refactoring callers onto it), rev
+the **patch** number of every affected crate in its `Cargo.toml` (`0.1.0` →
+`0.1.1`, …). A brand-new game crate starts at `0.1.0` and isn't a "modification".
+So a change that adds a retro-kit component and rewires two games bumps retro-kit
+*and* both of those games.
 
 ## The contract
 
@@ -24,7 +31,7 @@ manual steps, for reference:
 
 1. `mkdir -p games/<name>/{src,assets}` — the workspace glob
    (`members = ["crates/*", "games/*"]`) picks it up automatically.
-2. `games/<name>/Cargo.toml` — copy from taipan; inherit everything:
+2. `games/<name>/Cargo.toml` — copy from oregon-trail; inherit everything:
 
    ```toml
    [package]
@@ -53,7 +60,7 @@ manual steps, for reference:
    own sources — without the @source, utilities used only inside retro-kit
    components silently vanish from the build), and an empty
    `games/<name>/assets/tailwind.css` — dx auto-compiles input → output.
-5. App root (see `games/taipan/src/app.rs`) must link, in this order:
+5. App root (see `games/oregon-trail/src/app.rs`) must link, in this order:
 
    ```rust
    document::Stylesheet { href: retro_kit::CRT_CSS }  // shared identity
@@ -169,8 +176,8 @@ include both on every game's title screen.
 
 ## Porting a classic? Spec first
 
-Taipan's quality came from extracting a complete mechanics spec from the
-original source *before* writing code: every formula, probability, and
+The Oregon Trail's quality came from extracting a complete mechanics spec from
+the original source *before* writing code: every formula, probability, and
 threshold, with the RNG idiom pinned down (`R(x) = floor(uniform·x)`;
 `R(n)==0` ⇒ 1-in-n). Do the same: fetch the original source, have a subagent
 produce an implementation-ready spec, put the spec in the plan, then test

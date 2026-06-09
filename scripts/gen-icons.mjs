@@ -97,6 +97,18 @@ const GLYPHS = {
     <rect x="77.5" y="52.5" width="3.4" height="4.6" rx="0.6" fill="${PH}"/>
     <line x1="79.2" y1="52.5" x2="79.2" y2="57.1" stroke="${BG}" stroke-width="0.7"/>
     <ellipse cx="58" cy="74" rx="4.2" ry="3" fill="${PH}"/>` },
+
+  dukedom: { adj: 1.05, svg: `
+    <polygon points="16,60 25,30 39,52 50,22 61,52 75,30 84,60" fill="${PH}"/>
+    <rect x="16" y="59" width="68" height="25" rx="2" fill="${PH}"/>
+    <circle cx="25" cy="28" r="4.5" fill="${PH}"/>
+    <circle cx="50" cy="20" r="5" fill="${PH}"/>
+    <circle cx="75" cy="28" r="4.5" fill="${PH}"/>
+    <g fill="${BG}">
+      <circle cx="30" cy="71" r="4"/><circle cx="50" cy="71" r="4.6"/><circle cx="70" cy="71" r="4"/>
+    </g>
+    <rect x="16" y="80" width="68" height="4" fill="${BG}"/>
+    <rect x="16" y="80" width="68" height="1.6" fill="${PH}"/>` },
 };
 
 function buildSvg(name, mode, size) {
