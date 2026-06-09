@@ -1,20 +1,18 @@
 //! The marksmanship reaction game. A word flashes; tap the matching one fast.
 //! The tap's reaction time becomes the original's `B1` shooting score.
 //!
-//! Time is measured with a 20 ms tick counter (gloo-timers) rather than a
-//! wall clock, which keeps the engine deterministic and adds no dependencies.
+//! This is a thin wrapper over the shared `minigames_kit::quickdraw::QuickDraw`
+//! component: it picks the prompt for the situation, derives a shuffle seed from
+//! game state (so the buttons rearrange each encounter and can't be memorized,
+//! while staying deterministic for a given save), and routes the result into
+//! `resolve_shot`.
 
 use dioxus::prelude::*;
-use gloo_timers::future::TimeoutFuture;
+
+use minigames_kit::quickdraw::{QuickDraw, QuickDrawResult};
 
 use crate::engine::interaction::{ShotPurpose, SHOT_WORDS};
 use crate::engine::Game;
-use retro_kit::theme::{BTN_WIDE, SCREEN_CENTERED};
-
-/// Distinct display orders so the target word isn't always in the same spot.
-const PERMS: [[usize; 4]; 4] = [[0, 1, 2, 3], [2, 3, 1, 0], [3, 0, 2, 1], [1, 2, 0, 3]];
-
-const TICK_MS: u32 = 20;
 
 fn prompt_for(purpose: Option<ShotPurpose>) -> &'static str {
     match purpose {
@@ -30,48 +28,27 @@ fn prompt_for(purpose: Option<ShotPurpose>) -> &'static str {
 pub fn Shoot() -> Element {
     let mut game = use_context::<Signal<Game>>();
     let g = game.read();
-    let target = g.shot_word.min(3);
+    let target = g.shot_word.min(SHOT_WORDS.len() - 1);
     let purpose = g.shot;
+    // A per-encounter seed pulled from existing state — varies with the target
+    // and how far the party has traveled, so layouts differ between shots
+    // without touching (and so without perturbing) the game's RNG stream.
+    let seed = (g.shot_word as u64)
+        .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+        ^ g.state.miles.to_bits();
     drop(g);
 
-    let mut ticks = use_signal(|| 0u32);
-    let mut answered = use_signal(|| false);
-
-    // Tick the stopwatch until the player fires.
-    use_future(move || async move {
-        loop {
-            if answered() {
-                break;
-            }
-            TimeoutFuture::new(TICK_MS).await;
-            ticks += 1;
-        }
-    });
-
-    let order = PERMS[target];
+    let words: Vec<String> = SHOT_WORDS.iter().map(|w| w.to_string()).collect();
 
     rsx! {
-        div { class: "{SCREEN_CENTERED} gap-4 items-center",
-            p { class: "text-center text-lg opacity-80", "{prompt_for(purpose)}" }
-            div { class: "splash-title", "{SHOT_WORDS[target]}" }
-            p { class: "text-center text-sm opacity-60", "Tap the word above as fast as you can." }
-            div { class: "grid grid-cols-2 gap-2 w-full mt-2",
-                for word_idx in order {
-                    button {
-                        key: "{word_idx}",
-                        class: "{BTN_WIDE} py-5 text-lg",
-                        onclick: move |_| {
-                            if answered() {
-                                return;
-                            }
-                            answered.set(true);
-                            let secs = ticks() as f64 * TICK_MS as f64 / 1000.0;
-                            game.write().resolve_shot(secs, word_idx == target);
-                        },
-                        "{SHOT_WORDS[word_idx]}"
-                    }
-                }
-            }
+        QuickDraw {
+            prompt: prompt_for(purpose).to_string(),
+            words,
+            target,
+            seed,
+            on_fire: move |res: QuickDrawResult| {
+                game.write().resolve_shot(res.seconds, res.hit);
+            },
         }
     }
 }

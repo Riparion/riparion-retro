@@ -1,0 +1,39 @@
+[package]
+name = "minigames-kit"
+version = "0.1.1"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Reusable, parameterized minigame components (QuickDraw, …) shared across the games in this workspace"
+
+[features]
+# Each minigame is its own feature so a host can take only what it needs.
+# `default = ["all"]` keeps existing consumers working untouched; opt into a
+# subset with `default-features = false, features = ["quickdraw"]`.
+default = ["all"]
+all = ["quickdraw", "timing_bar", "crowd_threading"]
+quickdraw = []
+timing_bar = []
+crowd_threading = []
+
+[dependencies]
+dioxus = { workspace = true }
+gloo-timers = { workspace = true }
+retro-kit = { workspace = true }
+
+[dev-dependencies]
+# Examples render the shared CRT stylesheet.
+
+# Each example only builds when its minigame's feature is enabled, so a
+# `--no-default-features` build doesn't try to compile a gated-out module.
+[[example]]
+name = "quickdraw"
+required-features = ["quickdraw"]
+
+[[example]]
+name = "timing_bar"
+required-features = ["timing_bar"]
+
+[[example]]
+name = "crowd_threading"
+required-features = ["crowd_threading"]
