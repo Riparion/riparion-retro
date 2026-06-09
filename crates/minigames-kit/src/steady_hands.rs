@@ -1,10 +1,10 @@
 //! SteadyHands — a touch-first precision tracing test.
 //!
 //! A target reticle wanders the play field on a deterministic, seeded path. The
-//! player drags a finger along the field to keep a controlled cursor on it. The
-//! cursor is rendered **offset above the fingertip** (a sniper-scope pattern),
-//! so the finger never occludes the target and nothing relies on hover — it
-//! works one-thumbed on a touchscreen.
+//! player drags a finger along the field to keep it inside the ring — the
+//! cursor tracks the fingertip directly. The ring is sized generously enough
+//! that the finger needn't be offset out of the way, and nothing relies on
+//! hover, so it works one-thumbed on a touchscreen.
 //!
 //! Where TimingBar samples a single instant, SteadyHands integrates over a whole
 //! run of continuous correction: accuracy is the fraction of the run the cursor
@@ -26,7 +26,7 @@ use retro_kit::theme::SCREEN_CENTERED;
 pub const TICK_MS: u32 = 20;
 
 /// The target stays within `[MARGIN, 1 - MARGIN]` on both axes so it never
-/// rides the very edge of the field (and the offset cursor can always reach it).
+/// rides the very edge of the field.
 const MARGIN: f64 = 0.15;
 
 /// The outcome of one SteadyHands run, handed to the host's `on_complete`.
@@ -42,16 +42,12 @@ pub struct SteadyHandsResult {
 
 /// Where the target sits at `elapsed_ms`, as `(x, y)` fractions 0.0..1.0 of the
 /// field. A seeded sum-of-sines (Lissajous-style) wander: deterministic for a
-/// given seed, and bounded by construction so it can never leave the field —
-/// **nor drift out of the offset cursor's reach.**
+/// given seed, and bounded by construction so it can never leave the field.
 ///
-/// The cursor renders `cursor_offset` *above* the fingertip, and the finger can
-/// only reach `y = 1.0` (the field's bottom edge), so the cursor can never get
-/// below `y = 1.0 - cursor_offset`. We therefore cap the target's vertical band
-/// at `1 - cursor_offset - MARGIN`; otherwise low targets would be physically
-/// unreachable on a touchscreen. `x` keeps the full `[MARGIN, 1 - MARGIN]` band;
-/// `drift_speed` multiplies the wander frequency.
-fn target_position(elapsed_ms: f64, seed: u64, drift_speed: f64, cursor_offset: f64) -> (f64, f64) {
+/// Both axes keep the full `[MARGIN, 1 - MARGIN]` band — the cursor tracks the
+/// fingertip directly, so anywhere on the field is reachable. `drift_speed`
+/// multiplies the wander frequency.
+fn target_position(elapsed_ms: f64, seed: u64, drift_speed: f64) -> (f64, f64) {
     use std::f64::consts::TAU;
     let mut rng = GameRng::from_seed(seed);
     // Two frequency/phase pairs per axis. Frequencies stay modest so the path is
@@ -69,9 +65,6 @@ fn target_position(elapsed_ms: f64, seed: u64, drift_speed: f64, cursor_offset: 
     let t = elapsed_ms / 1000.0 * drift_speed;
     // Map a sum of two unit sines (range -2..2 → halved to -1..1) onto a band.
     let band = |raw: f64, lo: f64, hi: f64| lo + (raw * 0.5 + 0.5) * (hi - lo);
-    // The y band's top is clamped so the offset cursor can always reach it; guard
-    // against a pathological offset collapsing or inverting the band.
-    let y_hi = (1.0 - cursor_offset - MARGIN).max(MARGIN + 0.05);
     let x = band(
         0.5 * (TAU * fx1 * t + px1).sin() + 0.5 * (TAU * fx2 * t + px2).sin(),
         MARGIN,
@@ -80,7 +73,7 @@ fn target_position(elapsed_ms: f64, seed: u64, drift_speed: f64, cursor_offset: 
     let y = band(
         0.5 * (TAU * fy1 * t + py1).sin() + 0.5 * (TAU * fy2 * t + py2).sin(),
         MARGIN,
-        y_hi,
+        1.0 - MARGIN,
     );
     (x, y)
 }
@@ -163,10 +156,6 @@ pub fn SteadyHands(
     /// How long the run lasts, in milliseconds.
     #[props(default = 6000)]
     duration_ms: u32,
-    /// How far above the fingertip the cursor floats, as a fraction of field
-    /// height. Keeps the finger from occluding the target. Default 0.18.
-    #[props(default = 0.18)]
-    cursor_offset: f64,
     /// Multiplies the wander frequency; higher = the target moves faster/harder.
     #[props(default = 1.0)]
     drift_speed: f64,
@@ -204,12 +193,9 @@ pub fn SteadyHands(
             let t = ticks() + 1;
             ticks.set(t);
             let elapsed = t as f64 * TICK_MS as f64;
-            let target = target_position(elapsed, seed, drift_speed, cursor_offset);
+            let target = target_position(elapsed, seed, drift_speed);
             let on = match finger() {
-                Some((fx, fy)) => {
-                    let cursor = (fx, (fy - cursor_offset).max(0.0));
-                    on_target(cursor, target, tolerance)
-                }
+                Some(cursor) => on_target(cursor, target, tolerance),
                 None => false,
             };
             acc.write().tick(on);
@@ -235,22 +221,23 @@ pub fn SteadyHands(
     };
 
     let elapsed = ticks() as f64 * TICK_MS as f64;
-    let (tx, ty) = target_position(elapsed, seed, drift_speed, cursor_offset);
+    let (tx, ty) = target_position(elapsed, seed, drift_speed);
     let progress = (elapsed / duration_ms as f64).min(1.0) * 100.0;
     let live_pct = (acc().accuracy() * 100.0) as i32;
 
     // Geometry as field percentages.
     let target_left = tx * 100.0;
     let target_top = ty * 100.0;
-    let cursor = finger().map(|(fx, fy)| (fx * 100.0, (fy - cursor_offset).max(0.0) * 100.0));
+    let cursor = finger().map(|(fx, fy)| (fx * 100.0, fy * 100.0));
     let tol_pct = tolerance * 100.0;
 
     rsx! {
         // Layout is set INLINE, not via Tailwind utilities. The Play CDN applies
         // its classes lazily (on the first DOM mutation), and `justify-center`
         // flipping in mid-run would reflow the field *under* our pointer-rect
-        // measurement — breaking the offset math. Inline styles are stable from
-        // first paint. Classes are kept alongside for hosts that build Tailwind.
+        // measurement — breaking the pointer-to-fraction math. Inline styles are
+        // stable from first paint. Classes are kept alongside for hosts that
+        // build Tailwind.
         div {
             class: "{SCREEN_CENTERED} gap-4 items-center",
             style: "flex: 1; display: flex; flex-direction: column; \
@@ -279,9 +266,9 @@ pub fn SteadyHands(
             }
 
             // The field: a framed lane carrying the drifting target and the
-            // offset cursor. Styled inline so the core visual stands without
-            // Tailwind utilities; `touch-action: none` so dragging traces
-            // instead of scrolling the page.
+            // cursor. Styled inline so the core visual stands without Tailwind
+            // utilities; `touch-action: none` so dragging traces instead of
+            // scrolling the page.
             div {
                 onmounted: move |evt: Event<MountedData>| async move {
                     // Keep a handle so we can re-query the rect later, and capture
@@ -346,7 +333,7 @@ pub fn SteadyHands(
                     }
                 }
 
-                // The controlled cursor, floating above the fingertip.
+                // The controlled cursor, tracking the fingertip.
                 match cursor {
                     Some((cx, cy)) => rsx! {
                         div {
@@ -364,7 +351,7 @@ pub fn SteadyHands(
                                 display: flex; align-items: center; justify-content: center; \
                                 pointer-events: none; text-align: center; \
                                 opacity: 0.6; font-size: 0.9rem;",
-                            "Touch the field and drag — keep the ✛ on the ring."
+                            "Touch the field and drag — keep the ✛ inside the ring."
                         }
                     },
                 }
@@ -373,7 +360,7 @@ pub fn SteadyHands(
             p {
                 class: "text-center text-sm opacity-60",
                 style: "text-align: center; font-size: 0.875rem; opacity: 0.6;",
-                "The cursor floats above your finger, so it stays in view."
+                "Keep your finger inside the ring as it drifts."
             }
         }
     }
@@ -385,11 +372,10 @@ mod tests {
 
     #[test]
     fn target_stays_on_the_field_across_seeds_and_time() {
-        let offset = 0.18;
         for seed in 0..64u64 {
             for step in 0..400 {
                 let elapsed = step as f64 * 25.0; // 0..10s
-                let (x, y) = target_position(elapsed, seed, 1.0, offset);
+                let (x, y) = target_position(elapsed, seed, 1.0);
                 assert!(
                     (MARGIN..=1.0 - MARGIN).contains(&x),
                     "target x off-field at seed {seed}, t={elapsed}: {x}"
@@ -403,31 +389,12 @@ mod tests {
     }
 
     #[test]
-    fn target_stays_within_the_offset_cursors_reach() {
-        // The offset cursor can only get as low as `1 - cursor_offset` (finger at
-        // the field's bottom edge). The target must never drift below that, or it
-        // would be physically unreachable on a touchscreen.
-        for &offset in &[0.10, 0.18, 0.30] {
-            let reach = 1.0 - offset;
-            for seed in 0..64u64 {
-                for step in 0..400 {
-                    let (_x, y) = target_position(step as f64 * 25.0, seed, 1.0, offset);
-                    assert!(
-                        y <= reach + 1e-9,
-                        "target y={y} below cursor reach {reach} (offset {offset}, seed {seed})"
-                    );
-                }
-            }
-        }
-    }
-
-    #[test]
     fn target_is_deterministic_per_seed() {
-        let a = target_position(1234.0, 7, 1.0, 0.18);
-        let b = target_position(1234.0, 7, 1.0, 0.18);
+        let a = target_position(1234.0, 7, 1.0);
+        let b = target_position(1234.0, 7, 1.0);
         assert_eq!(a, b);
         // A different seed should (essentially always) give a different point.
-        let c = target_position(1234.0, 8, 1.0, 0.18);
+        let c = target_position(1234.0, 8, 1.0);
         assert!(a != c);
     }
 
