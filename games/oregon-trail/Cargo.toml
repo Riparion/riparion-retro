@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 retro-kit = { workspace = true }
+minigames-kit = { workspace = true }
 
 dioxus = { workspace = true }
 serde = { workspace = true }

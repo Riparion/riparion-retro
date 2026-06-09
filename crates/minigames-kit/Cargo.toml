@@ -1,0 +1,15 @@
+[package]
+name = "minigames-kit"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Reusable, parameterized minigame components (QuickDraw, …) shared across the games in this workspace"
+
+[dependencies]
+dioxus = { workspace = true }
+gloo-timers = { workspace = true }
+retro-kit = { workspace = true }
+
+[dev-dependencies]
+# Examples render the shared CRT stylesheet.

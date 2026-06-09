@@ -11,6 +11,7 @@ license = "MIT OR Apache-2.0"
 # One version of everything, shared across games.
 [workspace.dependencies]
 retro-kit = { path = "crates/retro-kit" }
+minigames-kit = { path = "crates/minigames-kit" }
 dioxus = { version = "0.7.1", features = ["web"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
