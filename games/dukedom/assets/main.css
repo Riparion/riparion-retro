@@ -1,0 +1,3 @@
+/* dukedom — game-specific styling. The CRT identity (palette, scanlines,
+   buttons, inputs, panels) comes from retro-kit's crt.css; layer on the
+   shared CSS vars (--phosphor, --phosphor-dim, ...) — don't fork them. */
