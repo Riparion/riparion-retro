@@ -1,10 +1,10 @@
 //! Standalone demo of the [`QuickDraw`] minigame.
 //!
-//! Run it from the crate dir with the Dioxus CLI:
+//! This is its own crate. Serve it with the Dioxus CLI:
 //!
 //! ```sh
-//! cd crates/minigames-kit
-//! dx serve --example quickdraw
+//! dx serve --package minigames-kit-quickdraw
+//! # or, from the repo root: just example quickdraw
 //! ```
 //!
 //! Each round rotates the target word and feeds a fresh seed, so the buttons
@@ -15,6 +15,9 @@
 
 use dioxus::prelude::*;
 use minigames_kit::quickdraw::{QuickDraw, QuickDrawResult};
+
+/// Compiled by `dx serve` from this crate's root `tailwind.css`.
+const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
 
 fn main() {
     dioxus::launch(App);
@@ -44,10 +47,10 @@ fn App() -> Element {
     let words: Vec<String> = WORDS.iter().map(|w| w.to_string()).collect();
 
     rsx! {
-        // The shared CRT look. Tailwind's Play CDN supplies the utility classes
-        // the components use; real games compile their own tailwind.css instead.
+        // The shared CRT look plus this crate's own compiled Tailwind. No Play
+        // CDN, so the utility classes are present from first paint (no JIT jank).
         document::Stylesheet { href: retro_kit::CRT_CSS }
-        document::Script { src: "https://cdn.tailwindcss.com" }
+        document::Stylesheet { href: TAILWIND_CSS }
         document::Title { "QuickDraw — minigames-kit demo" }
 
         div { class: "crt flex flex-col", style: "min-height: 100vh;",

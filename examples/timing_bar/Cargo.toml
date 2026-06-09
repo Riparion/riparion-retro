@@ -1,0 +1,18 @@
+[package]
+name = "minigames-kit-timing-bar"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Standalone demo of the TimingBar minigame from minigames-kit"
+publish = false
+
+[dependencies]
+retro-kit = { workspace = true }
+minigames-kit = { workspace = true, features = ["timing_bar"] }
+
+dioxus = { workspace = true }
+
+[features]
+default = ["web"]
+web = ["dioxus/web"]

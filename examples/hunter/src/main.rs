@@ -1,10 +1,10 @@
 //! Standalone demo of the [`Hunter`] minigame.
 //!
-//! Run it from the crate dir with the Dioxus CLI:
+//! This is its own crate. Serve it with the Dioxus CLI:
 //!
 //! ```sh
-//! cd crates/minigames-kit
-//! dx serve --example hunter
+//! dx serve --package minigames-kit-hunter
+//! # or, from the repo root: just example hunter
 //! ```
 //!
 //! Cast as a hunt that gets harder each round: a slow duck, then a darting
@@ -20,6 +20,9 @@
 
 use dioxus::prelude::*;
 use minigames_kit::hunter::{Hunter, HunterResult};
+
+/// Compiled by `dx serve` from this crate's root `tailwind.css`.
+const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
 
 fn main() {
     dioxus::launch(App);
@@ -54,24 +57,15 @@ fn App() -> Element {
     };
 
     rsx! {
-        // The shared CRT look. Tailwind's Play CDN supplies the utility classes;
-        // the range itself is styled inline, so it renders without a build step.
+        // The shared CRT look plus this crate's own compiled Tailwind. No Play
+        // CDN, so the utility classes are present from first paint (no JIT jank).
         document::Stylesheet { href: retro_kit::CRT_CSS }
-        // DIAGNOSTIC: Tailwind Play CDN disabled. If the first-fire layout shift
-        // is gone, the CDN's lazy JIT (injecting utility CSS on the first
-        // out-of-grid DOM patch) was the cause and we make the kit fully
-        // inline-styled. If it still shifts, the CDN is ruled out.
-        // document::Script { src: "https://cdn.tailwindcss.com" }
+        document::Stylesheet { href: TAILWIND_CSS }
         document::Title { "Hunter — minigames-kit demo" }
 
-        // display:flex inline, not just via the `flex flex-col` classes: the
-        // Tailwind Play CDN JIT-generates utilities from the DOM, so on a fresh
-        // load those classes aren't ready and the page stacks as block flow —
-        // then snaps to a centered column once the first interaction makes the
-        // CDN catch up. Inlining keeps the layout put from the first paint.
         div {
             class: "crt flex flex-col",
-            style: "display: flex; flex-direction: column; min-height: 100vh;",
+            style: "min-height: 100vh;",
             Hunter {
                 key: "{r}",
                 prompt,
@@ -86,12 +80,8 @@ fn App() -> Element {
                 },
             }
 
-            // Padding/size inlined too — same Play CDN reason: without it the
-            // footer is unpadded on first paint and gains its `p-4` only once the
-            // CDN catches up, resizing this box and nudging the centered game.
             div {
                 class: "text-center text-sm opacity-70 p-4",
-                style: "text-align: center; font-size: 0.875rem; opacity: 0.7; padding: 1rem;",
                 match last() {
                     Some(res) => {
                         let verdict = if res.hit { "hit" } else { "missed" };

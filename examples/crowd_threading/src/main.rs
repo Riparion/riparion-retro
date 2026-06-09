@@ -1,10 +1,10 @@
 //! Standalone demo of the [`CrowdThreading`] minigame.
 //!
-//! Run it from the crate dir with the Dioxus CLI:
+//! This is its own crate. Serve it with the Dioxus CLI:
 //!
 //! ```sh
-//! cd crates/minigames-kit
-//! dx serve --example crowd_threading
+//! dx serve --package minigames-kit-crowd-threading
+//! # or, from the repo root: just example crowd_threading
 //! ```
 //!
 //! Cast as a ship slipping a pirate fleet: your sloop (⛵) must thread the
@@ -21,6 +21,9 @@
 
 use dioxus::prelude::*;
 use minigames_kit::crowd_threading::{CrowdThreading, CrowdThreadingResult};
+
+/// Compiled by `dx serve` from this crate's root `tailwind.css`.
+const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
 
 fn main() {
     dioxus::launch(App);
@@ -58,10 +61,10 @@ fn App() -> Element {
     };
 
     rsx! {
-        // The shared CRT look. Tailwind's Play CDN supplies the utility classes;
-        // the grid itself is styled inline, so it renders without a build step.
+        // The shared CRT look plus this crate's own compiled Tailwind. No Play
+        // CDN, so the utility classes are present from first paint (no JIT jank).
         document::Stylesheet { href: retro_kit::CRT_CSS }
-        document::Script { src: "https://cdn.tailwindcss.com" }
+        document::Stylesheet { href: TAILWIND_CSS }
         document::Title { "CrowdThreading — minigames-kit demo" }
 
         div { class: "crt flex flex-col", style: "min-height: 100vh;",

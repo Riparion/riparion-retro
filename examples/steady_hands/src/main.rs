@@ -1,10 +1,10 @@
 //! Standalone demo of the [`SteadyHands`] minigame.
 //!
-//! Run it from the crate dir with the Dioxus CLI:
+//! This is its own crate. Serve it with the Dioxus CLI:
 //!
 //! ```sh
-//! cd crates/minigames-kit
-//! dx serve --example steady_hands
+//! dx serve --package minigames-kit-steady-hands
+//! # or, from the repo root: just example steady_hands
 //! ```
 //!
 //! It cycles through a few "hold it steady" situations — fording a river, riding
@@ -19,6 +19,9 @@
 
 use dioxus::prelude::*;
 use minigames_kit::steady_hands::{SteadyHands, SteadyHandsResult};
+
+/// Compiled by `dx serve` from this crate's root `tailwind.css`.
+const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
 
 fn main() {
     dioxus::launch(App);
@@ -42,10 +45,10 @@ fn App() -> Element {
     let seed = 0xC0FFEE_u64.wrapping_mul(r as u64 + 1).rotate_left(r % 17);
 
     rsx! {
-        // The shared CRT look. Tailwind's Play CDN supplies the utility classes;
-        // the field itself is styled inline, so it renders without a build step.
+        // The shared CRT look plus this crate's own compiled Tailwind. No Play
+        // CDN, so the utility classes are present from first paint (no JIT jank).
         document::Stylesheet { href: retro_kit::CRT_CSS }
-        document::Script { src: "https://cdn.tailwindcss.com" }
+        document::Stylesheet { href: TAILWIND_CSS }
         document::Title { "SteadyHands — minigames-kit demo" }
 
         div {
