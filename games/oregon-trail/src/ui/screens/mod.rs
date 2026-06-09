@@ -1,4 +1,5 @@
 pub mod climb;
+pub mod dose;
 pub mod eat;
 pub mod flee;
 pub mod fog;
@@ -11,4 +12,5 @@ pub mod outfit;
 pub mod riders;
 pub mod shoot;
 pub mod splash;
+pub mod splint;
 pub mod trail;

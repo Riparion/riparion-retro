@@ -303,6 +303,93 @@ fn resolve_fog_ignores_stale_double_taps() {
     assert_eq!(g, snapshot, "a second resolve must be a no-op");
 }
 
+/// Stand a game up outfitted and parked on the event leg, ready to roll events.
+fn ready_for_event(seed: u64, miles: f64) -> Game {
+    let mut g = fresh(seed);
+    g.outfit(240.0, 200.0, 100.0, 50.0, 60.0).unwrap();
+    g.state.miles = miles;
+    g.resume = Resume::Leg;
+    g.leg = Some(Leg::Mountains);
+    g
+}
+
+#[test]
+fn a_broken_arm_launches_the_splint_game() {
+    // Event 3 should put up the splint minigame for some seeds, and a launched
+    // splint pauses the event leg. Below the mountains so only the event roll
+    // is in play.
+    let mut launched = 0;
+    for seed in 0..400u64 {
+        let mut g = ready_for_event(seed, 300.0);
+        let flow = g.do_event();
+        if g.mode == Mode::Splint {
+            assert_eq!(flow, Flow::Pause, "a launched splint pauses the leg");
+            launched += 1;
+        }
+    }
+    assert!(launched > 0, "the broken arm never fired in 400 seeds");
+}
+
+#[test]
+fn a_clean_splint_costs_less_than_a_botched_one() {
+    let mut clean = ready_for_event(7, 300.0);
+    clean.mode = Mode::Splint;
+    let (m0, x0) = (clean.state.miles, clean.state.misc);
+    clean.resolve_splint(true, 1.0);
+    let clean_loss = (m0 - clean.state.miles) + (x0 - clean.state.misc);
+    assert_ne!(clean.mode, Mode::Splint);
+
+    let mut botched = ready_for_event(7, 300.0);
+    botched.mode = Mode::Splint;
+    let (m1, x1) = (botched.state.miles, botched.state.misc);
+    botched.resolve_splint(false, 0.0);
+    let botched_loss = (m1 - botched.state.miles) + (x1 - botched.state.misc);
+
+    assert!(
+        botched_loss > clean_loss,
+        "fumbling the set should cost more time and supplies"
+    );
+}
+
+#[test]
+fn resolve_splint_ignores_stale_double_taps() {
+    let mut g = ready_for_event(7, 300.0);
+    g.mode = Mode::Splint;
+    g.resolve_splint(false, 0.0);
+    let snapshot = g.clone();
+    g.resolve_splint(true, 1.0); // stale: mode is no longer Splint
+    assert_eq!(g, snapshot, "a second resolve must be a no-op");
+}
+
+#[test]
+fn illness_launches_the_dosing_game_and_a_shaky_pour_wastes_supplies() {
+    // Drive the eat-then-sicken roll until event 15 makes the party ill; a
+    // launched illness pauses for the dose and stashes a severity.
+    let mut launched = 0;
+    for seed in 0..400u64 {
+        let mut g = ready_for_event(seed, 300.0);
+        g.state.eat_level = EatLevel::Poorly; // poor eating always sickens on event 15
+        let flow = g.do_event();
+        if g.mode == Mode::Dose {
+            assert_eq!(flow, Flow::Pause, "a launched illness pauses the leg");
+            assert!(g.pending_illness.is_some(), "a severity must be stashed");
+
+            // Same illness, two pours: the steady one keeps more medical supplies.
+            let mut steady = g.clone();
+            steady.resolve_dose(true, 1.0);
+            let mut shaky = g.clone();
+            shaky.resolve_dose(false, 0.0);
+            assert!(
+                shaky.state.misc < steady.state.misc,
+                "spilling the dose should burn extra supplies"
+            );
+            assert!(steady.pending_illness.is_none(), "the dose clears the illness");
+            launched += 1;
+        }
+    }
+    assert!(launched > 0, "illness never fired in 400 seeds");
+}
+
 /// Drive a whole journey through the public API with a fixed strategy.
 fn play(seed: u64, good: bool) -> Game {
     let mut g = Game::new(seed);
@@ -354,6 +441,9 @@ fn play(seed: u64, good: bool) -> Game {
             Mode::Flee => g.resolve_flee(good, if good { 1.0 } else { 0.0 }),
             Mode::Climb => g.resolve_climb(good, if good { 1.0 } else { 0.0 }),
             Mode::Fog => g.resolve_fog(good, if good { 1.0 } else { 0.0 }),
+            // Good play sets the bone / pours the dose dead-center; bad play fumbles.
+            Mode::Splint => g.resolve_splint(good, if good { 1.0 } else { 0.0 }),
+            Mode::Dose => g.resolve_dose(good, if good { 1.0 } else { 0.0 }),
             Mode::Fort => g.leave_fort(),
             Mode::Splash | Mode::NewGame | Mode::Outfit => {
                 unreachable!("unexpected pre-game mode at seed {seed}")

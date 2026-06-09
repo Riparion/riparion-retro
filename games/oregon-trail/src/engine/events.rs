@@ -5,7 +5,7 @@
 
 use super::interaction::{ShotPurpose, Tactic};
 use super::state::{EatLevel, BLUE_MOUNTAINS_AT, MOUNTAINS_AT};
-use super::{Flow, Game, RiderEncounter};
+use super::{Flow, Game, Illness, RiderEncounter};
 
 impl Game {
     // ===== Riders =====
@@ -147,9 +147,10 @@ impl Game {
                 self.state.oxen -= 20.0;
             }
             3 => {
-                self.message("Your daughter breaks her arm. You splint it and lose time.");
-                self.state.miles -= 5.0 + 4.0 * self.rng.uniform();
-                self.state.misc -= 2.0 + 3.0 * self.rng.uniform();
+                // Setting the bone cleanly is its own minigame; `resolve_splint`
+                // tallies how steady the hand was.
+                self.begin_splint();
+                return Flow::Pause;
             }
             4 => {
                 self.message("An ox wanders off. You spend time rounding it up.");
@@ -165,14 +166,14 @@ impl Game {
             }
             7 => {
                 if self.state.miles > MOUNTAINS_AT {
-                    self.cold_weather();
-                } else {
-                    self.message("Heavy rains — time, food, and supplies lost.");
-                    self.state.food -= 10.0;
-                    self.state.bullets -= 500.0;
-                    self.state.misc -= 15.0;
-                    self.state.miles -= 10.0 * self.rng.uniform() + 5.0;
+                    // Falling ill from the cold pauses for the dosing game.
+                    return self.cold_weather();
                 }
+                self.message("Heavy rains — time, food, and supplies lost.");
+                self.state.food -= 10.0;
+                self.state.bullets -= 500.0;
+                self.state.misc -= 15.0;
+                self.state.miles -= 10.0 * self.rng.uniform() + 5.0;
             }
             8 => {
                 self.message("Bandits attack!");
@@ -225,7 +226,8 @@ impl Game {
                     EatLevel::Well => self.rng.uniform() < 0.5,         // 50%
                 };
                 if sick {
-                    self.illness();
+                    // The dosing game runs before the illness is tallied.
+                    return self.illness();
                 }
             }
             _ => {
@@ -237,36 +239,33 @@ impl Game {
     }
 
     /// Cold-weather check (heavy rains in the mountains): too little clothing
-    /// and you fall ill.
-    fn cold_weather(&mut self) {
+    /// and you fall ill. Pauses for the dosing game if it comes to that.
+    fn cold_weather(&mut self) -> Flow {
         let needed = 22.0 + 4.0 * self.rng.uniform();
         if self.state.clothing > needed {
             self.message("Cold weather ahead — but you have enough clothing to stay warm.");
+            Flow::Continue
         } else {
             self.message("Cold weather ahead — and you don't have enough clothing to keep warm!");
-            self.illness();
+            self.illness()
         }
     }
 
-    /// The illness routine: severity skews by how well you've been eating.
-    fn illness(&mut self) {
+    /// The illness routine: roll the severity (it skews by how well you've been
+    /// eating), then put up the dosing minigame. The medicine isn't spent and
+    /// the severity isn't applied until [`resolve_dose`](Game::resolve_dose) —
+    /// a steady hand wastes less, a shaky one burns extra supplies.
+    fn illness(&mut self) -> Flow {
         let e = self.state.eat_level as i64 as f64; // 1 / 2 / 3
-        if self.rng.uniform() * 100.0 < 10.0 + 35.0 * (e - 1.0) {
-            self.message("A mild illness — medicine used.");
-            self.state.miles -= 5.0;
-            self.state.misc -= 2.0;
+        let severity = if self.rng.uniform() * 100.0 < 10.0 + 35.0 * (e - 1.0) {
+            Illness::Mild
         } else if self.rng.uniform() * 100.0 < 100.0 - 40.0 / 4f64.powf(e - 1.0) {
-            self.message("A bad illness — medicine used.");
-            self.state.miles -= 5.0;
-            self.state.misc -= 5.0;
+            Illness::Bad
         } else {
-            self.message("A serious illness — you must stop for medical attention.");
-            self.state.misc -= 10.0;
-            self.state.ill = true;
-        }
-        if self.state.misc < 0.0 {
-            self.die("You ran out of medical supplies and died of pneumonia.");
-        }
+            Illness::Serious
+        };
+        self.begin_dose(severity);
+        Flow::Pause
     }
 
     // ===== Mountains =====
@@ -320,7 +319,10 @@ impl Game {
         self.state.bullets -= 300.0;
         self.state.miles -= 30.0 + 40.0 * self.rng.uniform();
         if self.state.clothing < 18.0 + 2.0 * self.rng.uniform() {
-            self.illness();
+            // Falling ill in the pass pauses for the dosing game; `resolve_dose`
+            // runs `advance()`, which carries on to the next fortnight just as
+            // the `Flow::Continue` path below would.
+            return self.illness();
         }
         Flow::Continue
     }
