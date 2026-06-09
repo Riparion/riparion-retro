@@ -28,6 +28,8 @@ pub fn Splash() -> Element {
         (format!("{BTN_PRIMARY} text-xl"), "TAKE THE THRONE")
     };
 
+    let version = env!("CARGO_PKG_VERSION");
+
     rsx! {
         div { class: "{SCREEN_HERO} gap-6 p-6",
             div {
@@ -70,6 +72,7 @@ pub fn Splash() -> Element {
                 "After Dukedom by Kaapke, as published in Creative Computing, Feb 1980"
             }
             p { class: "text-xs opacity-50", "Ported to mobile by Tony Bierman" }
+            p { class: "text-xs opacity-40", "v{version}" }
         }
     }
 }
