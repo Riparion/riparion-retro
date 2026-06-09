@@ -31,6 +31,14 @@ santa-paravia:
 taipan:
     dx serve --release --package taipan
 
+# Serve a minigames-kit demo (e.g. `just example timing_bar`)
+example name:
+    dx serve --package minigames-kit --example {{name}}
+
+# Serve the SteadyHands minigame demo
+steady-hands:
+    dx serve --package minigames-kit --example steady_hands
+
 # Run all workspace tests
 test:
     cargo test --workspace
