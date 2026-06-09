@@ -272,6 +272,98 @@ impl Game {
         self.advance();
     }
 
+    // ----- Outrunning hostile riders -----
+
+    /// Put up the route-memory game: thread the terrain to lose the riders.
+    fn begin_flee(&mut self) {
+        self.mode = Mode::Flee;
+    }
+
+    /// Resolve the escape attempt. `cleared` = the whole route was reproduced
+    /// (you lost them); `accuracy` (0..=1) is how far you got before fouling it.
+    ///
+    /// Running scatters supplies either way — the cleaner your line, the less
+    /// you drop. Clear the route and you break away (and gain ground); foul it
+    /// and the riders run you down, dropping you into the gunfight. Guarded
+    /// against stale double-taps like `resolve_shot`.
+    pub fn resolve_flee(&mut self, cleared: bool, accuracy: f64) {
+        if self.mode != Mode::Flee {
+            return;
+        }
+        // The sooner you misremember the route, the more you scatter.
+        let drop = (1.0 - accuracy).clamp(0.0, 1.0);
+        self.state.misc -= 5.0 + 10.0 * drop;
+        self.state.oxen -= 10.0 + 30.0 * drop;
+        if cleared {
+            self.message("You thread the breaks and leave the riders behind — a clean getaway.");
+            self.state.miles += 20.0;
+            self.riders = None;
+            self.advance();
+        } else {
+            // Caught in the open — the gunfight's own prompt ("Riders close
+            // in!") narrates the capture, so no message is queued here.
+            self.begin_shot(ShotPurpose::Riders { circle: false });
+        }
+    }
+
+    // ----- Crossing the rugged mountains -----
+
+    /// Put up the route-memory game: pick a clean line through the rocks.
+    fn begin_climb(&mut self) {
+        self.mode = Mode::Climb;
+    }
+
+    /// Resolve a rugged-mountain crossing. `cleared` = you held the line the
+    /// whole way; `accuracy` (0..=1) is how far you got before fouling it. The
+    /// original only docked miles (−45..−95); here a clean line barely costs a
+    /// step while a fouled one loses the full stretch. Falls through to the
+    /// passes (South Pass / Blue Mountains) once the going is tallied. Guarded
+    /// against stale double-taps like `resolve_shot`.
+    pub fn resolve_climb(&mut self, cleared: bool, accuracy: f64) {
+        if self.mode != Mode::Climb {
+            return;
+        }
+        let drop = (1.0 - accuracy).clamp(0.0, 1.0);
+        self.state.miles -= 15.0 + 80.0 * drop;
+        if cleared {
+            self.message("You pick a clean line through the rocks and barely lose a step.");
+        } else {
+            self.message("The going turns rough — you backtrack through the rocks and lose ground.");
+        }
+        // Fall through to the passes, then on along the leg to the next fortnight.
+        if let Flow::Continue = self.do_mountain_passes() {
+            self.advance();
+        }
+    }
+
+    // ----- Lost in the fog -----
+
+    /// Put up the route-memory game: fix the trail in mind before the fog closes.
+    fn begin_fog(&mut self) {
+        self.mode = Mode::Fog;
+    }
+
+    /// Resolve groping through heavy fog. `cleared` = you held the trail the
+    /// whole way; `accuracy` (0..=1) is how far you got before drifting off it.
+    /// Keep your bearings and you lose no time; lose your way and you wander —
+    /// the original's time penalty, scaled by how far you drifted. Guarded
+    /// against stale double-taps like `resolve_shot`.
+    pub fn resolve_fog(&mut self, cleared: bool, accuracy: f64) {
+        if self.mode != Mode::Fog {
+            return;
+        }
+        if cleared {
+            self.message(
+                "You keep the trail clear in your mind and come through the fog losing no time.",
+            );
+        } else {
+            let drift = (1.0 - accuracy).clamp(0.0, 1.0);
+            self.state.miles -= 5.0 + 10.0 * drift;
+            self.message("You lose your way in the fog, wandering before you find the trail again.");
+        }
+        self.advance();
+    }
+
     // ----- Marksmanship reaction game -----
 
     /// Put up the gunfight screen with a fresh word to type.

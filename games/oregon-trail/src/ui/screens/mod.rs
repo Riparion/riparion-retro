@@ -1,4 +1,7 @@
+pub mod climb;
 pub mod eat;
+pub mod flee;
+pub mod fog;
 pub mod fort;
 pub mod game_over;
 pub mod hunt;

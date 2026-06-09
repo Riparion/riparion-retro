@@ -8,7 +8,7 @@ use retro_kit::components::menu_button::MenuButton;
 use retro_kit::theme::SCREEN_CENTERED;
 
 const TACTICS: [(Tactic, &str, &str); 4] = [
-    (Tactic::Run, "Run for it", "outrun them, but it's hard on the wagon"),
+    (Tactic::Run, "Run for it", "thread the breaks to shake them"),
     (Tactic::Attack, "Attack", "draw and fight"),
     (Tactic::Continue, "Keep going", "hold your course and hope"),
     (Tactic::CircleWagons, "Circle the wagons", "dig in and defend"),

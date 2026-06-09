@@ -37,11 +37,10 @@ impl Game {
     pub(crate) fn resolve_hostile_tactic(&mut self, tactic: Tactic) {
         match tactic {
             Tactic::Run => {
-                self.message("You make a run for it, outpacing the riders but scattering supplies.");
-                self.state.miles += 20.0;
-                self.state.misc -= 15.0;
-                self.state.bullets -= 150.0;
-                self.state.oxen -= 40.0;
+                // Threading away is its own minigame; `resolve_flee` tallies the
+                // outcome (clean break vs. run down into a gunfight).
+                self.begin_flee();
+                return;
             }
             Tactic::Attack => {
                 self.begin_shot(ShotPurpose::Riders { circle: false });
@@ -188,8 +187,10 @@ impl Game {
                 self.state.miles -= 15.0;
             }
             10 => {
-                self.message("Heavy fog — you lose your way for a time.");
-                self.state.miles -= 10.0 + 5.0 * self.rng.uniform();
+                // Heavy fog — finding the trail through it is its own minigame;
+                // `resolve_fog` tallies whether you kept your bearings.
+                self.begin_fog();
+                return Flow::Pause;
             }
             11 => {
                 self.message("You're bitten by a poisonous snake!");
@@ -270,22 +271,29 @@ impl Game {
 
     // ===== Mountains =====
 
-    /// The mountain passes, reached past mile 950: South Pass and, beyond mile
-    /// 1700, the Blue Mountains — each a one-time blizzard gamble.
+    /// The high country past mile 950. First the rugged going — about a 30%
+    /// chance each fortnight — then the passes. The original's rugged roll was a
+    /// dead quirk (it could only fire on an exact-zero draw); here it's a real
+    /// incident, played out as a route through the rocks via the climb minigame.
+    /// When that pauses, [`resolve_climb`](crate::engine::Game::resolve_climb)
+    /// falls through to [`do_mountain_passes`] so the passes still run.
     pub(crate) fn do_mountains(&mut self) -> Flow {
         if self.state.miles <= MOUNTAINS_AT {
             return Flow::Continue;
         }
-        // Faithful rugged-mountains roll: the controlling expression is non-zero
-        // for every reachable mileage, so the terrain incidents below virtually
-        // never fire — the original quirk.
-        let v = (self.state.miles / 100.0 - 15.0).powi(2);
-        let rugged = self.rng.uniform() * 10.0 * ((9.0 - (v + 72.0)) / (v + 12.0));
-        if rugged == 0.0 {
-            self.message("Rugged mountains — the going gets slow.");
-            self.state.miles -= 45.0 + 50.0 * self.rng.uniform();
+        // Rough, rugged going — one draw, same as the old quirk's roll, so the
+        // RNG stream past here is undisturbed on the (common) no-incident path.
+        if self.rng.uniform() < 0.30 {
+            self.begin_climb();
+            return Flow::Pause;
         }
+        self.do_mountain_passes()
+    }
 
+    /// South Pass and, beyond mile 1700, the Blue Mountains — each a one-time
+    /// blizzard gamble. Split out so the climb minigame can run first and then
+    /// fall through to here when it resolves.
+    pub(crate) fn do_mountain_passes(&mut self) -> Flow {
         // South Pass — once.
         if !self.state.cleared_south_pass {
             self.state.cleared_south_pass = true;
