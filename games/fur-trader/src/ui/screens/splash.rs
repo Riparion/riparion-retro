@@ -33,6 +33,8 @@ pub fn Splash() -> Element {
         (format!("{BTN_PRIMARY} text-xl"), "BEGIN EXPEDITION")
     };
 
+    let version = env!("CARGO_PKG_VERSION");
+
     rsx! {
         div { class: "flex-1 flex flex-col items-center justify-center gap-6 p-6 text-center",
             div {
@@ -77,6 +79,7 @@ pub fn Splash() -> Element {
                 "BASIC Computer Games (1976)."
             }
             p { class: "text-xs opacity-50", "Ported to mobile by Tony Bierman" }
+            p { class: "text-xs opacity-40", "v{version}" }
         }
     }
 }

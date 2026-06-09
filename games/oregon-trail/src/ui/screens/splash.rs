@@ -27,6 +27,8 @@ pub fn Splash() -> Element {
         (format!("{BTN_PRIMARY} text-xl"), "HEAD WEST")
     };
 
+    let version = env!("CARGO_PKG_VERSION");
+
     rsx! {
         div { class: "{SCREEN_HERO} gap-6 p-6",
             div {
@@ -61,6 +63,7 @@ pub fn Splash() -> Element {
             }
             p { class: "text-xs opacity-60", "After the 1975 MECC classic by Rawitsch, Heinemann & Dillenberger" }
             p { class: "text-xs opacity-50", "Ported to mobile by Tony Bierman" }
+            p { class: "text-xs opacity-40", "v{version}" }
         }
     }
 }
