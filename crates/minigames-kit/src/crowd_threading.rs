@@ -495,9 +495,15 @@ pub fn CrowdThreading(
                 }
                 // A D-pad: the directions sit in their cardinal places so the
                 // tap maps to the way you'd move. Corners are empty spacers.
+                // Grid is styled inline (not just via classes): the Tailwind
+                // Play CDN JIT-generates utilities from the DOM, so on a fresh
+                // load the `grid grid-cols-3` classes aren't ready and the
+                // buttons stack until a re-render. Classes stay for hosts that
+                // do build them.
                 div {
                     class: "grid grid-cols-3 gap-2",
-                    style: "width: 11rem;",
+                    style: "display: grid; grid-template-columns: repeat(3, 1fr); \
+                        gap: 0.5rem; width: 11rem;",
                     div {}
                     button {
                         key: "up", class: "{BTN} py-3 text-xl",

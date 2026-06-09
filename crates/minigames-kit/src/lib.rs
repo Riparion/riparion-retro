@@ -9,6 +9,8 @@
 //!   crosses a target zone.
 //! - [`crowd_threading`] — memorize a lit route through a crowd, then walk it
 //!   from memory once the map closes.
+//! - [`hunter`] — track a quarry bouncing across the top row and shoot it; a
+//!   single-shot rifle with finite ammo.
 //!
 //! A host can take only what it needs with
 //! `minigames-kit = { default-features = false, features = ["quickdraw"] }`.
@@ -18,6 +20,8 @@
 
 #[cfg(feature = "crowd_threading")]
 pub mod crowd_threading;
+#[cfg(feature = "hunter")]
+pub mod hunter;
 #[cfg(feature = "quickdraw")]
 pub mod quickdraw;
 #[cfg(feature = "timing_bar")]
