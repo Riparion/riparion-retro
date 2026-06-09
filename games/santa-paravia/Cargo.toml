@@ -1,6 +1,6 @@
 [package]
-name = "dukedom"
-version = "0.1.1"
+name = "santa-paravia"
+version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,9 +10,6 @@ retro-kit = { workspace = true }
 
 dioxus = { workspace = true }
 serde = { workspace = true }
-
-[dev-dependencies]
-serde_json = { workspace = true }
 
 [features]
 default = ["web"]

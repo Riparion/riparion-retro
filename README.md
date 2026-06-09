@@ -11,6 +11,7 @@ Cargo workspace — one crate per game under `games/`.
 | [fur-trader](games/fur-trader/) | <img src="games/fur-trader/screenshot.png" width="120" alt="Fur Trader screenshot"> | The 1976 BASIC fur-trading classic — outfit expeditions from Lake Ontario |
 | [oregon-trail](games/oregon-trail/) | <img src="games/oregon-trail/screenshot.png" width="120" alt="Oregon Trail screenshot"> | The 1975 MECC classic — lead a wagon party 2,040 miles to Oregon City |
 | [dukedom](games/dukedom/) | <img src="games/dukedom/screenshot.png" width="120" alt="Dukedom screenshot"> | The 1980 Creative Computing classic — rule a medieval duchy through plague, war, and the High King's taxes |
+| [santa-paravia](games/santa-paravia/) | <img src="games/santa-paravia/screenshot.png" width="120" alt="Santa Paravia screenshot"> | George Blank's 1978 city-state sim — rule a Renaissance Italian city-state and rise from Sir to King |
 
 ## Layout
 

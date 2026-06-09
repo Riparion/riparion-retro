@@ -1,8 +1,10 @@
 pub mod chip;
 pub mod decision;
+pub mod error_banner;
 pub mod menu_button;
 pub mod notice;
 pub mod number_entry;
 pub mod score_board;
+pub mod seg_button;
 pub mod spend_row;
 pub mod stat_row;

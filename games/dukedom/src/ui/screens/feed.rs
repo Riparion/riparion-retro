@@ -3,7 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::engine::Game;
-use crate::ui::components::error_banner::ErrorBanner;
+use retro_kit::components::error_banner::ErrorBanner;
 use retro_kit::components::number_entry::NumberEntry;
 
 #[component]

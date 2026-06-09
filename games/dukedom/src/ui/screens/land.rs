@@ -3,9 +3,10 @@
 use dioxus::prelude::*;
 
 use crate::engine::Game;
-use crate::ui::components::error_banner::ErrorBanner;
+use retro_kit::components::error_banner::ErrorBanner;
 use retro_kit::components::number_entry::NumberEntry;
-use retro_kit::theme::{BTN, BTN_PRIMARY, BTN_WIDE};
+use retro_kit::components::seg_button::SegButton;
+use retro_kit::theme::BTN;
 
 #[component]
 pub fn Land() -> Element {
@@ -44,16 +45,8 @@ pub fn Land() -> Element {
     rsx! {
         div { class: "flex-1 flex flex-col justify-center gap-2",
             div { class: "flex gap-2 mx-3",
-                button {
-                    class: if !is_selling { format!("{BTN_PRIMARY} flex-1") } else { format!("{BTN_WIDE} flex-1") },
-                    onclick: move |_| selling.set(false),
-                    "BUY"
-                }
-                button {
-                    class: if is_selling { format!("{BTN_PRIMARY} flex-1") } else { format!("{BTN_WIDE} flex-1") },
-                    onclick: move |_| selling.set(true),
-                    "SELL"
-                }
+                SegButton { label: "BUY", active: !is_selling, onclick: move |_| selling.set(false) }
+                SegButton { label: "SELL", active: is_selling, onclick: move |_| selling.set(true) }
             }
             ErrorBanner { message: err }
             NumberEntry {
