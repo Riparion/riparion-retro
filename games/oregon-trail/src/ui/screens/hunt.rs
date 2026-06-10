@@ -22,12 +22,9 @@ pub fn Hunt() -> Element {
     let ammo = 7usize
         .saturating_sub(g.state.marksman.clamp(1, 5) as usize)
         .max(2);
-    // A per-encounter seed pulled from existing state — varies with the fortnight
-    // and how far the party has traveled, so the setup differs between hunts
-    // without touching (and so without perturbing) the game's RNG stream.
-    let seed = (g.state.turn as u64)
-        .wrapping_mul(0x9E37_79B9_7F4A_7C15)
-        ^ g.state.miles.to_bits();
+    // A per-encounter seed (see `Game::encounter_seed`); no salt — the gallery
+    // hunt is chosen at the hub, never alongside another minigame.
+    let seed = g.encounter_seed(0);
     drop(g);
 
     rsx! {

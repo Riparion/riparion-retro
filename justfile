@@ -39,6 +39,10 @@ example name:
 steady-hands:
     dx serve --package minigames-kit-steady-hands
 
+# Serve the BucketBrigade minigame demo
+bucket-brigade:
+    dx serve --package minigames-kit-bucket-brigade
+
 # Run all workspace tests
 test:
     cargo test --workspace

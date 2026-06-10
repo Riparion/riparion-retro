@@ -5,7 +5,7 @@
 
 use super::interaction::{ShotPurpose, Tactic};
 use super::state::{EatLevel, BLUE_MOUNTAINS_AT, MOUNTAINS_AT};
-use super::{Flow, Game, Illness, RiderEncounter, SteadyTask};
+use super::{BrigadeTask, Flow, Game, Illness, RiderEncounter, SteadyTask};
 
 impl Game {
     // ===== Riders =====
@@ -170,11 +170,11 @@ impl Game {
                     // Falling ill from the cold pauses for the dosing game.
                     return self.cold_weather();
                 }
-                self.message("Heavy rains — time, food, and supplies lost.");
-                self.state.food -= 10.0;
-                self.state.bullets -= 500.0;
-                self.state.misc -= 15.0;
-                self.state.miles -= 10.0 * self.rng.uniform() + 5.0;
+                // Bailing and covering the load as the leaks spread is its own
+                // minigame (the prompt announces the downpour); `resolve_brigade`
+                // tallies how much of the load got soaked.
+                self.begin_brigade(BrigadeTask::Rains);
+                return Flow::Pause;
             }
             8 => {
                 self.message("Bandits attack!");
@@ -182,11 +182,11 @@ impl Game {
                 return Flow::Pause;
             }
             9 => {
-                self.message("Fire in the wagon — food and supplies destroyed!");
-                self.state.food -= 40.0;
-                self.state.bullets -= 400.0;
-                self.state.misc -= self.rng.uniform() * 8.0 + 3.0;
-                self.state.miles -= 15.0;
+                // Stamping out the flames before they reach the supplies is its
+                // own minigame (the prompt announces the fire); `resolve_brigade`
+                // tallies what still burned when the smoke cleared.
+                self.begin_brigade(BrigadeTask::Fire);
+                return Flow::Pause;
             }
             10 => {
                 // Heavy fog — finding the trail through it is its own minigame;
@@ -257,7 +257,7 @@ impl Game {
     /// eating), then put up the dosing minigame. The medicine isn't spent and
     /// the severity isn't applied until [`resolve_dose`](Game::resolve_dose) —
     /// a steady hand wastes less, a shaky one burns extra supplies.
-    fn illness(&mut self) -> Flow {
+    pub(crate) fn illness(&mut self) -> Flow {
         let e = self.state.eat_level as i64 as f64; // 1 / 2 / 3
         let severity = if self.rng.uniform() * 100.0 < 10.0 + 35.0 * (e - 1.0) {
             Illness::Mild
@@ -315,18 +315,12 @@ impl Game {
     }
 
     fn blizzard(&mut self) -> Flow {
-        self.message("Blizzard in the mountain pass! Time and supplies lost.");
-        self.state.food -= 25.0;
-        self.state.misc -= 10.0;
-        self.state.bullets -= 300.0;
-        self.state.miles -= 30.0 + 40.0 * self.rng.uniform();
-        if self.state.clothing < 18.0 + 2.0 * self.rng.uniform() {
-            // Falling ill in the pass pauses for the dosing game; `resolve_dose`
-            // runs `advance()`, which carries on to the next fortnight just as
-            // the `Flow::Continue` path below would.
-            return self.illness();
-        }
-        Flow::Continue
+        // Keeping the fire fed against the wind is its own minigame (the prompt
+        // announces the blizzard); `resolve_brigade` tallies the losses graded by
+        // how much got away, runs the cold-weather illness check, and falls
+        // through to the remaining passes.
+        self.begin_brigade(BrigadeTask::Blizzard);
+        Flow::Pause
     }
 
     // ===== Gunfights (resolve the reaction game) =====

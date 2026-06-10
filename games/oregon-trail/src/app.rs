@@ -89,6 +89,7 @@ fn GameRoot() -> Element {
                     Mode::Splint => rsx! { screens::splint::Splint {} },
                     Mode::Dose => rsx! { screens::dose::Dose {} },
                     Mode::Steady => rsx! { screens::steady::Steady {} },
+                    Mode::Brigade => rsx! { screens::brigade::Brigade {} },
                     Mode::Riders => rsx! { screens::riders::Riders {} },
                     Mode::Interaction => rsx! { screens::interaction_host::InteractionHost {} },
                     Mode::GameOver => rsx! { screens::game_over::GameOver {} },

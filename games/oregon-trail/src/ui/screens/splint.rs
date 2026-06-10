@@ -17,14 +17,9 @@ use crate::engine::Game;
 pub fn Splint() -> Element {
     let mut game = use_context::<Signal<Game>>();
     let g = game.read();
-    // A per-encounter seed pulled from existing state — varies with the fortnight
-    // and mileage so the zone differs between breaks without touching (and so
-    // without perturbing) the game's RNG stream. The salt keeps it distinct from
-    // a same-fortnight dose, which shares the base formula.
-    let seed = (g.state.turn as u64)
-        .wrapping_mul(0x9E37_79B9_7F4A_7C15)
-        ^ g.state.miles.to_bits()
-        ^ 0x5B0E_5E77_B04E_5E77;
+    // A per-encounter seed (see `Game::encounter_seed`); the salt keeps the splint's
+    // zone distinct from a same-fortnight dose.
+    let seed = g.encounter_seed(0x5B0E_5E77_B04E_5E77);
     drop(g);
 
     rsx! {

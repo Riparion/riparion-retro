@@ -35,14 +35,9 @@ pub fn Dose() -> Element {
     } else {
         0.11
     };
-    // A per-encounter seed pulled from existing state — varies with the fortnight
-    // and mileage so the zone differs between doses without touching (and so
-    // without perturbing) the game's RNG stream. The salt keeps it distinct from
-    // a same-fortnight splint, which shares the base formula.
-    let seed = (g.state.turn as u64)
-        .wrapping_mul(0x9E37_79B9_7F4A_7C15)
-        ^ g.state.miles.to_bits()
-        ^ 0xD05E_D05E_D05E_D05E;
+    // A per-encounter seed (see `Game::encounter_seed`); the salt keeps the dose's
+    // zone distinct from a same-fortnight splint.
+    let seed = g.encounter_seed(0xD05E_D05E_D05E_D05E);
     drop(g);
 
     rsx! {

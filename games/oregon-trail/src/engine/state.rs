@@ -205,6 +205,9 @@ pub enum Mode {
     /// Holding a hand steady under strain — drawing snake venom, fording a
     /// river, wrapping an ox's leg (the precision-trace game).
     Steady,
+    /// Beating back a spreading threat — fire in the wagon, a leaking load in
+    /// heavy rains, a guttering fire in a blizzard (the bucket-brigade game).
+    Brigade,
     /// Riders ahead — choose your tactics.
     Riders,
     /// Showing the head of the pending message/prompt queue.

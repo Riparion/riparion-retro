@@ -74,6 +74,20 @@ pub enum SteadyTask {
     OxLeg,
 }
 
+/// Which catastrophe put up the bucket-brigade minigame, held while it runs so
+/// the resolve applies the right losses. All three trade a triage-against-spread
+/// race for graded supply hits — contain the threat and you pay the floor, let
+/// it run and you pay the full toll.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BrigadeTask {
+    /// Fire in the wagon — stamp out the flames before they reach the supplies.
+    Fire,
+    /// Heavy rains — bail and cover the load as the leaks spread.
+    Rains,
+    /// Blizzard in the pass — keep the fire fed against the wind.
+    Blizzard,
+}
+
 /// Riders on the trail: what they look like, and what they actually are.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RiderEncounter {
@@ -101,6 +115,8 @@ pub struct Game {
     pub pending_illness: Option<Illness>,
     /// Which catastrophe the steady-hand minigame is resolving.
     pub pending_steady: Option<SteadyTask>,
+    /// Which catastrophe the bucket-brigade minigame is resolving.
+    pub pending_brigade: Option<BrigadeTask>,
     pub outcome: Option<EndGame>,
     pub rng: GameRng,
 }
@@ -118,6 +134,7 @@ impl Game {
             shot_word: 0,
             pending_illness: None,
             pending_steady: None,
+            pending_brigade: None,
             outcome: None,
             rng: GameRng::from_seed(seed),
         }
@@ -527,6 +544,109 @@ impl Game {
             }
         }
         self.advance();
+    }
+
+    // ----- Beating back a spreading threat -----
+
+    /// A per-encounter PRNG seed derived from current progress (fortnight +
+    /// mileage) — varies between encounters yet stays deterministic for a given
+    /// save, and never draws from (so never perturbs) the game's own RNG stream.
+    /// `salt` keeps co-located minigames distinct so a same-fortnight splint, dose,
+    /// and steady trace don't share a layout. The thin minigame screen wrappers all
+    /// derive their `seed` through this one helper.
+    pub fn encounter_seed(&self, salt: u64) -> u64 {
+        (self.state.turn as u64)
+            .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+            ^ self.state.miles.to_bits()
+            ^ salt
+    }
+
+    /// Put up the triage-against-spread game for whichever catastrophe just struck.
+    fn begin_brigade(&mut self, task: BrigadeTask) {
+        self.pending_brigade = Some(task);
+        self.mode = Mode::Brigade;
+    }
+
+    /// Resolve the bucket-brigade. `contained` = the threat was beaten back to
+    /// zero before the clock ran out; `leaked`/`capacity` are the live-cell count
+    /// at the buzzer and the grid size, which grade the loss: contain it (`leaked`
+    /// 0) and you pay the floor, let it spread across the whole grid (`leaked` ≈
+    /// `capacity`) and you pay the full toll. Normalizing here — rather than in the
+    /// UI — keeps the grading unit-tested. The blizzard additionally runs the
+    /// cold-weather illness check and falls through to the remaining passes,
+    /// mirroring `resolve_climb`. Guarded against stale double-taps like
+    /// `resolve_steady`.
+    pub fn resolve_brigade(&mut self, contained: bool, leaked: usize, capacity: usize) {
+        if self.mode != Mode::Brigade {
+            return;
+        }
+        let Some(task) = self.pending_brigade.take() else {
+            return;
+        };
+        // How much got away: 0 = beaten back clean, 1 = it spread across the load.
+        let sev = if capacity > 0 {
+            (leaked as f64 / capacity as f64).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        match task {
+            // Fire and Rains are the same triage with different numbers: a per-task
+            // (floor, slope) for each resource plus the two outcome lines, applied
+            // and advanced the same way.
+            BrigadeTask::Fire | BrigadeTask::Rains => {
+                // (floor, slope) for food / bullets / misc / miles, then the two
+                // outcome lines.
+                let (food, bullets, misc, miles, ok, lost) = match task {
+                    BrigadeTask::Fire => (
+                        (8.0, 32.0),
+                        (80.0, 320.0),
+                        (2.0, 9.0),
+                        (4.0, 11.0),
+                        "You stamp out the flames before they reach the supplies.",
+                        "The fire races through the wagon — food and supplies destroyed!",
+                    ),
+                    _ => (
+                        (2.0, 8.0),
+                        (100.0, 400.0),
+                        (3.0, 12.0),
+                        (3.0, 12.0),
+                        "You bail and cover the load — the rains barely touch it.",
+                        "Heavy rains soak the wagon — food and supplies lost.",
+                    ),
+                };
+                let grade = |(floor, slope): (f64, f64)| floor + slope * sev;
+                self.state.food -= grade(food);
+                self.state.bullets -= grade(bullets);
+                self.state.misc -= grade(misc);
+                self.state.miles -= grade(miles);
+                self.message(if contained { ok } else { lost });
+                self.advance();
+            }
+            BrigadeTask::Blizzard => {
+                self.state.food -= 5.0 + 20.0 * sev;
+                self.state.misc -= 2.0 + 8.0 * sev;
+                self.state.bullets -= 60.0 + 240.0 * sev;
+                self.state.miles -= 6.0 + 64.0 * sev;
+                if contained {
+                    self.message(
+                        "You keep the fire fed against the wind and push on through the blizzard.",
+                    );
+                } else {
+                    self.message("The fire dies in the wind — the blizzard takes its toll.");
+                }
+                // Too little clothing and the cold brings on sickness (the dosing
+                // game), exactly as the original blizzard did.
+                if self.state.clothing < 18.0 + 2.0 * self.rng.uniform() {
+                    self.illness();
+                    return;
+                }
+                // Otherwise fall through to the remaining pass (Blue Mountains)
+                // and on along the leg, mirroring `resolve_climb`.
+                if let Flow::Continue = self.do_mountain_passes() {
+                    self.advance();
+                }
+            }
+        }
     }
 
     // ----- Marksmanship reaction game -----

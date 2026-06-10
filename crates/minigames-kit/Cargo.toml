@@ -1,6 +1,6 @@
 [package]
 name = "minigames-kit"
-version = "0.1.3"
+version = "0.1.4"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -11,12 +11,13 @@ description = "Reusable, parameterized minigame components (QuickDraw, …) shar
 # `default = ["all"]` keeps existing consumers working untouched; opt into a
 # subset with `default-features = false, features = ["quickdraw"]`.
 default = ["all"]
-all = ["quickdraw", "timing_bar", "crowd_threading", "hunter", "steady_hands"]
+all = ["quickdraw", "timing_bar", "crowd_threading", "hunter", "steady_hands", "bucket_brigade"]
 quickdraw = []
 timing_bar = []
 crowd_threading = []
 hunter = []
 steady_hands = []
+bucket_brigade = []
 
 [dependencies]
 dioxus = { workspace = true }

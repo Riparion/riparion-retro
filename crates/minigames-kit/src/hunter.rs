@@ -18,6 +18,8 @@ use gloo_timers::future::TimeoutFuture;
 use retro_kit::rng::GameRng;
 use retro_kit::theme::{BTN, SCREEN_CENTERED};
 
+use crate::grid;
+
 /// Granularity of the motion/reload clock, in milliseconds (~50 fps).
 pub const TICK_MS: u32 = 20;
 
@@ -234,6 +236,10 @@ pub fn Hunter(
     let reload_style = format!("{} padding: 0.75rem; font-size: 0.875rem; line-height: 1;", dim(can_reload));
     let move_style = "padding: 0.75rem; font-size: 1.25rem; line-height: 1;";
 
+    // Shared CRT-grid styling (see `grid`).
+    let grid_style = grid::container_style(cols);
+    let cell_box = grid::CELL_BOX_STYLE;
+
     rsx! {
         // Inline layout mirrors the other minigames: some hosts (the Tailwind
         // Play CDN) don't emit the flex utilities for this dynamic DOM, so the
@@ -254,10 +260,7 @@ pub fn Hunter(
             // The range: a dim lattice with the quarry up top and the hunter on
             // the bottom row. Styled inline so the core visual needs no utilities.
             div {
-                style: "display: grid; width: 100%; max-width: 19rem; \
-                    grid-template-columns: repeat({cols}, 1fr); gap: 2px; \
-                    padding: 4px; border: 1px solid var(--phosphor-dim); border-radius: 4px; \
-                    background: rgba(20, 95, 40, 0.10);",
+                style: "{grid_style}",
                 for r in 0..rows {
                     for c in 0..cols {
                         {
@@ -290,14 +293,8 @@ pub fn Hunter(
                                     key: "{r}-{c}",
                                     // Cells are a flat dim lane — no per-cell glow,
                                     // so nothing of a shot is left behind once the
-                                    // bullet dot has passed through. line-height +
-                                    // overflow:hidden pin the cell height to its
-                                    // aspect ratio so a glyph can't grow the row and
-                                    // make the grid jitter as the dot moves through.
-                                    style: "display: flex; align-items: center; justify-content: center; \
-                                        aspect-ratio: 1; font-size: 1.35rem; font-weight: 700; \
-                                        line-height: 1; overflow: hidden; \
-                                        border-radius: 3px; border: 1px solid transparent; \
+                                    // bullet dot has passed through.
+                                    style: "{cell_box} border: 1px solid transparent; \
                                         background: rgba(51, 255, 102, 0.04);",
                                     span { style: "{glyph_style}", "{glyph}" }
                                 }
