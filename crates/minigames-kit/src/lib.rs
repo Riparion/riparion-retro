@@ -15,6 +15,8 @@
 //!   cursor on a drifting target for the duration; accuracy = time on target.
 //! - [`bucket_brigade`] — triage against a spreading threat: tap the flames on a
 //!   grid faster than they multiply before the clock runs out.
+//! - [`hot_cold`] — a search/deduction hunt: probe a grid to find a hidden target
+//!   from warmer/colder (or distance-ring) clues in as few taps as possible.
 //!
 //! A host can take only what it needs with
 //! `minigames-kit = { default-features = false, features = ["quickdraw"] }`.
@@ -27,9 +29,11 @@
 pub mod bucket_brigade;
 #[cfg(feature = "crowd_threading")]
 pub mod crowd_threading;
-/// Shared inline styling for the grid-based minigames (Hunter, BucketBrigade).
-#[cfg(any(feature = "hunter", feature = "bucket_brigade"))]
+/// Shared inline styling for the grid-based minigames (Hunter, BucketBrigade, HotCold).
+#[cfg(any(feature = "hunter", feature = "bucket_brigade", feature = "hot_cold"))]
 pub mod grid;
+#[cfg(feature = "hot_cold")]
+pub mod hot_cold;
 #[cfg(feature = "hunter")]
 pub mod hunter;
 #[cfg(feature = "quickdraw")]

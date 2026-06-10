@@ -1,0 +1,18 @@
+[package]
+name = "minigames-kit-hot-cold"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Standalone demo of the HotCold minigame from minigames-kit"
+publish = false
+
+[dependencies]
+retro-kit = { workspace = true }
+minigames-kit = { workspace = true, features = ["hot_cold"] }
+
+dioxus = { workspace = true }
+
+[features]
+default = ["web"]
+web = ["dioxus/web"]
