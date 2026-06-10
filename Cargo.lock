@@ -1820,6 +1820,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "minigames-kit-bucket-brigade"
+version = "0.1.0"
+dependencies = [
+ "dioxus",
+ "minigames-kit",
+ "retro-kit",
+]
+
+[[package]]
 name = "minigames-kit-crowd-threading"
 version = "0.1.0"
 dependencies = [

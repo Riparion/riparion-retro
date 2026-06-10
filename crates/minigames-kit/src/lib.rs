@@ -13,6 +13,8 @@
 //!   single-shot rifle with finite ammo.
 //! - [`steady_hands`] — a touch-first precision trace: drag to keep an offset
 //!   cursor on a drifting target for the duration; accuracy = time on target.
+//! - [`bucket_brigade`] — triage against a spreading threat: tap the flames on a
+//!   grid faster than they multiply before the clock runs out.
 //!
 //! A host can take only what it needs with
 //! `minigames-kit = { default-features = false, features = ["quickdraw"] }`.
@@ -21,8 +23,13 @@
 //! demo crate under `examples/<name>` at the workspace root, served with
 //! `dx serve --package minigames-kit-<name>`).
 
+#[cfg(feature = "bucket_brigade")]
+pub mod bucket_brigade;
 #[cfg(feature = "crowd_threading")]
 pub mod crowd_threading;
+/// Shared inline styling for the grid-based minigames (Hunter, BucketBrigade).
+#[cfg(any(feature = "hunter", feature = "bucket_brigade"))]
+pub mod grid;
 #[cfg(feature = "hunter")]
 pub mod hunter;
 #[cfg(feature = "quickdraw")]
