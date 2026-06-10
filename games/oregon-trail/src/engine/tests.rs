@@ -390,6 +390,87 @@ fn illness_launches_the_dosing_game_and_a_shaky_pour_wastes_supplies() {
     assert!(launched > 0, "illness never fired in 400 seeds");
 }
 
+/// Stand a game up at the steady-hand screen for a given task, ready to resolve.
+fn mid_steady(seed: u64, miles: f64, task: SteadyTask) -> Game {
+    let mut g = ready_for_event(seed, miles);
+    g.pending_steady = Some(task);
+    g.mode = Mode::Steady;
+    g
+}
+
+#[test]
+fn the_unchecked_catastrophes_launch_the_steady_game() {
+    // Events 2 (ox leg), 11 (snakebite), and 12 (river ford) each pause into the
+    // steady-hand trace; over enough seeds all three tasks should turn up. Below
+    // the mountains so only the event roll is in play.
+    let (mut saw_ox, mut saw_snake, mut saw_ford) = (false, false, false);
+    for seed in 0..1500u64 {
+        let mut g = ready_for_event(seed, 300.0);
+        let flow = g.do_event();
+        if g.mode == Mode::Steady {
+            assert_eq!(flow, Flow::Pause, "a launched steady trace pauses the leg");
+            match g.pending_steady.expect("a task must be stashed") {
+                SteadyTask::OxLeg => saw_ox = true,
+                SteadyTask::Snakebite => saw_snake = true,
+                SteadyTask::Ford => saw_ford = true,
+            }
+        }
+    }
+    assert!(
+        saw_ox && saw_snake && saw_ford,
+        "all three catastrophes should fire across the seed sweep"
+    );
+}
+
+#[test]
+fn a_steady_hand_costs_less_than_a_shaky_one() {
+    let mut steady = mid_steady(7, 300.0, SteadyTask::Ford);
+    let (m0, f0, c0) = (steady.state.miles, steady.state.food, steady.state.clothing);
+    steady.resolve_steady(true, 1.0);
+    let steady_loss =
+        (m0 - steady.state.miles) + (f0 - steady.state.food) + (c0 - steady.state.clothing);
+    assert_ne!(steady.mode, Mode::Steady);
+
+    let mut shaky = mid_steady(7, 300.0, SteadyTask::Ford);
+    let (m1, f1, c1) = (shaky.state.miles, shaky.state.food, shaky.state.clothing);
+    shaky.resolve_steady(false, 0.0);
+    let shaky_loss =
+        (m1 - shaky.state.miles) + (f1 - shaky.state.food) + (c1 - shaky.state.clothing);
+
+    assert!(
+        shaky_loss > steady_loss,
+        "letting the wagon wander should cost more time and supplies"
+    );
+}
+
+#[test]
+fn a_steady_hand_saves_the_medicine_that_keeps_you_alive() {
+    // With medicine all but gone, a steady draw survives the snakebite on what's
+    // left; a shaky one spills the last of it and the bite turns fatal.
+    let mut steady = mid_steady(7, 300.0, SteadyTask::Snakebite);
+    steady.state.misc = 5.0;
+    steady.resolve_steady(true, 1.0);
+    assert!(
+        steady.outcome.is_none(),
+        "a steady draw should survive on the medicine left"
+    );
+
+    let mut shaky = mid_steady(7, 300.0, SteadyTask::Snakebite);
+    shaky.state.misc = 5.0;
+    shaky.resolve_steady(false, 0.0);
+    let end = shaky.outcome.expect("spilling the last medicine should be fatal");
+    assert!(!end.won, "snakebite death is a loss");
+}
+
+#[test]
+fn resolve_steady_ignores_stale_double_taps() {
+    let mut g = mid_steady(7, 300.0, SteadyTask::OxLeg);
+    g.resolve_steady(false, 0.0); // first call lands the wrap
+    let snapshot = g.clone();
+    g.resolve_steady(true, 1.0); // stale: mode is no longer Steady
+    assert_eq!(g, snapshot, "a second resolve must be a no-op");
+}
+
 /// Drive a whole journey through the public API with a fixed strategy.
 fn play(seed: u64, good: bool) -> Game {
     let mut g = Game::new(seed);
@@ -444,6 +525,8 @@ fn play(seed: u64, good: bool) -> Game {
             // Good play sets the bone / pours the dose dead-center; bad play fumbles.
             Mode::Splint => g.resolve_splint(good, if good { 1.0 } else { 0.0 }),
             Mode::Dose => g.resolve_dose(good, if good { 1.0 } else { 0.0 }),
+            // Good play holds the trace dead steady; bad play lets it wander off.
+            Mode::Steady => g.resolve_steady(good, if good { 1.0 } else { 0.0 }),
             Mode::Fort => g.leave_fort(),
             Mode::Splash | Mode::NewGame | Mode::Outfit => {
                 unreachable!("unexpected pre-game mode at seed {seed}")

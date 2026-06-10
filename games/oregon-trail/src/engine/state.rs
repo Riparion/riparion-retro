@@ -202,6 +202,9 @@ pub enum Mode {
     Splint,
     /// Measuring out a dose of medicine (the timing game).
     Dose,
+    /// Holding a hand steady under strain — drawing snake venom, fording a
+    /// river, wrapping an ox's leg (the precision-trace game).
+    Steady,
     /// Riders ahead — choose your tactics.
     Riders,
     /// Showing the head of the pending message/prompt queue.

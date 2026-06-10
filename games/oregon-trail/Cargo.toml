@@ -9,8 +9,9 @@ license.workspace = true
 retro-kit = { workspace = true }
 # QuickDraw drives gunfights; Hunter drives the hunting gallery; CrowdThreading
 # drives the escape from hostile riders; TimingBar drives setting a broken bone
-# and measuring out medicine. Skip the rest.
-minigames-kit = { workspace = true, features = ["quickdraw", "hunter", "crowd_threading", "timing_bar"] }
+# and measuring out medicine; SteadyHands drives the snakebite, river ford, and
+# ox-leg traces. Skip the rest.
+minigames-kit = { workspace = true, features = ["quickdraw", "hunter", "crowd_threading", "timing_bar", "steady_hands"] }
 
 dioxus = { workspace = true }
 serde = { workspace = true }
