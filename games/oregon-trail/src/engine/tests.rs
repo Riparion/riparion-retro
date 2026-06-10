@@ -471,6 +471,118 @@ fn resolve_steady_ignores_stale_double_taps() {
     assert_eq!(g, snapshot, "a second resolve must be a no-op");
 }
 
+/// Stand a game up at the bucket-brigade screen for a given task, ready to resolve.
+fn mid_brigade(seed: u64, miles: f64, task: BrigadeTask) -> Game {
+    let mut g = ready_for_event(seed, miles);
+    g.pending_brigade = Some(task);
+    g.mode = Mode::Brigade;
+    g
+}
+
+#[test]
+fn fire_and_rains_launch_the_brigade_game() {
+    // Events 9 (fire) and 7 (heavy rains, below the mountains) each pause into
+    // the bucket-brigade triage; over enough seeds both should turn up. Held
+    // below the mountains so the rains stay rains (not cold weather).
+    let (mut saw_fire, mut saw_rains) = (false, false);
+    for seed in 0..1500u64 {
+        let mut g = ready_for_event(seed, 300.0);
+        let flow = g.do_event();
+        if g.mode == Mode::Brigade {
+            assert_eq!(flow, Flow::Pause, "a launched brigade pauses the leg");
+            match g.pending_brigade.expect("a task must be stashed") {
+                BrigadeTask::Fire => saw_fire = true,
+                BrigadeTask::Rains => saw_rains = true,
+                BrigadeTask::Blizzard => panic!("no blizzard below the mountains"),
+            }
+        }
+    }
+    assert!(
+        saw_fire && saw_rains,
+        "both fire and heavy rains should fire across the seed sweep"
+    );
+}
+
+#[test]
+fn containing_a_blaze_costs_less_than_letting_it_run() {
+    let mut contained = mid_brigade(7, 300.0, BrigadeTask::Fire);
+    let (f0, b0, m0) = (
+        contained.state.food,
+        contained.state.bullets,
+        contained.state.misc,
+    );
+    contained.resolve_brigade(true, 0, 25);
+    let kept_loss = (f0 - contained.state.food)
+        + (b0 - contained.state.bullets)
+        + (m0 - contained.state.misc);
+    assert_ne!(contained.mode, Mode::Brigade);
+
+    let mut lost = mid_brigade(7, 300.0, BrigadeTask::Fire);
+    let (f1, b1, m1) = (lost.state.food, lost.state.bullets, lost.state.misc);
+    lost.resolve_brigade(false, 25, 25);
+    let run_loss = (f1 - lost.state.food) + (b1 - lost.state.bullets) + (m1 - lost.state.misc);
+
+    assert!(
+        run_loss > kept_loss,
+        "letting the fire spread should destroy more than stamping it out"
+    );
+}
+
+#[test]
+fn partial_containment_grades_between_floor_and_full() {
+    // The engine now owns the leaked/capacity -> severity mapping (the screen used
+    // to do it), so it's unit-testable here: a half-leaked grid must cost strictly
+    // more than full containment and strictly less than a total loss.
+    let loss = |leaked: usize| {
+        let mut g = mid_brigade(7, 300.0, BrigadeTask::Fire);
+        let (f0, b0) = (g.state.food, g.state.bullets);
+        g.resolve_brigade(leaked == 0, leaked, 25);
+        (f0 - g.state.food) + (b0 - g.state.bullets)
+    };
+    let (floor, half, full) = (loss(0), loss(12), loss(25));
+    assert!(
+        floor < half && half < full,
+        "loss should scale with how much leaked: {floor} < {half} < {full}"
+    );
+}
+
+#[test]
+fn an_underclothed_blizzard_brings_on_sickness() {
+    // The blizzard's cold-weather check still bites: with no clothing the pass
+    // drops you straight into the dosing game.
+    let mut g = mid_brigade(7, 1200.0, BrigadeTask::Blizzard);
+    g.state.cleared_south_pass = true; // a clean fall-through, no second gamble
+    g.state.cleared_blue_mountains = true;
+    g.resume = Resume::NextTurn;
+    g.state.clothing = 0.0;
+    g.resolve_brigade(false, 25, 25);
+    assert_eq!(g.mode, Mode::Dose, "freezing in the pass should bring on illness");
+}
+
+#[test]
+fn a_well_clothed_party_rides_out_the_blizzard() {
+    // Enough clothing skips the illness, and the resolve falls through the passes
+    // and carries on — landing anywhere but back on the brigade or in the doctor.
+    let mut g = mid_brigade(7, 1200.0, BrigadeTask::Blizzard);
+    g.state.cleared_south_pass = true;
+    g.state.cleared_blue_mountains = true;
+    g.resume = Resume::NextTurn;
+    g.state.clothing = 100.0;
+    g.resolve_brigade(true, 0, 25);
+    assert_ne!(g.mode, Mode::Brigade);
+    assert_ne!(g.mode, Mode::Dose);
+    assert!(g.pending_brigade.is_none(), "the resolve clears the task");
+}
+
+#[test]
+fn resolve_brigade_ignores_stale_double_taps() {
+    let mut g = mid_brigade(7, 300.0, BrigadeTask::Fire);
+    g.resolve_brigade(false, 25, 25); // first call tallies the blaze
+    let snapshot = g.clone();
+    g.resolve_brigade(true, 0, 25); // stale: mode is no longer Brigade
+    assert_eq!(g, snapshot, "a second resolve must be a no-op");
+}
+
 /// Drive a whole journey through the public API with a fixed strategy.
 fn play(seed: u64, good: bool) -> Game {
     let mut g = Game::new(seed);
@@ -527,6 +639,8 @@ fn play(seed: u64, good: bool) -> Game {
             Mode::Dose => g.resolve_dose(good, if good { 1.0 } else { 0.0 }),
             // Good play holds the trace dead steady; bad play lets it wander off.
             Mode::Steady => g.resolve_steady(good, if good { 1.0 } else { 0.0 }),
+            // Good play beats the spread back to zero; bad play lets it run wild.
+            Mode::Brigade => g.resolve_brigade(good, if good { 0 } else { 25 }, 25),
             Mode::Fort => g.leave_fort(),
             Mode::Splash | Mode::NewGame | Mode::Outfit => {
                 unreachable!("unexpected pre-game mode at seed {seed}")

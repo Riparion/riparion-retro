@@ -18,12 +18,9 @@ use crate::engine::Game;
 pub fn Flee() -> Element {
     let mut game = use_context::<Signal<Game>>();
     let g = game.read();
-    // A per-encounter seed pulled from existing state — varies with the fortnight
-    // and how far the party has traveled, so the ground differs between escapes
-    // without touching (and so without perturbing) the game's RNG stream.
-    let seed = (g.state.turn as u64)
-        .wrapping_mul(0x9E37_79B9_7F4A_7C15)
-        ^ g.state.miles.to_bits();
+    // A per-encounter seed (see `Game::encounter_seed`); no salt — flee never
+    // shares a fortnight with another route-memory game.
+    let seed = g.encounter_seed(0);
     drop(g);
 
     rsx! {

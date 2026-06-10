@@ -18,14 +18,9 @@ use crate::engine::Game;
 pub fn Climb() -> Element {
     let mut game = use_context::<Signal<Game>>();
     let g = game.read();
-    // A per-encounter seed pulled from existing state — varies with the fortnight
-    // and mileage so the ground differs between crossings without touching (and
-    // so without perturbing) the game's RNG stream. The salt keeps a climb's
-    // layout distinct from a same-fortnight flee, which shares the base formula.
-    let seed = (g.state.turn as u64)
-        .wrapping_mul(0x9E37_79B9_7F4A_7C15)
-        ^ g.state.miles.to_bits()
-        ^ 0x5C1F_F00D_C0DE_5A17;
+    // A per-encounter seed (see `Game::encounter_seed`); the salt keeps a climb's
+    // layout distinct from a same-fortnight flee.
+    let seed = g.encounter_seed(0x5C1F_F00D_C0DE_5A17);
     drop(g);
 
     rsx! {

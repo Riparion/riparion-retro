@@ -40,6 +40,10 @@ pub struct BucketBrigadeResult {
     /// Threats still burning when the clock ran out — what got away. `0` if
     /// contained. The host turns this into the loss (supplies lost, miles, …).
     pub leaked: usize,
+    /// Total cells on the grid (`cols * rows` after the min-grid floor). Returned
+    /// so the host can normalize `leaked` into a 0..1 severity without re-deriving
+    /// the grid size it fed in.
+    pub capacity: usize,
 }
 
 /// A row-major grid of safe/active cells — the pure, testable core of the game.
@@ -242,8 +246,12 @@ pub fn BucketBrigade(
         b.ignite_initial(&mut rng, start);
         (b, rng)
     });
-    let cols = board.read().0.cols();
-    let rows = board.read().0.rows();
+    // Dimensions are fixed after `Board::new`'s min-grid floor; read both off one
+    // borrow rather than two.
+    let (cols, rows) = {
+        let b = board.read();
+        (b.0.cols(), b.0.rows())
+    };
 
     let mut ticks = use_signal(|| 0u32);
     // Seed the peak from the board's true post-ignite count, not a recomputed
@@ -282,7 +290,10 @@ pub fn BucketBrigade(
                 on_complete.call(BucketBrigadeResult {
                     contained: active == 0,
                     peak_active: peak_active(),
-                    leaked: if active == 0 { 0 } else { active },
+                    // `active` is already 0 in the contained case, so this is the
+                    // live count either way.
+                    leaked: active,
+                    capacity: board.read().0.capacity(),
                 });
                 break;
             }
@@ -309,8 +320,13 @@ pub fn BucketBrigade(
 
     // Shared CRT-grid styling (see `grid`): container plus the per-cell box that
     // pins each cell to its aspect ratio. BucketBrigade adds `touch-action` so a
-    // rapid tap can't be swallowed by the browser's double-tap-to-zoom.
-    let grid_style = format!("{} touch-action: manipulation;", grid::container_style(cols));
+    // rapid tap can't be swallowed by the browser's double-tap-to-zoom. Built once
+    // — it depends only on `cols`, which never changes after mount — rather than
+    // re-`format!`ing it on every ~50 fps render.
+    let grid_style = use_memo(move || {
+        format!("{} touch-action: manipulation;", grid::container_style(cols))
+    });
+    let grid_style = grid_style();
     let cell_box = grid::CELL_BOX_STYLE;
 
     rsx! {
@@ -355,7 +371,9 @@ pub fn BucketBrigade(
                         {
                             let idx = r * cols + c;
                             let is_active = cells.is_active(idx);
-                            let glyph = if is_active { threat_icon.clone() } else { String::new() };
+                            // Borrow the icon for the live cells instead of cloning
+                            // a String per cell every render.
+                            let glyph = if is_active { threat_icon.as_str() } else { "" };
                             // text-shadow is set in both branches: Dioxus patches
                             // style props one at a time and won't drop an omitted
                             // one, so a cleared cell would otherwise keep its glow.

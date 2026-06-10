@@ -22,14 +22,9 @@ pub fn Steady() -> Element {
     // Default to the river ford if somehow mounted without a pending task — the
     // resolve is guarded on `pending_steady`, so a stray mount just no-ops.
     let task = g.pending_steady.unwrap_or(SteadyTask::Ford);
-    // A per-encounter seed pulled from existing state — varies with the fortnight
-    // and mileage so the path differs between encounters without touching (and so
-    // without perturbing) the game's RNG stream. The salt keeps it distinct from a
-    // same-fortnight splint or dose, which share the base formula.
-    let seed = (g.state.turn as u64)
-        .wrapping_mul(0x9E37_79B9_7F4A_7C15)
-        ^ g.state.miles.to_bits()
-        ^ 0x57EA_D70F_57EA_D70F;
+    // A per-encounter seed (see `Game::encounter_seed`); the salt keeps the trace's
+    // path distinct from a same-fortnight splint or dose.
+    let seed = g.encounter_seed(0x57EA_D70F_57EA_D70F);
     drop(g);
 
     let (prompt, tolerance, duration_ms, drift_speed): (&str, f64, u32, f64) = match task {

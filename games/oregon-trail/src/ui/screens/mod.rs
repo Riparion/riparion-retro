@@ -1,3 +1,4 @@
+pub mod brigade;
 pub mod climb;
 pub mod dose;
 pub mod eat;
