@@ -3,7 +3,7 @@
 //! that good play beats bad play.
 
 use super::interaction::{Response, ShotPurpose, Tactic};
-use super::state::{EatLevel, Mode};
+use super::state::{EatLevel, GameOverCause, Mode};
 use super::*;
 
 fn fresh(seed: u64) -> Game {
@@ -685,4 +685,54 @@ fn good_play_outlasts_bad_play() {
     );
     // The trail is winnable with good play on at least some seeds.
     assert!(good_wins >= 1, "good play never won across 60 seeds");
+}
+
+// ----- Cover-art key resolution -----
+
+#[test]
+fn cover_keys_supersede_then_fall_back() {
+    use crate::ui::components::cover::cover_keys;
+
+    // The trail hub keys on the current stretch of country, then the generic key.
+    let mut g = fresh(1);
+    g.mode = Mode::Trail;
+    g.state.miles = 0.0; // Kansas plains
+    assert_eq!(
+        cover_keys(&g),
+        vec!["trail-kansas-plains".to_string(), "trail".to_string()]
+    );
+    g.state.miles = 600.0; // Fort Laramie country
+    assert_eq!(
+        cover_keys(&g),
+        vec!["trail-fort-laramie".to_string(), "trail".to_string()]
+    );
+
+    // A narrative minigame key supersedes the general Steady key.
+    g.mode = Mode::Steady;
+    g.pending_steady = Some(SteadyTask::Snakebite);
+    assert_eq!(
+        cover_keys(&g),
+        vec!["steady-snakebite".to_string(), "steady".to_string()]
+    );
+
+    // A tagged trail incident keys on its slug, then the generic interaction key.
+    let mut g = fresh(1);
+    g.message_keyed("One of your wagon wheels breaks down.", "wagon-wheel-breaks");
+    g.mode = Mode::Interaction;
+    assert_eq!(
+        cover_keys(&g),
+        vec![
+            "interaction-wagon-wheel-breaks".to_string(),
+            "interaction".to_string()
+        ]
+    );
+
+    // An ending keys on its cause, then the generic game-over key.
+    let mut g = fresh(1);
+    g.die(GameOverCause::Snakebite);
+    assert_eq!(g.mode, Mode::GameOver);
+    assert_eq!(
+        cover_keys(&g),
+        vec!["game-over-snakebite".to_string(), "game-over".to_string()]
+    );
 }

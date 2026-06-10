@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Interaction {
     /// Informational line; tap to continue (the original's keypress pacing).
-    Message(String),
+    /// `cover` is an optional narrative cover-art key for this beat (the slug
+    /// after the `interaction-` prefix; see OREGONTRAIL_IMAGE_KEYS.md).
+    Message { text: String, cover: Option<String> },
 }
 
 /// The player's answer to the current interaction.

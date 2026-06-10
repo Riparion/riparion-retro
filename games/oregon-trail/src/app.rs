@@ -6,6 +6,7 @@ use dioxus::prelude::*;
 use crate::engine::scoring::HighScore;
 use crate::engine::state::Mode;
 use crate::storage;
+use crate::ui::components::cover::Cover;
 use crate::ui::components::status_bar::StatusBar;
 use crate::ui::screens;
 
@@ -74,7 +75,8 @@ fn GameRoot() -> Element {
                 if show_splash {
                     screens::splash::Splash {}
                 } else {
-                    match mode {
+                    Cover {}
+                    {match mode {
                     Mode::Splash => rsx! { screens::splash::Splash {} },
                     Mode::NewGame => rsx! { screens::new_game::NewGame {} },
                     Mode::Outfit => rsx! { screens::outfit::Outfit {} },
@@ -93,7 +95,7 @@ fn GameRoot() -> Element {
                     Mode::Riders => rsx! { screens::riders::Riders {} },
                     Mode::Interaction => rsx! { screens::interaction_host::InteractionHost {} },
                     Mode::GameOver => rsx! { screens::game_over::GameOver {} },
-                    }
+                    }}
                 }
             }
         }

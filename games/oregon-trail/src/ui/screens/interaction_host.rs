@@ -17,7 +17,7 @@ pub fn InteractionHost() -> Element {
     };
 
     match head {
-        Interaction::Message(text) => rsx! {
+        Interaction::Message { text, .. } => rsx! {
             div { class: "{SCREEN_CENTERED}",
                 div { class: "{PANEL} p-4 text-center text-lg leading-snug", "{text}" }
                 button {

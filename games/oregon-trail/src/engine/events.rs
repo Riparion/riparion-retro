@@ -4,7 +4,7 @@
 //! plan); the RNG draw order is preserved so seeded play is reproducible.
 
 use super::interaction::{ShotPurpose, Tactic};
-use super::state::{EatLevel, BLUE_MOUNTAINS_AT, MOUNTAINS_AT};
+use super::state::{EatLevel, GameOverCause, BLUE_MOUNTAINS_AT, MOUNTAINS_AT};
 use super::{BrigadeTask, Flow, Game, Illness, RiderEncounter, SteadyTask};
 
 impl Game {
@@ -114,7 +114,7 @@ impl Game {
         self.message("The riders were hostile! Check the wagon for losses.");
         self.riders = None;
         if self.state.bullets < 0.0 {
-            self.die("You ran out of bullets and were massacred by the riders.");
+            self.die(GameOverCause::RiderMassacre);
         }
         self.advance();
     }
@@ -137,7 +137,10 @@ impl Game {
         }
         match idx {
             1 => {
-                self.message("One of your wagon wheels breaks down. Lose time and supplies.");
+                self.message_keyed(
+                    "One of your wagon wheels breaks down. Lose time and supplies.",
+                    "wagon-wheel-breaks",
+                );
                 self.state.miles -= 15.0 + 5.0 * self.rng.uniform();
                 self.state.misc -= 8.0;
             }
@@ -154,15 +157,24 @@ impl Game {
                 return Flow::Pause;
             }
             4 => {
-                self.message("An ox wanders off. You spend time rounding it up.");
+                self.message_keyed(
+                    "An ox wanders off. You spend time rounding it up.",
+                    "ox-wanders-off",
+                );
                 self.state.miles -= 17.0;
             }
             5 => {
-                self.message("Your son gets lost. You hunt for him and lose time.");
+                self.message_keyed(
+                    "Your son gets lost. You hunt for him and lose time.",
+                    "son-lost",
+                );
                 self.state.miles -= 10.0;
             }
             6 => {
-                self.message("Unsafe water — you lose time looking for a clean spring.");
+                self.message_keyed(
+                    "Unsafe water — you lose time looking for a clean spring.",
+                    "unsafe-water",
+                );
                 self.state.miles -= 10.0 * self.rng.uniform() + 2.0;
             }
             7 => {
@@ -177,7 +189,7 @@ impl Game {
                 return Flow::Pause;
             }
             8 => {
-                self.message("Bandits attack!");
+                self.message_keyed("Bandits attack!", "bandits-attack");
                 self.begin_shot(ShotPurpose::Bandits);
                 return Flow::Pause;
             }
@@ -210,12 +222,15 @@ impl Game {
                 return Flow::Pause;
             }
             13 => {
-                self.message("Wild animals attack!");
+                self.message_keyed("Wild animals attack!", "wild-animals-attack");
                 self.begin_shot(ShotPurpose::WildAnimals);
                 return Flow::Pause;
             }
             14 => {
-                self.message("A hail storm batters the wagon — supplies lost.");
+                self.message_keyed(
+                    "A hail storm batters the wagon — supplies lost.",
+                    "hail-storm",
+                );
                 self.state.miles -= 5.0 + self.rng.uniform() * 10.0;
                 self.state.bullets -= 200.0;
                 self.state.misc -= 4.0 + self.rng.uniform() * 3.0;
@@ -233,7 +248,10 @@ impl Game {
                 }
             }
             _ => {
-                self.message("Helpful Indians show you where to find more food.");
+                self.message_keyed(
+                    "Helpful Indians show you where to find more food.",
+                    "helpful-indians",
+                );
                 self.state.food += 14.0;
             }
         }
@@ -245,10 +263,16 @@ impl Game {
     fn cold_weather(&mut self) -> Flow {
         let needed = 22.0 + 4.0 * self.rng.uniform();
         if self.state.clothing > needed {
-            self.message("Cold weather ahead — but you have enough clothing to stay warm.");
+            self.message_keyed(
+                "Cold weather ahead — but you have enough clothing to stay warm.",
+                "cold-weather",
+            );
             Flow::Continue
         } else {
-            self.message("Cold weather ahead — and you don't have enough clothing to keep warm!");
+            self.message_keyed(
+                "Cold weather ahead — and you don't have enough clothing to keep warm!",
+                "cold-weather",
+            );
             self.illness()
         }
     }
@@ -349,7 +373,7 @@ impl Game {
         if self.state.bullets <= 39.0 {
             self.message("You were too low on bullets — the wolves overpowered you.");
             self.state.injured = true;
-            self.die("The wolves overpowered you. You died of your injuries.");
+            self.die(GameOverCause::Wolves);
             self.advance();
             return;
         }
