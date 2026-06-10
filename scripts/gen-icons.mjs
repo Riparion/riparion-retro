@@ -133,6 +133,15 @@ const GLYPHS = {
       <rect x="22" y="67" width="4" height="6"/><rect x="30" y="67" width="4" height="6"/>
       <rect x="66" y="67" width="4" height="6"/><rect x="74" y="67" width="4" height="6"/>
     </g>` },
+
+  // Colossal Cave: the brass lamp that lights the dark, a glowing flame inside.
+  adventure: { adj: 1.0, svg: `
+    <path d="M39,24 Q50,9 61,24" stroke="${PH}" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+    <polygon points="38,25 62,25 58,33 42,33" fill="${PH}"/>
+    <rect x="33" y="33" width="34" height="44" rx="6" fill="${PH}"/>
+    <rect x="40" y="41" width="20" height="29" rx="3" fill="${BG}"/>
+    <path d="M50,46 Q57,55 50,67 Q43,55 50,46 Z" fill="${PH}"/>
+    <polygon points="35,77 65,77 61,85 39,85" fill="${PH}"/>` },
 };
 
 function buildSvg(name, mode, size) {
