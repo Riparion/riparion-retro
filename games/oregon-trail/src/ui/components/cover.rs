@@ -133,7 +133,7 @@ pub fn Cover() -> Element {
     rsx! {
         if let Some((_, asset)) = resolved.clone() {
             img {
-                class: "block w-full max-w-md mx-auto aspect-square object-cover",
+                class: "block w-full max-w-[21rem] mx-auto aspect-square object-cover",
                 src: asset,
             }
         }
