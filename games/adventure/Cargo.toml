@@ -1,12 +1,13 @@
 [package]
 name = "adventure"
-version = "0.1.0"
+version = "0.1.1"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 retro-kit = { workspace = true }
+parser-kit = { workspace = true }
 
 dioxus = { workspace = true }
 serde = { workspace = true }

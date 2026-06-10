@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// Bumped on any breaking change to the serialized `Game`; old saves are then
 /// silently discarded (by design — see NOTES.md).
-pub const SAVE_VERSION: u32 = 1;
+pub const SAVE_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Mode {
@@ -46,4 +46,7 @@ pub enum Pending {
     Score,
     /// Reading the oyster's cryptic clue.
     ReadOyster,
+    /// "Do you mean …?" — the payload is the inferred command to run on `yes`.
+    /// (casual: any non-yes/no answer cancels and is reprocessed as a command.)
+    DidYouMean(Vec<String>),
 }

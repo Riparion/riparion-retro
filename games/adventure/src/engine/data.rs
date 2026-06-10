@@ -175,30 +175,10 @@ pub struct GameData {
     pub groups: HashMap<i32, Vec<String>>,
     /// verb number (2000+x) -> default message number.
     pub default_msg: HashMap<i32, i32>,
-    /// sorted, de-duplicated full word spellings, for input autocomplete.
+    /// sorted, de-duplicated full word spellings; the fuzzy-match candidate set
+    /// for forgiving input inference (see `parse_infer`).
     pub display_words: Vec<String>,
 }
-
-/// Vocabulary words (full spellings) that start with `prefix`, for the UI's
-/// autocomplete chip strip. Empty `prefix` yields a handy default set.
-pub fn autocomplete(prefix: &str, limit: usize) -> Vec<String> {
-    let d = data();
-    let p = prefix.trim().to_lowercase();
-    if p.is_empty() {
-        return DEFAULT_SUGGESTIONS.iter().map(|s| s.to_string()).collect();
-    }
-    d.display_words
-        .iter()
-        .filter(|w| w.starts_with(&p))
-        .take(limit)
-        .cloned()
-        .collect()
-}
-
-/// Shown when the command box is empty — the moves a new player reaches for.
-const DEFAULT_SUGGESTIONS: [&str; 10] = [
-    "look", "north", "south", "east", "west", "up", "down", "take", "drop", "inventory",
-];
 
 impl GameData {
     pub fn kind(&self, n: i32) -> Kind {
@@ -456,7 +436,7 @@ fn parse() -> GameData {
     let mut hints: Vec<HintData> = hints_map.into_values().collect();
     hints.sort_by_key(|h| h.n);
 
-    // Full word spellings for autocomplete: every synonym, alphabetic only.
+    // Full word spellings for fuzzy matching: every synonym, alphabetic only.
     let mut display_words: Vec<String> = groups
         .values()
         .flatten()

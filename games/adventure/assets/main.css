@@ -32,34 +32,6 @@
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-.cmd-dock .suggestions {
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.cmd-dock .suggestions::-webkit-scrollbar {
-  display: none;
-}
-
-/* One autocomplete suggestion: a small, tappable phosphor chip that never
-   shrinks below its content. */
-.chip-btn {
-  flex: 0 0 auto;
-  min-height: 40px;
-  padding: 0.35rem 0.7rem;
-  border: 1px solid var(--phosphor-faint);
-  color: var(--phosphor);
-  background: transparent;
-  border-radius: 2px;
-  font-size: 0.9rem;
-  white-space: nowrap;
-}
-.chip-btn:active,
-.chip-btn:focus {
-  background: var(--phosphor);
-  color: var(--bg);
-  outline: none;
-}
-
 .cmd-dock .go-btn {
   flex: 0 0 auto;
   width: auto;

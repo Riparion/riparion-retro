@@ -204,6 +204,90 @@ fn walkthrough4_matches() {
     replay("walkthrough4", WALK4);
 }
 
+// --- forgiving input inference (parser-kit) ---------------------------------
+//
+// Each test compares a "messy" phrasing against the canonical command from a
+// second identically-seeded game: if inference works, the engine produces the
+// exact same turn (same output, same RNG draws). The four golden-master
+// walkthroughs above prove the flip side — that already-valid input is untouched.
+
+/// A game past the title prompt and stepped into the building, where the lamp,
+/// food, keys, and bottle sit — so noun commands have objects to act on.
+fn in_building(seed: u64) -> Game {
+    let mut g = Game::started(seed);
+    g.command("no"); // decline instructions
+    g.command("enter"); // road -> inside building
+    g
+}
+
+#[test]
+fn filler_words_are_ignored() {
+    let mut a = in_building(7);
+    let mut b = in_building(7);
+    assert_eq!(a.command("take lamp"), b.command("take the lamp"));
+}
+
+#[test]
+fn phrasal_verbs_are_understood() {
+    let mut a = in_building(7);
+    let mut b = in_building(7);
+    assert_eq!(a.command("take lamp"), b.command("pick up lamp"));
+}
+
+#[test]
+fn aliases_map_onto_vocabulary() {
+    let mut a = in_building(7);
+    let mut b = in_building(7);
+    assert_eq!(a.command("inventory"), b.command("i"));
+
+    let mut a = in_building(7);
+    let mut b = in_building(7);
+    // `x` is not Cave vocabulary; `examine` is a native `look` synonym.
+    assert_eq!(a.command("examine lamp"), b.command("x lamp"));
+}
+
+#[test]
+fn extra_words_collapse_to_verb_noun() {
+    let mut a = in_building(7);
+    let mut b = in_building(7);
+    assert_eq!(a.command("take lamp"), b.command("take the small brass lamp"));
+}
+
+#[test]
+fn unambiguous_typos_are_corrected() {
+    let mut a = in_building(7);
+    let mut b = in_building(7);
+    assert_eq!(a.command("take lamp"), b.command("take lmap"));
+}
+
+#[test]
+fn gibberish_still_falls_through_to_dont_understand() {
+    // No near match -> the original failure path runs unchanged; no false guess.
+    let mut g = in_building(7);
+    let out = g.command("qwerty zxcvbn").to_uppercase();
+    assert!(!out.is_empty());
+    assert!(!out.contains("DO YOU MEAN"), "should not invent a suggestion: {out}");
+}
+
+#[test]
+fn ambiguous_typo_asks_for_confirmation() {
+    let mut g = in_building(7);
+    // "wace" is edit-distance 1 from both WAVE and WAKE.
+    let out = g.command("wace");
+    assert!(out.to_uppercase().contains("DO YOU MEAN"), "got: {out}");
+    // Confirming runs the suggestion; a fresh non-yes/no reply would cancel.
+    let yes = g.command("yes");
+    assert!(!yes.is_empty(), "confirming should run the inferred command");
+}
+
+#[test]
+fn declining_a_did_you_mean_bows_out() {
+    let mut g = in_building(7);
+    assert!(g.command("wace").to_uppercase().contains("DO YOU MEAN"));
+    let no = g.command("no");
+    assert!(!no.is_empty());
+}
+
 /// Mirrors python-adventure's test_commands: every vocabulary word, used both
 /// alone and with an object, must run without panicking (no out-of-bounds, no
 /// wedged state). A fresh game per word avoids cross-contamination.

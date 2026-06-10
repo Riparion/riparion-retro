@@ -12,6 +12,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::data::*;
+use super::parse_infer;
 use super::rng::PyRandom;
 use super::state::{Line, Mode, Pending};
 
@@ -396,7 +397,97 @@ impl Game {
         if words.is_empty() {
             return;
         }
-        self.do_command(&words);
+        // Recover intent from near-miss input before dispatching. Returns the
+        // words to run (unchanged when already valid), or `None` when it instead
+        // posed a "Do you mean …?" question — in which case no turn is spent.
+        if let Some(words) = self.maybe_infer(words) {
+            self.do_command(&words);
+        }
+    }
+
+    /// Pass raw tokens through the [`parser_kit`] inference pipeline. Currently
+    /// understood input is returned verbatim (so the seeded walkthroughs replay
+    /// bit-for-bit); only input the exact-match parser would reject is rewritten,
+    /// fuzzy-corrected, or turned into a confirmation prompt.
+    fn maybe_infer(&mut self, words: Vec<String>) -> Option<Vec<String>> {
+        let outcome = parser_kit::infer(
+            &words,
+            parse_infer::infer_config(),
+            parse_infer::candidates(),
+            &|w: &[String]| self.resolves_ok(w),
+            &|t: &str| self.token_present(t),
+        );
+        match outcome {
+            parser_kit::Inference::Unchanged | parser_kit::Inference::Unresolved => Some(words),
+            parser_kit::Inference::Rewrite(v) => Some(v),
+            parser_kit::Inference::DidYouMean(toks) => {
+                self.ask_did_you_mean(toks);
+                None
+            }
+        }
+    }
+
+    /// Would `words` dispatch as a command today (i.e. *not* hit
+    /// `dont_understand`)? Mirrors the accept set of [`Self::dispatch_words`]
+    /// without side effects. This is the gate that keeps inference inert on
+    /// already-valid input, so it stays deliberately permissive: when unsure,
+    /// report "valid" so existing behaviour is never preempted.
+    fn resolves_ok(&self, words: &[String]) -> bool {
+        // `save <file>` is special-cased by dispatch and always accepted.
+        if words.len() > 1 && words[0] == "save" {
+            return true;
+        }
+        if !(1..=2).contains(&words.len()) {
+            return false;
+        }
+        let mut ns = Vec::with_capacity(words.len());
+        for w in words {
+            match self.word(w) {
+                Some(x) => ns.push(x.n),
+                None => return false,
+            }
+        }
+        let d = data();
+        // Any single recognised word dispatches (travel, snappy, bare noun, verb).
+        if ns.len() == 1 {
+            return true;
+        }
+        let (a, b) = (ns[0], ns[1]);
+        // Two-word forms dispatch_words rewrites before classifying by kind.
+        if d.word_is(a, "enter") || d.word_is(a, "walk") {
+            return true;
+        }
+        if d.word_is(a, "say") || d.word_is(b, "say") {
+            return true;
+        }
+        if (d.word_is(a, "water") || d.word_is(a, "oil"))
+            && (d.word_is(b, "plant") || d.word_is(b, "door"))
+        {
+            return true;
+        }
+        // Otherwise only verb+noun / noun+verb dispatch.
+        matches!(
+            (d.kind(a), d.kind(b)),
+            (Kind::Verb, Kind::Noun) | (Kind::Noun, Kind::Verb)
+        )
+    }
+
+    /// Does `tok` name an object present in the current room or inventory? Used
+    /// to rank fuzzy noun candidates toward what the player can actually see.
+    fn token_present(&self, tok: &str) -> bool {
+        match self.word(tok) {
+            Some(w) if data().kind(w.n) == Kind::Noun => self.is_here(self.referent(w.n)),
+            _ => false,
+        }
+    }
+
+    /// Pose a yes/no confirmation for an inferred command. Casual, so any other
+    /// reply cancels and is reprocessed (the player is never trapped here).
+    fn ask_did_you_mean(&mut self, toks: Vec<String>) {
+        let suggestion = toks.join(" ");
+        self.w(format!("Do you mean \"{suggestion}\"?\n"));
+        self.pending = Some(Pending::DidYouMean(toks));
+        self.pending_casual = true;
     }
 
     fn resolve_yesno(&mut self, p: Pending, yes: bool) {
@@ -431,6 +522,16 @@ impl Game {
                         self.hint_used[i] = true;
                     }
                     self.wm(193);
+                } else {
+                    self.wm(54);
+                }
+            }
+            Pending::DidYouMean(toks) => {
+                if yes {
+                    // Run the confirmed command for one normal turn. Asking the
+                    // question spent none, so dispatch through `do_command` (not
+                    // `dispatch_words`) to count exactly one turn here.
+                    self.do_command(&toks);
                 } else {
                     self.wm(54);
                 }

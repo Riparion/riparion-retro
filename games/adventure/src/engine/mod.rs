@@ -3,6 +3,7 @@
 
 pub mod data;
 pub mod game;
+pub mod parse_infer;
 pub mod rng;
 pub mod state;
 pub mod text;
@@ -10,7 +11,6 @@ pub mod text;
 #[cfg(test)]
 mod tests;
 
-pub use data::autocomplete;
 pub use game::Game;
 pub use state::{Line, Mode};
 pub use text::modernize;

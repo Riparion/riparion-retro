@@ -1,0 +1,9 @@
+[package]
+name = "parser-kit"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Game-agnostic forgiving-input inference for limited-vocabulary text parsers."
+
+[dependencies]
