@@ -131,18 +131,23 @@ impl GameState {
         format!("{} 1847", DATES[idx])
     }
 
+    /// The stretch of country you're crossing right now, by mileage.
+    pub fn terrain_kind(&self) -> Terrain {
+        match self.miles {
+            m if m < 320.0 => Terrain::KansasPlains,
+            m if m < 550.0 => Terrain::PlatteRiver,
+            m if m < 640.0 => Terrain::FortLaramie,
+            m if m < MOUNTAINS_AT => Terrain::HighPlains,
+            m if m < BLUE_MOUNTAINS_AT => Terrain::SouthPass,
+            m if m < TRAIL_MILES => Terrain::BlueMountains,
+            _ => Terrain::WillametteValley,
+        }
+    }
+
     /// The stretch of country you're crossing, by mileage — flavor for the
     /// trail hub and a sense of progress between landmarks.
     pub fn terrain(&self) -> &'static str {
-        match self.miles {
-            m if m < 320.0 => "The Kansas plains",
-            m if m < 550.0 => "The Platte River valley",
-            m if m < 640.0 => "Fort Laramie country",
-            m if m < MOUNTAINS_AT => "The high plains",
-            m if m < BLUE_MOUNTAINS_AT => "The Rocky Mountains — South Pass",
-            m if m < TRAIL_MILES => "The Blue Mountains",
-            _ => "The Willamette Valley",
-        }
+        self.terrain_kind().label()
     }
 
     /// Healthy / Ill / Injured for the status line.
@@ -215,11 +220,115 @@ pub enum Mode {
     GameOver,
 }
 
+/// The stretch of country you're crossing, by mileage. The on-trail prose lives
+/// in [`Terrain::label`]; [`Terrain::key`] is the slug location-specific trail
+/// cover art keys on, e.g. `trail-<key>` (see OREGONTRAIL_IMAGE_KEYS.md).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Terrain {
+    KansasPlains,
+    PlatteRiver,
+    FortLaramie,
+    HighPlains,
+    SouthPass,
+    BlueMountains,
+    WillametteValley,
+}
+
+impl Terrain {
+    /// The "where you are" line shown on the trail hub.
+    pub fn label(self) -> &'static str {
+        match self {
+            Terrain::KansasPlains => "The Kansas plains",
+            Terrain::PlatteRiver => "The Platte River valley",
+            Terrain::FortLaramie => "Fort Laramie country",
+            Terrain::HighPlains => "The high plains",
+            Terrain::SouthPass => "The Rocky Mountains — South Pass",
+            Terrain::BlueMountains => "The Blue Mountains",
+            Terrain::WillametteValley => "The Willamette Valley",
+        }
+    }
+
+    /// Kebab-case cover-art slug, e.g. `trail-<key>`.
+    pub fn key(self) -> &'static str {
+        match self {
+            Terrain::KansasPlains => "kansas-plains",
+            Terrain::PlatteRiver => "platte-river",
+            Terrain::FortLaramie => "fort-laramie",
+            Terrain::HighPlains => "high-plains",
+            Terrain::SouthPass => "south-pass",
+            Terrain::BlueMountains => "blue-mountains",
+            Terrain::WillametteValley => "willamette-valley",
+        }
+    }
+}
+
+/// Why the journey ended — a stable tag for each death and the victory. The
+/// on-screen prose lives in [`GameOverCause::message`]; [`GameOverCause::key`]
+/// is the slug cover art keys on (see OREGONTRAIL_IMAGE_KEYS.md).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GameOverCause {
+    Starved,
+    Pneumonia,
+    Snakebite,
+    Winter,
+    CantAffordDoctor,
+    RiderMassacre,
+    Wolves,
+    Victory,
+}
+
+impl GameOverCause {
+    /// Only the victory is a win.
+    pub fn won(self) -> bool {
+        matches!(self, GameOverCause::Victory)
+    }
+
+    /// Kebab-case cover-art slug, e.g. `game-over-<key>`.
+    pub fn key(self) -> &'static str {
+        match self {
+            GameOverCause::Starved => "starved",
+            GameOverCause::Pneumonia => "pneumonia",
+            GameOverCause::Snakebite => "snakebite",
+            GameOverCause::Winter => "winter",
+            GameOverCause::CantAffordDoctor => "cant-afford-doctor",
+            GameOverCause::RiderMassacre => "rider-massacre",
+            GameOverCause::Wolves => "wolves",
+            GameOverCause::Victory => "victory",
+        }
+    }
+
+    /// The line shown on the game-over screen.
+    pub fn message(self) -> &'static str {
+        match self {
+            GameOverCause::Starved => "You ran out of food and starved to death.",
+            GameOverCause::Pneumonia => {
+                "You ran out of medical supplies and died of pneumonia."
+            }
+            GameOverCause::Snakebite => "You die of snakebite — you had no medicine left.",
+            GameOverCause::Winter => {
+                "You've been on the trail too long. Your family dies in the first blizzard of winter."
+            }
+            GameOverCause::CantAffordDoctor => {
+                "You couldn't afford a doctor, and your illness took you."
+            }
+            GameOverCause::RiderMassacre => {
+                "You ran out of bullets and were massacred by the riders."
+            }
+            GameOverCause::Wolves => "The wolves overpowered you. You died of your injuries.",
+            GameOverCause::Victory => {
+                "You finally arrived at Oregon City after 2,040 long miles — hooray! A real pioneer!"
+            }
+        }
+    }
+}
+
 /// How the journey ended.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EndGame {
     pub won: bool,
     pub cause: String,
+    /// Stable tag for the ending; keys per-ending cover art.
+    pub cause_kind: GameOverCause,
     /// Arrival date string, when you actually made it.
     pub arrival: Option<String>,
     pub miles: i64,

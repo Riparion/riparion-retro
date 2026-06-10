@@ -25,7 +25,8 @@ use serde::{Deserialize, Serialize};
 use interaction::{Interaction, Response, ShotPurpose, Tactic, SHOT_WORDS};
 use rng::GameRng;
 use state::{
-    EatLevel, EndGame, GameState, Mode, BULLETS_PER_DOLLAR, MAX_TURNS, STARTING_CASH, TRAIL_MILES,
+    EatLevel, EndGame, GameOverCause, GameState, Mode, BULLETS_PER_DOLLAR, MAX_TURNS,
+    STARTING_CASH, TRAIL_MILES,
 };
 
 /// The post-travel chain of trail incidents, run in order each fortnight.
@@ -253,7 +254,7 @@ impl Game {
     /// Eat / starve gate, then the eating screen.
     fn goto_eat(&mut self) {
         if self.state.food < 13.0 {
-            self.die("You ran out of food and starved to death.");
+            self.die(GameOverCause::Starved);
         } else {
             self.mode = Mode::Eat;
         }
@@ -481,7 +482,7 @@ impl Game {
             self.message("Your hand shook measuring the dose — you spill some medicine.");
         }
         if self.state.misc < 0.0 {
-            self.die("You ran out of medical supplies and died of pneumonia.");
+            self.die(GameOverCause::Pneumonia);
         }
         self.advance();
     }
@@ -520,7 +521,7 @@ impl Game {
                     self.message("Your hand shakes drawing the venom — you waste medicine.");
                 }
                 if self.state.misc < 0.0 {
-                    self.die("You die of snakebite — you had no medicine left.");
+                    self.die(GameOverCause::Snakebite);
                 }
             }
             SteadyTask::Ford => {
@@ -714,7 +715,19 @@ impl Game {
     }
 
     pub(crate) fn message(&mut self, text: impl Into<String>) {
-        self.pending.push_back(Interaction::Message(text.into()));
+        self.pending.push_back(Interaction::Message {
+            text: text.into(),
+            cover: None,
+        });
+    }
+
+    /// Queue a message that also carries a narrative cover-art key (the slug
+    /// after the `interaction-` prefix; see OREGONTRAIL_IMAGE_KEYS.md).
+    pub(crate) fn message_keyed(&mut self, text: impl Into<String>, cover: impl Into<String>) {
+        self.pending.push_back(Interaction::Message {
+            text: text.into(),
+            cover: Some(cover.into()),
+        });
     }
 
     /// Show queued messages, or — if none — resume immediately.
@@ -776,7 +789,7 @@ impl Game {
         }
         self.state.turn += 1;
         if self.state.turn >= MAX_TURNS {
-            self.die("You've been on the trail too long. Your family dies in the first blizzard of winter.");
+            self.die(GameOverCause::Winter);
             return;
         }
         self.begin_fortnight();
@@ -789,7 +802,7 @@ impl Game {
             self.state.cash -= 20.0;
             if self.state.cash < 0.0 {
                 self.state.cash = 0.0;
-                self.die("You couldn't afford a doctor, and your illness took you.");
+                self.die(GameOverCause::CantAffordDoctor);
                 return;
             }
             self.message("There is sickness in the wagon. The doctor's bill is $20.");
@@ -805,14 +818,16 @@ impl Game {
         self.advance();
     }
 
-    fn build_end(&self, won: bool, cause: String, arrival: Option<String>, days: i64) -> EndGame {
+    fn build_end(&self, cause: GameOverCause, arrival: Option<String>, days: i64) -> EndGame {
         let s = &self.state;
+        let won = cause.won();
         let leftover = scoring::leftover_value(s);
         let miles = s.miles.clamp(0.0, TRAIL_MILES);
         let score = scoring::score(won, miles, days, leftover);
         EndGame {
             won,
-            cause,
+            cause: cause.message().to_string(),
+            cause_kind: cause,
             arrival,
             miles: miles as i64,
             days,
@@ -828,9 +843,9 @@ impl Game {
     }
 
     /// End the journey in failure with `cause`.
-    pub(crate) fn die(&mut self, cause: impl Into<String>) {
+    pub(crate) fn die(&mut self, cause: GameOverCause) {
         let days = self.state.turn as i64 * 14;
-        self.outcome = Some(self.build_end(false, cause.into(), None, days));
+        self.outcome = Some(self.build_end(cause, None, days));
         self.mode = Mode::GameOver;
     }
 
@@ -843,10 +858,7 @@ impl Game {
         self.state.food += (1.0 - f9) * self.state.eat_level.food_cost();
         let (arrival, days) = scoring::arrival_date(self.state.turn, f9);
         self.state.miles = TRAIL_MILES;
-        let cause =
-            "You finally arrived at Oregon City after 2,040 long miles — hooray! A real pioneer!"
-                .to_string();
-        self.outcome = Some(self.build_end(true, cause, Some(arrival), days));
+        self.outcome = Some(self.build_end(GameOverCause::Victory, Some(arrival), days));
         self.mode = Mode::GameOver;
     }
 }
