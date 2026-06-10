@@ -61,6 +61,19 @@ pub enum Illness {
     Serious,
 }
 
+/// Which catastrophe put up the steady-hand minigame, held while it runs so the
+/// resolve applies the right losses. All three trade a sustained-steadiness trace
+/// for graded supply hits — a steady hand costs little, a shaky one the full toll.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SteadyTask {
+    /// Snakebite — hold the blade steady to draw the venom (saves medicine).
+    Snakebite,
+    /// Wagon swamped fording a river — hold it level against the current.
+    Ford,
+    /// An ox hurt its leg — hold it steady while you wrap it.
+    OxLeg,
+}
+
 /// Riders on the trail: what they look like, and what they actually are.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RiderEncounter {
@@ -86,6 +99,8 @@ pub struct Game {
     pub shot_word: usize,
     /// The severity rolled for the illness the dosing game is resolving.
     pub pending_illness: Option<Illness>,
+    /// Which catastrophe the steady-hand minigame is resolving.
+    pub pending_steady: Option<SteadyTask>,
     pub outcome: Option<EndGame>,
     pub rng: GameRng,
 }
@@ -102,6 +117,7 @@ impl Game {
             shot: None,
             shot_word: 0,
             pending_illness: None,
+            pending_steady: None,
             outcome: None,
             rng: GameRng::from_seed(seed),
         }
@@ -449,6 +465,66 @@ impl Game {
         }
         if self.state.misc < 0.0 {
             self.die("You ran out of medical supplies and died of pneumonia.");
+        }
+        self.advance();
+    }
+
+    // ----- Holding a hand steady under strain -----
+
+    /// Put up the precision-trace game for whichever catastrophe just struck.
+    fn begin_steady(&mut self, task: SteadyTask) {
+        self.pending_steady = Some(task);
+        self.mode = Mode::Steady;
+    }
+
+    /// Resolve the steady-hand trace. `steady` = the run held on target past the
+    /// pass threshold; `accuracy` (0..=1) is the fraction of the run on target.
+    /// Each task's losses are graded by how shaky the hand was: a steady run
+    /// costs the floor, a wandering one the full toll (or worse). Guarded against
+    /// stale double-taps like `resolve_dose`.
+    pub fn resolve_steady(&mut self, steady: bool, accuracy: f64) {
+        if self.mode != Mode::Steady {
+            return;
+        }
+        let Some(task) = self.pending_steady.take() else {
+            return;
+        };
+        // How much the hand drifted: 0 = dead steady, 1 = all over the place.
+        let drift = (1.0 - accuracy).clamp(0.0, 1.0);
+        match task {
+            SteadyTask::Snakebite => {
+                self.state.bullets -= 10.0;
+                // A steady hand draws the venom clean; a shaky one spills the
+                // medicine you need to survive it — up to a full dose's worth.
+                self.state.misc -= 5.0 + 6.0 * drift;
+                if steady {
+                    self.message("You hold the blade steady and draw the venom clean.");
+                } else {
+                    self.message("Your hand shakes drawing the venom — you waste medicine.");
+                }
+                if self.state.misc < 0.0 {
+                    self.die("You die of snakebite — you had no medicine left.");
+                }
+            }
+            SteadyTask::Ford => {
+                self.state.food -= 30.0;
+                self.state.clothing -= 20.0;
+                self.state.miles -= 8.0 + 24.0 * drift;
+                if steady {
+                    self.message("You hold the wagon level and keep most of your load dry.");
+                } else {
+                    self.message("The wagon swamps in the current — supplies wash away.");
+                }
+            }
+            SteadyTask::OxLeg => {
+                self.state.oxen -= 20.0;
+                self.state.miles -= 8.0 + 24.0 * drift;
+                if steady {
+                    self.message("You wrap the ox's leg snug — it slows you only a little.");
+                } else {
+                    self.message("The ox can't settle and the wrap slips — you lose ground.");
+                }
+            }
         }
         self.advance();
     }

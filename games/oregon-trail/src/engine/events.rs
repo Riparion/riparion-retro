@@ -5,7 +5,7 @@
 
 use super::interaction::{ShotPurpose, Tactic};
 use super::state::{EatLevel, BLUE_MOUNTAINS_AT, MOUNTAINS_AT};
-use super::{Flow, Game, Illness, RiderEncounter};
+use super::{Flow, Game, Illness, RiderEncounter, SteadyTask};
 
 impl Game {
     // ===== Riders =====
@@ -142,9 +142,10 @@ impl Game {
                 self.state.misc -= 8.0;
             }
             2 => {
-                self.message("An ox injures its leg — it slows you down the rest of the way.");
-                self.state.miles -= 25.0;
-                self.state.oxen -= 20.0;
+                // Steadying the hurt leg to wrap it is its own minigame;
+                // `resolve_steady` tallies how snug the wrap held.
+                self.begin_steady(SteadyTask::OxLeg);
+                return Flow::Pause;
             }
             3 => {
                 // Setting the bone cleanly is its own minigame; `resolve_splint`
@@ -194,18 +195,19 @@ impl Game {
                 return Flow::Pause;
             }
             11 => {
-                self.message("You're bitten by a poisonous snake!");
-                self.state.bullets -= 10.0;
-                self.state.misc -= 5.0;
-                if self.state.misc < 0.0 {
-                    self.die("You die of snakebite — you had no medicine left.");
-                }
+                // Drawing the venom with a steady blade is its own minigame
+                // (the prompt announces the bite); `resolve_steady` tallies how
+                // much medicine the hand wasted — and whether enough was left to
+                // survive.
+                self.begin_steady(SteadyTask::Snakebite);
+                return Flow::Pause;
             }
             12 => {
-                self.message("Your wagon is swamped fording a river — supplies lost.");
-                self.state.food -= 30.0;
-                self.state.clothing -= 20.0;
-                self.state.miles -= 20.0 + 20.0 * self.rng.uniform();
+                // Holding the wagon level in the current is its own minigame
+                // (the prompt announces the ford); `resolve_steady` tallies how
+                // much of the load washed away.
+                self.begin_steady(SteadyTask::Ford);
+                return Flow::Pause;
             }
             13 => {
                 self.message("Wild animals attack!");

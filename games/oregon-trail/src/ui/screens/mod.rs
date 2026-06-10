@@ -13,4 +13,5 @@ pub mod riders;
 pub mod shoot;
 pub mod splash;
 pub mod splint;
+pub mod steady;
 pub mod trail;
