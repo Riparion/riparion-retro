@@ -43,6 +43,10 @@ steady-hands:
 bucket-brigade:
     dx serve --package minigames-kit-bucket-brigade
 
+# Serve the HotCold minigame demo
+hot-cold:
+    dx serve --package minigames-kit-hot-cold
+
 # Run all workspace tests
 test:
     cargo test --workspace
