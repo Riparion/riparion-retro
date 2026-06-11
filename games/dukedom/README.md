@@ -68,7 +68,7 @@ the chaos of war) so a refresh resumes mid-year — including mid-battle.
 dx serve              # develop (Tailwind compiles automatically)
 cargo test            # engine test suite (runs on host, no browser)
 cargo clippy --all-targets
-dx build --release --debug-symbols false --keep-names true    # production wasm bundle
+dx build --release --debug-symbols=false --keep-names    # production wasm bundle
 ```
 
 The CRT identity comes from `retro-kit`; Tailwind handles layout only.
