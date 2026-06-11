@@ -12,7 +12,7 @@ use crate::engine::Game;
 pub fn Timing() -> Element {
     let mut game = use_context::<Signal<Game>>();
     let g = game.read();
-    let task = g.pending_timing.unwrap_or(TimingTask::Dose);
+    let task = g.timing_task().unwrap_or(TimingTask::Dose);
     let seed = g.encounter_seed(0x7131_46A1);
     drop(g);
 

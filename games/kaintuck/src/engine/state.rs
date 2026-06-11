@@ -34,8 +34,21 @@ pub const RIVER_MILEPOSTS: [f64; NUM_RIVER_TOWNS] = [
 pub const RIVER_MILES: f64 = 1830.0;
 
 pub const PITTSBURGH: usize = 0;
+pub const CINCINNATI: usize = 2; // a generous moneylender
 pub const LOUISVILLE: usize = 3; // the Falls of the Ohio
+pub const MEMPHIS: usize = 5; // a generous moneylender
 pub const NATCHEZ: usize = 6;
+
+/// Cover-art slugs per landing, kept beside `TOWN_NAMES` so the two can't drift.
+pub const TOWN_SLUGS: [&str; NUM_RIVER_TOWNS] = [
+    "pittsburgh",
+    "wheeling",
+    "cincinnati",
+    "louisville",
+    "cairo",
+    "memphis",
+    "natchez",
+];
 
 /// Base price ranks `[town][good]` — roughly the mean dollar price a good fetches
 /// at each landing (the `(R(3)+1)` jitter spreads each quote 1×–3× of half this).
@@ -205,16 +218,25 @@ impl Stand {
             Stand::DuckRiver => "duck-river",
         }
     }
-    /// The "where you are now" line for the Trace hub, by milepost.
+    /// The "where you are now" line for the Trace hub, by milepost. Thresholds
+    /// are read off [`Stand::POSTS`] so the location text can't drift from the
+    /// mileposts that actually trigger each stop.
     pub fn current(miles: f64) -> &'static str {
-        match miles {
-            m if m < 15.5 => "The road north out of Natchez",
-            m if m < 120.0 => "Mount Locust country",
-            m if m < 320.3 => "Deep in the Choctaw woods",
-            m if m < DIVIDE_AT => "Chickasaw land — Buzzard Roost behind you",
-            m if m < DUCK_RIVER_AT => "Past the divide — Harpe country",
-            m if m < TRACE_MILES => "The Tennessee hills",
-            _ => "Nashville",
+        let p = Self::POSTS;
+        if miles < p[0].1 {
+            "The road north out of Natchez"
+        } else if miles < p[1].1 {
+            "Mount Locust country"
+        } else if miles < p[2].1 {
+            "Deep in the Choctaw woods"
+        } else if miles < p[3].1 {
+            "Chickasaw land — Buzzard Roost behind you"
+        } else if miles < p[4].1 {
+            "Past the divide — Harpe country"
+        } else if miles < TRACE_MILES {
+            "The Tennessee hills"
+        } else {
+            "Nashville"
         }
     }
 }
@@ -251,24 +273,26 @@ pub struct GameState {
     pub crew_at_natchez: i64,
 }
 
-/// The flatboat: kind plus the derived numbers, cached so a serialized save is
-/// self-contained.
+/// The flatboat. Only the `kind` is stored; the derived numbers are methods that
+/// delegate to it, so a rebalance of [`BoatKind`] can never leave a save carrying
+/// a stale cached capacity/draft/lumber value.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Boat {
     pub kind: BoatKind,
-    pub capacity: i64,
-    pub draft: f64,
-    pub lumber_value: f64,
 }
 
 impl Boat {
     pub fn new(kind: BoatKind) -> Self {
-        Self {
-            kind,
-            capacity: kind.capacity(),
-            draft: kind.draft(),
-            lumber_value: kind.lumber_value(),
-        }
+        Self { kind }
+    }
+    pub fn capacity(self) -> i64 {
+        self.kind.capacity()
+    }
+    pub fn draft(self) -> f64 {
+        self.kind.draft()
+    }
+    pub fn lumber_value(self) -> f64 {
+        self.kind.lumber_value()
     }
 }
 
@@ -301,7 +325,7 @@ impl GameState {
     }
 
     pub fn capacity(&self) -> i64 {
-        self.boat.map(|b| b.capacity).unwrap_or(0)
+        self.boat.map(|b| b.capacity()).unwrap_or(0)
     }
 
     /// Hold units occupied by cargo (livestock counts double).

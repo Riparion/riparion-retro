@@ -12,7 +12,7 @@ use crate::engine::Game;
 pub fn Steady() -> Element {
     let mut game = use_context::<Signal<Game>>();
     let g = game.read();
-    let task = g.pending_steady.unwrap_or(SteadyTask::Sandbar);
+    let task = g.steady_task().unwrap_or(SteadyTask::Sandbar);
     let seed = g.encounter_seed(0x57EA_D70F);
     drop(g);
 

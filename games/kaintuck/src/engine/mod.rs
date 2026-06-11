@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 use interaction::{Interaction, Response};
 use rng::GameRng;
 use state::{Boat, EndGame, GameOverCause, GameState, Mode, Phase, NUM_GOODS};
-use tasks::{BrigadeTask, CrowdTask, QuickTask, SequenceTask, SteadyTask, TimingTask};
+use tasks::{MiniTask, SteadyTask};
 
 pub use river::Voyage;
 pub use trace::Leg;
@@ -67,12 +67,8 @@ pub struct Game {
     /// Trace day chain, while walking.
     pub leg: Option<Leg>,
     pub resume: Resume,
-    pub pending_steady: Option<SteadyTask>,
-    pub pending_quick: Option<QuickTask>,
-    pub pending_crowd: Option<CrowdTask>,
-    pub pending_timing: Option<TimingTask>,
-    pub pending_sequence: Option<SequenceTask>,
-    pub pending_brigade: Option<BrigadeTask>,
+    /// The one minigame currently paused for the player, if any.
+    pub pending_task: Option<MiniTask>,
     /// Stake riding on an Under-the-Hill gamble, held while the timing game runs.
     pub pending_stake: f64,
     pub outcome: Option<EndGame>,
@@ -89,12 +85,7 @@ impl Game {
             voyage: None,
             leg: None,
             resume: Resume::Town,
-            pending_steady: None,
-            pending_quick: None,
-            pending_crowd: None,
-            pending_timing: None,
-            pending_sequence: None,
-            pending_brigade: None,
+            pending_task: None,
             pending_stake: 0.0,
             outcome: None,
             rng: GameRng::from_seed(seed),
@@ -110,12 +101,7 @@ impl Game {
         self.voyage = None;
         self.leg = None;
         self.resume = Resume::Town;
-        self.pending_steady = None;
-        self.pending_quick = None;
-        self.pending_crowd = None;
-        self.pending_timing = None;
-        self.pending_sequence = None;
-        self.pending_brigade = None;
+        self.pending_task = None;
         self.pending_stake = 0.0;
         self.outcome = None;
         // Pittsburgh prices for the initial cargo buy.

@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 use super::interaction::Interaction;
 use super::prices;
 use super::state::{
-    Mode, Phase, LOUISVILLE, NATCHEZ, NUM_GOODS, NUM_RIVER_TOWNS, STARTING_PROVISIONS, TOWN_NAMES,
+    Mode, Phase, CINCINNATI, LOUISVILLE, MEMPHIS, NATCHEZ, NUM_GOODS, NUM_RIVER_TOWNS,
+    STARTING_PROVISIONS, TOWN_NAMES, TOWN_SLUGS,
 };
 use super::tasks::{BrigadeTask, QuickTask, SequenceTask, SteadyTask};
 use super::{Flow, Game, Resume};
@@ -159,11 +160,14 @@ impl Game {
     fn arrive_at_town(&mut self, to: usize) {
         self.state.town = to;
         self.state.morale = (self.state.morale + 5.0).min(100.0);
-        // Interest accrues on the boatyard credit each leg.
-        self.state.debt += (self.state.debt * 0.05).floor();
-        // Cincinnati and Memphis moneylenders extend more credit.
-        if to == 2 || to == 5 {
-            self.state.credit_cap = (self.state.cash * 2.0).max(super::state::STARTING_CREDIT_CAP);
+        // Interest accrues on the boatyard credit each leg (no flooring, so small
+        // debts still grow rather than sitting interest-free under $20).
+        self.state.debt += self.state.debt * 0.05;
+        // Cincinnati and Memphis moneylenders extend more credit — only ever
+        // raising the cap, never snapping it back below an outstanding debt.
+        if to == CINCINNATI || to == MEMPHIS {
+            let offered = (self.state.cash * 2.0).max(super::state::STARTING_CREDIT_CAP);
+            self.state.credit_cap = self.state.credit_cap.max(offered);
         }
         prices::generate_prices(&mut self.state, &mut self.rng);
 
@@ -237,7 +241,7 @@ impl Game {
             return;
         }
         if let Some(boat) = self.state.boat.take() {
-            self.state.cash += boat.lumber_value;
+            self.state.cash += boat.lumber_value();
         }
     }
 
@@ -250,6 +254,10 @@ impl Game {
         if stake <= 0.0 {
             return;
         }
+        // Escrow the stake now so the bet is genuinely at risk the moment it is
+        // laid — abandoning the night (e.g. a refresh mid-game) forfeits it
+        // rather than handing back a free retry from a full purse.
+        self.state.cash -= stake;
         self.pending_stake = stake;
         self.begin_timing(super::tasks::TimingTask::Gamble);
     }
@@ -277,7 +285,7 @@ impl Game {
             }
         }
         if let Some(boat) = self.state.boat.take() {
-            self.state.cash += boat.lumber_value;
+            self.state.cash += boat.lumber_value();
         }
         self.enter_trace();
     }
@@ -298,16 +306,7 @@ impl Game {
     }
 }
 
-// Cover-art slug for a landing.
+// Cover-art slug for a landing, off the shared TOWN_SLUGS table.
 fn town_cover(to: usize) -> String {
-    let slug = match to {
-        1 => "wheeling",
-        2 => "cincinnati",
-        3 => "louisville",
-        4 => "cairo",
-        5 => "memphis",
-        6 => "natchez",
-        _ => "wheeling",
-    };
-    format!("town-{slug}")
+    format!("town-{}", TOWN_SLUGS[to.min(NUM_RIVER_TOWNS - 1)])
 }

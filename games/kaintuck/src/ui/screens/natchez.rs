@@ -22,7 +22,7 @@ pub fn Natchez() -> Element {
     let cash = s.cash;
     let cargo_value = s.cargo_value();
     let has_cargo = s.cargo_units() > 0;
-    let boat_lumber = s.boat.map(|b| b.lumber_value).unwrap_or(0.0);
+    let boat_lumber = s.boat.map(|b| b.lumber_value()).unwrap_or(0.0);
     let has_boat = s.boat.is_some();
     let has_horse = s.has_horse;
     drop(g);

@@ -197,3 +197,67 @@ fn pushing_a_hard_pace_with_no_food_eventually_kills() {
     }
     assert!(g.outcome.is_some());
 }
+
+/// Parks the walker at the Tennessee Divide stand with the day's travel having
+/// already vaulted past the Duck River (440) and the 450-mile finish.
+fn at_divide_having_vaulted_the_river(seed: u64, has_horse: bool) -> Game {
+    let mut g = started(seed);
+    g.state.town = super::state::NATCHEZ;
+    g.mode = Mode::Natchez;
+    g.set_out_on_trace();
+    g.state.has_horse = has_horse;
+    g.state.stand_idx = 4; // MountLocust..TnDivide consumed; DuckRiver is next
+    g.state.miles = 452.0;
+    g.mode = Mode::Stand;
+    g.leg = None;
+    g.resume = Resume::NextDay;
+    g
+}
+
+#[test]
+fn a_fast_final_day_still_crosses_the_duck_river_on_horseback() {
+    let mut g = at_divide_having_vaulted_the_river(7, true);
+    g.leave_stand();
+    settle(&mut g); // flush the crossing narration
+    assert_eq!(g.state.stand_idx, 5, "the Duck River crossing was skipped");
+    assert!(
+        g.outcome.as_ref().is_some_and(|e| e.won),
+        "should still reach Nashville"
+    );
+}
+
+#[test]
+fn a_fast_final_day_on_foot_still_faces_the_duck_river_ferry() {
+    let mut g = at_divide_having_vaulted_the_river(7, false);
+    g.leave_stand();
+    assert_eq!(g.mode, Mode::Interaction, "the ferry/ford prompt must appear");
+    assert!(matches!(
+        g.pending.front(),
+        Some(Interaction::FerryToll { .. })
+    ));
+    assert!(g.outcome.is_none(), "must not win before the river is crossed");
+}
+
+#[test]
+fn the_gamble_escrows_the_stake_and_pays_double_on_a_win() {
+    let mut g = started(3);
+    g.state.town = super::state::NATCHEZ;
+    g.mode = Mode::Natchez;
+    g.state.cash = 100.0;
+    g.gamble(40.0);
+    assert_eq!(g.state.cash, 60.0, "the stake leaves the purse when it is laid");
+    assert_eq!(g.mode, Mode::Timing);
+    g.resolve_timing(true, 0.9); // win
+    assert_eq!(g.state.cash, 140.0, "a win returns the stake plus equal winnings");
+}
+
+#[test]
+fn losing_the_gamble_keeps_the_already_escrowed_stake() {
+    let mut g = started(3);
+    g.state.town = super::state::NATCHEZ;
+    g.mode = Mode::Natchez;
+    g.state.cash = 100.0;
+    g.gamble(40.0);
+    g.resolve_timing(false, 0.9); // clean loss (accuracy >= 0.3, no cutpurse)
+    assert_eq!(g.state.cash, 60.0, "a loss simply keeps the escrowed stake");
+}
