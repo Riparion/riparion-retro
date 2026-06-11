@@ -10,8 +10,11 @@
 
 pub mod components;
 pub mod format;
+pub mod game_flow;
 pub mod playback;
+pub mod rations;
 pub mod rng;
+pub mod scoring;
 pub mod storage;
 pub mod theme;
 

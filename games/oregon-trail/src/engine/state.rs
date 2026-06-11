@@ -48,27 +48,9 @@ pub const DATES: [&str; MAX_TURNS as usize] = [
     "December 20",
 ];
 
-/// How well you ate this fortnight — drives food spend and illness odds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum EatLevel {
-    Poorly = 1,
-    Moderately = 2,
-    Well = 3,
-}
-
-impl EatLevel {
-    /// Food consumed: `8 + 5*E`.
-    pub fn food_cost(self) -> f64 {
-        8.0 + 5.0 * (self as i64 as f64)
-    }
-    pub fn label(self) -> &'static str {
-        match self {
-            EatLevel::Poorly => "Poorly",
-            EatLevel::Moderately => "Moderately",
-            EatLevel::Well => "Well",
-        }
-    }
-}
+/// How well you ate this fortnight — drives food spend and illness odds. The
+/// ration model is shared across the trail games; see [`retro_kit::rations`].
+pub use retro_kit::rations::EatLevel;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GameState {
