@@ -8,11 +8,14 @@
   scroll-behavior: smooth;
 }
 
-/* Engine output: faithful, lightly modernized prose. Preserve the original
-   line breaks so room descriptions read like the teletype did. */
+/* Engine output: faithful, lightly modernized prose. The UI de-wraps the
+   original 80-column teletype breaks into flowing paragraphs (one <p> each);
+   pre-wrap still honors the intentional breaks left in lists and centered
+   dividers, and lets long prose reflow to the viewport. The bottom margin
+   spaces consecutive paragraphs apart. */
 .transcript .t-out {
   white-space: pre-wrap;
-  margin: 0 0 0.6rem 0;
+  margin: 0 0 0.7rem 0;
   color: var(--phosphor);
   text-shadow: var(--glow);
 }
