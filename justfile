@@ -47,6 +47,10 @@ bucket-brigade:
 hot-cold:
     dx serve --package minigames-kit-hot-cold
 
+# Serve the Sequence minigame demo
+sequence:
+    dx serve --package minigames-kit-sequence
+
 # Run all workspace tests
 test:
     cargo test --workspace

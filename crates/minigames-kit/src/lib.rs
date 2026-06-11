@@ -17,6 +17,8 @@
 //!   grid faster than they multiply before the clock runs out.
 //! - [`hot_cold`] — a search/deduction hunt: probe a grid to find a hidden target
 //!   from warmer/colder (or distance-ring) clues in as few taps as possible.
+//! - [`sequence`] — a Simon-style order-memory test: a short run of symbols
+//!   flashes, then the palette opens and you tap them back in the same order.
 //!
 //! A host can take only what it needs with
 //! `minigames-kit = { default-features = false, features = ["quickdraw"] }`.
@@ -38,6 +40,8 @@ pub mod hot_cold;
 pub mod hunter;
 #[cfg(feature = "quickdraw")]
 pub mod quickdraw;
+#[cfg(feature = "sequence")]
+pub mod sequence;
 #[cfg(feature = "steady_hands")]
 pub mod steady_hands;
 #[cfg(feature = "timing_bar")]
