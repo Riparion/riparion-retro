@@ -40,7 +40,7 @@ src/
 dx serve              # develop (Tailwind compiles automatically)
 cargo test            # engine test suite (runs on host, no browser)
 cargo clippy --all-targets
-dx build --release --debug-symbols false --keep-names true    # production wasm bundle
+dx build --release --debug-symbols=false --keep-names    # production wasm bundle
 ```
 
 The retro CRT theme lives in `assets/main.css`; Tailwind (auto-compiled by

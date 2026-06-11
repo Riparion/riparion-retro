@@ -43,7 +43,7 @@ Cargo workspace — one crate per game under `games/`.
 ```bash
 cd games/taipan
 dx serve                 # develop with hot reload
-dx build --release --debug-symbols false --keep-names true   # production wasm bundle
+dx build --release --debug-symbols=false --keep-names   # production wasm bundle
 
 # From the workspace root:
 cargo test               # all engine test suites
