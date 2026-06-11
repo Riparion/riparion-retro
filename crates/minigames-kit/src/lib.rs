@@ -19,6 +19,9 @@
 //!   from warmer/colder (or distance-ring) clues in as few taps as possible.
 //! - [`sequence`] — a Simon-style order-memory test: a short run of symbols
 //!   flashes, then the palette opens and you tap them back in the same order.
+//! - [`heave`] — a sustained-exertion test: press and hold to build force
+//!   against staged resistance without crossing the slip ceiling or draining
+//!   your grip; pacing, not mashing.
 //!
 //! A host can take only what it needs with
 //! `minigames-kit = { default-features = false, features = ["quickdraw"] }`.
@@ -34,6 +37,8 @@ pub mod crowd_threading;
 /// Shared inline styling for the grid-based minigames (Hunter, BucketBrigade, HotCold).
 #[cfg(any(feature = "hunter", feature = "bucket_brigade", feature = "hot_cold"))]
 pub mod grid;
+#[cfg(feature = "heave")]
+pub mod heave;
 #[cfg(feature = "hot_cold")]
 pub mod hot_cold;
 #[cfg(feature = "hunter")]
