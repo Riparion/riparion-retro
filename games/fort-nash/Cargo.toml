@@ -1,0 +1,23 @@
+[package]
+name = "fort-nash"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+retro-kit = { workspace = true }
+# QuickDraw drives gunfights; Hunter drives the hunting gallery; CrowdThreading
+# drives the escape from a war party; TimingBar drives setting a broken bone and
+# measuring out medicine; SteadyHands drives the frozen-Cumberland ice crossing;
+# BucketBrigade drives the fire/sleet/blizzard triage; Sequence drives the cart-
+# wheel, lame-animal, and frostbite ordered-procedure games. Skip the rest.
+minigames-kit = { workspace = true, features = ["quickdraw", "hunter", "crowd_threading", "timing_bar", "steady_hands", "bucket_brigade", "sequence"] }
+
+dioxus = { workspace = true }
+serde = { workspace = true }
+gloo-timers = { workspace = true }
+
+[features]
+default = ["web"]
+web = ["dioxus/web"]

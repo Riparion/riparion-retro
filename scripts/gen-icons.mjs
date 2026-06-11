@@ -134,6 +134,26 @@ const GLYPHS = {
       <rect x="66" y="67" width="4" height="6"/><rect x="74" y="67" width="4" height="6"/>
     </g>` },
 
+  // Fort Nash: a frontier log stockade — pointed palisade logs flanking a
+  // gatehouse with a peaked roof and a flag, the fort raised at journey's end.
+  'fort-nash': { adj: 1.0, svg: `
+    <rect x="49.2" y="10" width="1.6" height="13" fill="${PH}"/>
+    <polygon points="50.8,10 61,13.5 50.8,17.5" fill="${PH}"/>
+    <g fill="${PH}">
+      <rect x="13" y="50" width="6" height="36"/><polygon points="13,50 16,44 19,50"/>
+      <rect x="20" y="50" width="6" height="36"/><polygon points="20,50 23,44 26,50"/>
+      <rect x="27" y="50" width="6" height="36"/><polygon points="27,50 30,44 33,50"/>
+      <rect x="34" y="50" width="6" height="36"/><polygon points="34,50 37,44 40,50"/>
+      <rect x="60" y="50" width="6" height="36"/><polygon points="60,50 63,44 66,50"/>
+      <rect x="67" y="50" width="6" height="36"/><polygon points="67,50 70,44 73,50"/>
+      <rect x="74" y="50" width="6" height="36"/><polygon points="74,50 77,44 80,50"/>
+      <rect x="81" y="50" width="6" height="36"/><polygon points="81,50 84,44 87,50"/>
+    </g>
+    <polygon points="38,34 50,20 62,34" fill="${PH}"/>
+    <rect x="40" y="33" width="20" height="53" fill="${PH}"/>
+    <path d="M45.5,86 L45.5,64 Q50,58 54.5,64 L54.5,86 Z" fill="${BG}"/>
+    <rect x="46.5" y="42" width="7" height="8" rx="1" fill="${BG}"/>` },
+
   // Colossal Cave: the brass lamp that lights the dark, a glowing flame inside.
   adventure: { adj: 1.0, svg: `
     <path d="M39,24 Q50,9 61,24" stroke="${PH}" stroke-width="3.2" fill="none" stroke-linecap="round"/>

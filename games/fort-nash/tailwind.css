@@ -1,0 +1,6 @@
+@import "tailwindcss";
+@source "../../crates/retro-kit/src";
+/* The QuickDraw / Hunter minigames live here and use utilities (grid-cols-2,
+   py-5, …) that appear nowhere in this crate's own source; scan them too so
+   regeneration doesn't purge classes the gunfight/hunt screens need. */
+@source "../../crates/minigames-kit/src";
