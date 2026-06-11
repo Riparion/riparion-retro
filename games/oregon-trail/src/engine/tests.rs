@@ -398,27 +398,54 @@ fn mid_steady(seed: u64, miles: f64, task: SteadyTask) -> Game {
     g
 }
 
+/// Stand a game up at the order-memory screen for a given task, ready to resolve.
+fn mid_sequence(seed: u64, miles: f64, task: SequenceTask) -> Game {
+    let mut g = ready_for_event(seed, miles);
+    g.pending_sequence = Some(task);
+    g.mode = Mode::Sequence;
+    g
+}
+
 #[test]
-fn the_unchecked_catastrophes_launch_the_steady_game() {
-    // Events 2 (ox leg), 11 (snakebite), and 12 (river ford) each pause into the
-    // steady-hand trace; over enough seeds all three tasks should turn up. Below
-    // the mountains so only the event roll is in play.
-    let (mut saw_ox, mut saw_snake, mut saw_ford) = (false, false, false);
+fn the_river_ford_launches_the_steady_game() {
+    // Event 12 (river ford) is the lone catastrophe still on the steady-hand
+    // trace; over enough seeds it should turn up. Below the mountains so only the
+    // event roll is in play.
+    let mut saw_ford = false;
     for seed in 0..1500u64 {
         let mut g = ready_for_event(seed, 300.0);
         let flow = g.do_event();
         if g.mode == Mode::Steady {
             assert_eq!(flow, Flow::Pause, "a launched steady trace pauses the leg");
             match g.pending_steady.expect("a task must be stashed") {
-                SteadyTask::OxLeg => saw_ox = true,
-                SteadyTask::Snakebite => saw_snake = true,
                 SteadyTask::Ford => saw_ford = true,
             }
         }
     }
+    assert!(saw_ford, "the river ford should fire across the seed sweep");
+}
+
+#[test]
+fn the_ordered_procedure_catastrophes_launch_the_sequence_game() {
+    // Events 1 (wagon wheel), 2 (ox leg), and 11 (snakebite) each pause into the
+    // order-memory game; over enough seeds all three tasks should turn up. Below
+    // the mountains so only the event roll is in play.
+    let (mut saw_wheel, mut saw_ox, mut saw_snake) = (false, false, false);
+    for seed in 0..1500u64 {
+        let mut g = ready_for_event(seed, 300.0);
+        let flow = g.do_event();
+        if g.mode == Mode::Sequence {
+            assert_eq!(flow, Flow::Pause, "a launched sequence pauses the leg");
+            match g.pending_sequence.expect("a task must be stashed") {
+                SequenceTask::Wheel => saw_wheel = true,
+                SequenceTask::OxLeg => saw_ox = true,
+                SequenceTask::Snakebite => saw_snake = true,
+            }
+        }
+    }
     assert!(
-        saw_ox && saw_snake && saw_ford,
-        "all three catastrophes should fire across the seed sweep"
+        saw_wheel && saw_ox && saw_snake,
+        "all three ordered-procedure catastrophes should fire across the seed sweep"
     );
 }
 
@@ -444,30 +471,62 @@ fn a_steady_hand_costs_less_than_a_shaky_one() {
 }
 
 #[test]
-fn a_steady_hand_saves_the_medicine_that_keeps_you_alive() {
-    // With medicine all but gone, a steady draw survives the snakebite on what's
-    // left; a shaky one spills the last of it and the bite turns fatal.
-    let mut steady = mid_steady(7, 300.0, SteadyTask::Snakebite);
-    steady.state.misc = 5.0;
-    steady.resolve_steady(true, 1.0);
+fn resolve_steady_ignores_stale_double_taps() {
+    let mut g = mid_steady(7, 300.0, SteadyTask::Ford);
+    g.resolve_steady(false, 0.0); // first call lands the crossing
+    let snapshot = g.clone();
+    g.resolve_steady(true, 1.0); // stale: mode is no longer Steady
+    assert_eq!(g, snapshot, "a second resolve must be a no-op");
+}
+
+#[test]
+fn a_clean_order_costs_less_than_a_botched_one() {
+    // Re-seating the wheel in the right order barely costs a step; fumbling it
+    // from the first slip loses the most ground and spare parts.
+    let mut clean = mid_sequence(7, 300.0, SequenceTask::Wheel);
+    let (m0, x0) = (clean.state.miles, clean.state.misc);
+    clean.resolve_sequence(4, 4, true);
+    let clean_loss = (m0 - clean.state.miles) + (x0 - clean.state.misc);
+    assert_ne!(clean.mode, Mode::Sequence);
+
+    let mut botched = mid_sequence(7, 300.0, SequenceTask::Wheel);
+    let (m1, x1) = (botched.state.miles, botched.state.misc);
+    botched.resolve_sequence(0, 4, false);
+    let botched_loss = (m1 - botched.state.miles) + (x1 - botched.state.misc);
+
     assert!(
-        steady.outcome.is_none(),
-        "a steady draw should survive on the medicine left"
+        botched_loss > clean_loss,
+        "fumbling the order should cost more time and supplies"
+    );
+}
+
+#[test]
+fn a_clean_order_saves_the_medicine_that_keeps_you_alive() {
+    // With medicine all but gone, a flawless first-aid order survives the snakebite
+    // on what's left; a botched one wastes the last of it and the bite turns fatal.
+    let mut clean = mid_sequence(7, 300.0, SequenceTask::Snakebite);
+    clean.state.misc = 5.0;
+    clean.resolve_sequence(5, 5, true);
+    assert!(
+        clean.outcome.is_none(),
+        "a flawless order should survive on the medicine left"
     );
 
-    let mut shaky = mid_steady(7, 300.0, SteadyTask::Snakebite);
-    shaky.state.misc = 5.0;
-    shaky.resolve_steady(false, 0.0);
-    let end = shaky.outcome.expect("spilling the last medicine should be fatal");
+    let mut botched = mid_sequence(7, 300.0, SequenceTask::Snakebite);
+    botched.state.misc = 5.0;
+    botched.resolve_sequence(0, 5, false);
+    let end = botched
+        .outcome
+        .expect("wasting the last medicine should be fatal");
     assert!(!end.won, "snakebite death is a loss");
 }
 
 #[test]
-fn resolve_steady_ignores_stale_double_taps() {
-    let mut g = mid_steady(7, 300.0, SteadyTask::OxLeg);
-    g.resolve_steady(false, 0.0); // first call lands the wrap
+fn resolve_sequence_ignores_stale_double_taps() {
+    let mut g = mid_sequence(7, 300.0, SequenceTask::OxLeg);
+    g.resolve_sequence(0, 4, false); // first call dresses the leg
     let snapshot = g.clone();
-    g.resolve_steady(true, 1.0); // stale: mode is no longer Steady
+    g.resolve_sequence(4, 4, true); // stale: mode is no longer Sequence
     assert_eq!(g, snapshot, "a second resolve must be a no-op");
 }
 
@@ -639,6 +698,8 @@ fn play(seed: u64, good: bool) -> Game {
             Mode::Dose => g.resolve_dose(good, if good { 1.0 } else { 0.0 }),
             // Good play holds the trace dead steady; bad play lets it wander off.
             Mode::Steady => g.resolve_steady(good, if good { 1.0 } else { 0.0 }),
+            // Good play reproduces the whole order; bad play slips on the first step.
+            Mode::Sequence => g.resolve_sequence(if good { 4 } else { 0 }, 4, good),
             // Good play beats the spread back to zero; bad play lets it run wild.
             Mode::Brigade => g.resolve_brigade(good, if good { 0 } else { 25 }, 25),
             Mode::Fort => g.leave_fort(),
@@ -707,22 +768,22 @@ fn cover_keys_supersede_then_fall_back() {
         vec!["trail-fort-laramie".to_string(), "trail".to_string()]
     );
 
-    // A narrative minigame key supersedes the general Steady key.
-    g.mode = Mode::Steady;
-    g.pending_steady = Some(SteadyTask::Snakebite);
+    // A narrative minigame key supersedes the general Sequence key.
+    g.mode = Mode::Sequence;
+    g.pending_sequence = Some(SequenceTask::Snakebite);
     assert_eq!(
         cover_keys(&g),
-        vec!["steady-snakebite".to_string(), "steady".to_string()]
+        vec!["sequence-snakebite".to_string(), "sequence".to_string()]
     );
 
     // A tagged trail incident keys on its slug, then the generic interaction key.
     let mut g = fresh(1);
-    g.message_keyed("One of your wagon wheels breaks down.", "wagon-wheel-breaks");
+    g.message_keyed("An ox wanders off.", "ox-wanders-off");
     g.mode = Mode::Interaction;
     assert_eq!(
         cover_keys(&g),
         vec![
-            "interaction-wagon-wheel-breaks".to_string(),
+            "interaction-ox-wanders-off".to_string(),
             "interaction".to_string()
         ]
     );

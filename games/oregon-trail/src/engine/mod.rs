@@ -63,16 +63,27 @@ pub enum Illness {
 }
 
 /// Which catastrophe put up the steady-hand minigame, held while it runs so the
-/// resolve applies the right losses. All three trade a sustained-steadiness trace
-/// for graded supply hits — a steady hand costs little, a shaky one the full toll.
+/// resolve applies the right losses. Trades a sustained-steadiness trace for
+/// graded supply hits — a steady hand costs little, a shaky one the full toll.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SteadyTask {
-    /// Snakebite — hold the blade steady to draw the venom (saves medicine).
-    Snakebite,
     /// Wagon swamped fording a river — hold it level against the current.
     Ford,
-    /// An ox hurt its leg — hold it steady while you wrap it.
+}
+
+/// Which catastrophe put up the sequence (order-memory) minigame, held while it
+/// runs so the resolve applies the right losses. Each trades reproducing a short
+/// ordered procedure for graded supply hits — get the order right and you pay the
+/// floor, fumble it and you pay the full toll (and, for the snakebite, the
+/// medicine that keeps you alive).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SequenceTask {
+    /// Wagon wheel breaks — jack, block, bolt, and re-seat it in order.
+    Wheel,
+    /// An ox hurt its leg — wrap, pad, bind in sequence.
     OxLeg,
+    /// Snakebite — work the first-aid steps in order (tourniquet → lance → dress).
+    Snakebite,
 }
 
 /// Which catastrophe put up the bucket-brigade minigame, held while it runs so
@@ -116,6 +127,8 @@ pub struct Game {
     pub pending_illness: Option<Illness>,
     /// Which catastrophe the steady-hand minigame is resolving.
     pub pending_steady: Option<SteadyTask>,
+    /// Which catastrophe the sequence (order-memory) minigame is resolving.
+    pub pending_sequence: Option<SequenceTask>,
     /// Which catastrophe the bucket-brigade minigame is resolving.
     pub pending_brigade: Option<BrigadeTask>,
     pub outcome: Option<EndGame>,
@@ -135,6 +148,7 @@ impl Game {
             shot_word: 0,
             pending_illness: None,
             pending_steady: None,
+            pending_sequence: None,
             pending_brigade: None,
             outcome: None,
             rng: GameRng::from_seed(seed),
@@ -497,9 +511,9 @@ impl Game {
 
     /// Resolve the steady-hand trace. `steady` = the run held on target past the
     /// pass threshold; `accuracy` (0..=1) is the fraction of the run on target.
-    /// Each task's losses are graded by how shaky the hand was: a steady run
-    /// costs the floor, a wandering one the full toll (or worse). Guarded against
-    /// stale double-taps like `resolve_dose`.
+    /// The losses are graded by how shaky the hand was: a steady run costs the
+    /// floor, a wandering one the full toll. Guarded against stale double-taps
+    /// like `resolve_dose`.
     pub fn resolve_steady(&mut self, steady: bool, accuracy: f64) {
         if self.mode != Mode::Steady {
             return;
@@ -510,20 +524,6 @@ impl Game {
         // How much the hand drifted: 0 = dead steady, 1 = all over the place.
         let drift = (1.0 - accuracy).clamp(0.0, 1.0);
         match task {
-            SteadyTask::Snakebite => {
-                self.state.bullets -= 10.0;
-                // A steady hand draws the venom clean; a shaky one spills the
-                // medicine you need to survive it — up to a full dose's worth.
-                self.state.misc -= 5.0 + 6.0 * drift;
-                if steady {
-                    self.message("You hold the blade steady and draw the venom clean.");
-                } else {
-                    self.message("Your hand shakes drawing the venom — you waste medicine.");
-                }
-                if self.state.misc < 0.0 {
-                    self.die(GameOverCause::Snakebite);
-                }
-            }
             SteadyTask::Ford => {
                 self.state.food -= 30.0;
                 self.state.clothing -= 20.0;
@@ -534,13 +534,81 @@ impl Game {
                     self.message("The wagon swamps in the current — supplies wash away.");
                 }
             }
-            SteadyTask::OxLeg => {
-                self.state.oxen -= 20.0;
-                self.state.miles -= 8.0 + 24.0 * drift;
-                if steady {
-                    self.message("You wrap the ox's leg snug — it slows you only a little.");
+        }
+        self.advance();
+    }
+
+    // ----- Reproducing an ordered procedure from memory -----
+
+    /// Put up the order-memory game for whichever catastrophe just struck.
+    fn begin_sequence(&mut self, task: SequenceTask) {
+        self.pending_sequence = Some(task);
+        self.mode = Mode::Sequence;
+    }
+
+    /// Resolve the order-memory game. `correct_prefix` of `length` steps were
+    /// reproduced in order before the first slip; `perfect` flags a flawless run.
+    /// Each task's losses are graded by how much of the procedure was fumbled —
+    /// get the order right and you pay the floor, botch it and you pay the full
+    /// toll (the snakebite still fatal if it spills the last of the medicine).
+    /// Guarded against stale double-taps like `resolve_steady`.
+    pub fn resolve_sequence(&mut self, correct_prefix: usize, length: usize, perfect: bool) {
+        if self.mode != Mode::Sequence {
+            return;
+        }
+        let Some(task) = self.pending_sequence.take() else {
+            return;
+        };
+        // How much of the procedure was botched: 0 = flawless order, 1 = fumbled
+        // from the very first step.
+        let miss = if length == 0 {
+            0.0
+        } else {
+            (1.0 - correct_prefix as f64 / length as f64).clamp(0.0, 1.0)
+        };
+        match task {
+            SequenceTask::Wheel => {
+                // The original docked −15..−20 miles and −8 misc outright; here a
+                // clean re-seat barely costs a step while a botched order loses the
+                // ground and the spare parts.
+                self.state.miles -= 6.0 + 16.0 * miss;
+                self.state.misc -= 3.0 + 6.0 * miss;
+                if perfect {
+                    self.message(
+                        "Jack, block, bolt, seat — you re-hang the wheel in good order and barely lose a step.",
+                    );
                 } else {
-                    self.message("The ox can't settle and the wrap slips — you lose ground.");
+                    self.message(
+                        "You botch the order and have to start the wheel over — losing time and spare parts.",
+                    );
+                }
+            }
+            SequenceTask::OxLeg => {
+                self.state.oxen -= 20.0;
+                self.state.miles -= 8.0 + 24.0 * miss;
+                if perfect {
+                    self.message(
+                        "Wrap, pad, bind — you dress the ox's leg in the right order and it slows you only a little.",
+                    );
+                } else {
+                    self.message("You fumble the dressing and the ox can't settle — you lose ground.");
+                }
+            }
+            SequenceTask::Snakebite => {
+                self.state.bullets -= 10.0;
+                // The right order draws the venom clean; a botched one wastes the
+                // medicine you need to survive — up to a full dose's worth. Preserves
+                // the original's death-if-no-medicine gate.
+                self.state.misc -= 5.0 + 6.0 * miss;
+                if perfect {
+                    self.message(
+                        "Tourniquet, lance, dress — you work the steps in order and draw the venom clean.",
+                    );
+                } else {
+                    self.message("You muddle the first-aid steps and waste the medicine.");
+                }
+                if self.state.misc < 0.0 {
+                    self.die(GameOverCause::Snakebite);
                 }
             }
         }

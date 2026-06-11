@@ -12,7 +12,7 @@ use dioxus::prelude::*;
 
 use crate::engine::interaction::{Interaction, ShotPurpose};
 use crate::engine::state::Mode;
-use crate::engine::{BrigadeTask, Game, Illness, SteadyTask};
+use crate::engine::{BrigadeTask, Game, Illness, SequenceTask, SteadyTask};
 
 // build.rs writes `cover_asset(key) -> Option<Asset>`, one arm per jpg present.
 include!(concat!(env!("OUT_DIR"), "/covers.rs"));
@@ -35,6 +35,7 @@ fn mode_key(mode: &Mode) -> &'static str {
         Mode::Dose => "dose",
         Mode::Steady => "steady",
         Mode::Brigade => "brigade",
+        Mode::Sequence => "sequence",
         Mode::Riders => "riders",
         Mode::Interaction => "interaction",
         Mode::GameOver => "game-over",
@@ -56,11 +57,19 @@ pub fn cover_keys(game: &Game) -> Vec<String> {
         Mode::Steady => {
             if let Some(task) = game.pending_steady {
                 let v = match task {
-                    SteadyTask::Snakebite => "snakebite",
                     SteadyTask::Ford => "ford",
-                    SteadyTask::OxLeg => "ox-leg",
                 };
                 keys.push(format!("steady-{v}"));
+            }
+        }
+        Mode::Sequence => {
+            if let Some(task) = game.pending_sequence {
+                let v = match task {
+                    SequenceTask::Wheel => "wheel",
+                    SequenceTask::OxLeg => "ox-leg",
+                    SequenceTask::Snakebite => "snakebite",
+                };
+                keys.push(format!("sequence-{v}"));
             }
         }
         Mode::Brigade => {

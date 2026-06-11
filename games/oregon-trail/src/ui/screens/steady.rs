@@ -4,10 +4,11 @@
 //! hit (and, for the snakebite, the medicine that keeps you alive).
 //!
 //! This is a thin wrapper over the shared `minigames_kit::steady_hands::SteadyHands`
-//! component, shared across three catastrophes: it reads `pending_steady` to pick
-//! the prompt and per-task difficulty, derives a per-encounter seed from game
-//! state (deterministic for a given save, distinct from a same-fortnight splint or
-//! dose), and routes the result into `resolve_steady`.
+//! component: it reads `pending_steady` to pick the prompt and difficulty (the
+//! river ford is the lone catastrophe still on the steady-hand trace), derives a
+//! per-encounter seed from game state (deterministic for a given save, distinct
+//! from a same-fortnight splint or dose), and routes the result into
+//! `resolve_steady`.
 
 use dioxus::prelude::*;
 
@@ -28,23 +29,11 @@ pub fn Steady() -> Element {
     drop(g);
 
     let (prompt, tolerance, duration_ms, drift_speed): (&str, f64, u32, f64) = match task {
-        SteadyTask::Snakebite => (
-            "Bitten by a snake! Hold the blade steady to draw the venom.",
-            0.10,
-            5000,
-            1.0,
-        ),
         SteadyTask::Ford => (
             "Fording a river — hold the wagon level against the current.",
             0.12,
             7000,
             1.4,
-        ),
-        SteadyTask::OxLeg => (
-            "An ox hurt its leg — hold it steady while you wrap it.",
-            0.11,
-            5000,
-            0.9,
         ),
     };
 

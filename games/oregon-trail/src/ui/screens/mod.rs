@@ -11,6 +11,7 @@ pub mod interaction_host;
 pub mod new_game;
 pub mod outfit;
 pub mod riders;
+pub mod sequence;
 pub mod shoot;
 pub mod splash;
 pub mod splint;
