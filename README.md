@@ -13,6 +13,7 @@ Cargo workspace — one crate per game under `games/`.
 | [dukedom](games/dukedom/) | <img src="games/dukedom/screenshot.png" width="120" alt="Dukedom screenshot"> | The 1980 Creative Computing classic — rule a medieval duchy through plague, war, and the High King's taxes |
 | [santa-paravia](games/santa-paravia/) | <img src="games/santa-paravia/screenshot.png" width="120" alt="Santa Paravia screenshot"> | George Blank's 1978 city-state sim — rule a Renaissance Italian city-state and rise from Sir to King |
 | [adventure](games/adventure/) | <img src="games/adventure/screenshot.png" width="120" alt="Colossal Cave Adventure screenshot"> | Crowther & Woods' 1977 **Colossal Cave Adventure** (350-point version) — explore the cave, gather treasure, dodge dwarves |
+| [kaintuck](games/kaintuck/) | <img src="games/kaintuck/screenshot.png" width="120" alt="Kaintuck screenshot"> | An original two-phase frontier game — run a flatboat down the Ohio & Mississippi to Natchez, then walk the Natchez Trace home |
 
 ## Layout
 

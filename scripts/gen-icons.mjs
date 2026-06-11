@@ -162,6 +162,19 @@ const GLYPHS = {
     <rect x="40" y="41" width="20" height="29" rx="3" fill="${BG}"/>
     <path d="M50,46 Q57,55 50,67 Q43,55 50,46 Z" fill="${PH}"/>
     <polygon points="35,77 65,77 61,85 39,85" fill="${PH}"/>` },
+
+  // Kaintuck: a flatboat riding the current — a long low hull with a deck cabin
+  // and the steering sweep raked off the stern, over a line of water.
+  kaintuck: { adj: 1.0, svg: `
+    <path d="M12,84 Q23,81 34,84 T56,84 T78,84 T90,84" stroke="${DIM}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <polygon points="11,64 21,56 75,56 85,64 80,74 16,74" fill="${PH}"/>
+    <line x1="19" y1="62" x2="77" y2="62" stroke="${BG}" stroke-width="1.2"/>
+    <rect x="33" y="39" width="31" height="18" rx="1.5" fill="${PH}"/>
+    <g stroke="${BG}" stroke-width="1.3">
+      <line x1="40" y1="39" x2="40" y2="57"/><line x1="48.5" y1="39" x2="48.5" y2="57"/><line x1="57" y1="39" x2="57" y2="57"/>
+    </g>
+    <line x1="76" y1="58" x2="90" y2="40" stroke="${PH}" stroke-width="3" stroke-linecap="round"/>
+    <polygon points="87,36 93,40 89,45" fill="${PH}"/>` },
 };
 
 function buildSvg(name, mode, size) {
