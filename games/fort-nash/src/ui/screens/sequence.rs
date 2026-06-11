@@ -5,7 +5,7 @@
 //! that keeps you alive).
 //!
 //! This is a thin wrapper over the shared `minigames_kit::sequence::Sequence`
-//! component, shared across three catastrophes: it reads `pending_sequence` to
+//! component, shared across three catastrophes: it reads the pending task to
 //! pick the prompt, the themed step palette, and the per-task difficulty, derives
 //! a per-encounter seed from game state (deterministic for a given save, distinct
 //! from a same-week splint, dose, steady trace, or brigade), and routes the
@@ -22,8 +22,8 @@ pub fn Sequence() -> Element {
     let mut game = use_context::<Signal<Game>>();
     let g = game.read();
     // Default to the wheel if somehow mounted without a pending task — the resolve
-    // is guarded on `pending_sequence`, so a stray mount just no-ops.
-    let task = g.pending_sequence.unwrap_or(SequenceTask::Wheel);
+    // is guarded on the pending task, so a stray mount just no-ops.
+    let task = g.sequence_task().unwrap_or(SequenceTask::Wheel);
     // A per-encounter seed (see `Game::encounter_seed`); the salt keeps the order
     // distinct from a same-week splint, dose, steady trace, or brigade.
     let seed = g.encounter_seed(0x5E9E_9CE0_5E9E_9CE0);

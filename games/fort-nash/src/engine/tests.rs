@@ -372,7 +372,7 @@ fn illness_launches_the_dosing_game_and_a_shaky_pour_wastes_supplies() {
         let flow = g.do_event();
         if g.mode == Mode::Dose {
             assert_eq!(flow, Flow::Pause, "a launched illness pauses the leg");
-            assert!(g.pending_illness.is_some(), "a severity must be stashed");
+            assert!(g.illness_task().is_some(), "a severity must be stashed");
 
             // Same illness, two pours: the steady one keeps more medical supplies.
             let mut steady = g.clone();
@@ -383,17 +383,17 @@ fn illness_launches_the_dosing_game_and_a_shaky_pour_wastes_supplies() {
                 shaky.state.misc < steady.state.misc,
                 "spilling the dose should burn extra supplies"
             );
-            assert!(steady.pending_illness.is_none(), "the dose clears the illness");
+            assert!(steady.illness_task().is_none(), "the dose clears the illness");
             launched += 1;
         }
     }
     assert!(launched > 0, "illness never fired in 400 seeds");
 }
 
-/// Stand a game up at the steady-hand screen for a given task, ready to resolve.
-fn mid_steady(seed: u64, miles: f64, task: SteadyTask) -> Game {
+/// Stand a game up at the steady-hand (ice crossing) screen, ready to resolve.
+fn mid_steady(seed: u64, miles: f64) -> Game {
     let mut g = ready_for_event(seed, miles);
-    g.pending_steady = Some(task);
+    g.pending_task = Some(MiniTask::Ice);
     g.mode = Mode::Steady;
     g
 }
@@ -401,7 +401,7 @@ fn mid_steady(seed: u64, miles: f64, task: SteadyTask) -> Game {
 /// Stand a game up at the order-memory screen for a given task, ready to resolve.
 fn mid_sequence(seed: u64, miles: f64, task: SequenceTask) -> Game {
     let mut g = ready_for_event(seed, miles);
-    g.pending_sequence = Some(task);
+    g.pending_task = Some(MiniTask::Sequence(task));
     g.mode = Mode::Sequence;
     g
 }
@@ -421,7 +421,7 @@ fn the_frozen_cumberland_launches_the_steady_game() {
     let flow = g.do_mountain_passes();
     assert_eq!(flow, Flow::Pause, "the ice crossing pauses the leg");
     assert_eq!(g.mode, Mode::Steady);
-    assert_eq!(g.pending_steady, Some(SteadyTask::Ice));
+    assert!(g.is_ice_crossing());
     assert!(g.state.cleared_cumberland_river, "the crossing is marked started");
 
     // It only fires once: a second pass-check (river already crossed) doesn't
@@ -439,7 +439,7 @@ fn the_frozen_cumberland_launches_the_steady_game() {
 #[test]
 fn a_botched_ice_crossing_can_break_the_ice() {
     // A badly shaky run drops the party through the ice — a fatal ending.
-    let mut g = mid_steady(7, super::state::CUMBERLAND_RIVER_AT, SteadyTask::Ice);
+    let mut g = mid_steady(7, super::state::CUMBERLAND_RIVER_AT);
     g.resolve_steady(false, 0.0);
     let end = g.outcome.expect("a broken-ice crossing should end the journey");
     assert!(!end.won, "going through the ice is a loss");
@@ -457,7 +457,7 @@ fn the_ordered_procedure_catastrophes_launch_the_sequence_game() {
         let flow = g.do_event();
         if g.mode == Mode::Sequence {
             assert_eq!(flow, Flow::Pause, "a launched sequence pauses the leg");
-            match g.pending_sequence.expect("a task must be stashed") {
+            match g.sequence_task().expect("a task must be stashed") {
                 SequenceTask::Wheel => saw_wheel = true,
                 SequenceTask::OxLeg => saw_ox = true,
                 SequenceTask::Frostbite => saw_snake = true,
@@ -474,14 +474,14 @@ fn the_ordered_procedure_catastrophes_launch_the_sequence_game() {
 fn a_steady_hand_costs_less_than_a_shaky_one() {
     // Both runs survive (a moderate shaky run, not a fatal one), so the losses
     // are comparable: a steadier line over the ice keeps more stock and supplies.
-    let mut steady = mid_steady(7, 300.0, SteadyTask::Ice);
+    let mut steady = mid_steady(7, 300.0);
     let (m0, f0, o0) = (steady.state.miles, steady.state.food, steady.state.oxen);
     steady.resolve_steady(true, 1.0);
     let steady_loss =
         (m0 - steady.state.miles) + (f0 - steady.state.food) + (o0 - steady.state.oxen);
     assert_ne!(steady.mode, Mode::Steady);
 
-    let mut shaky = mid_steady(7, 300.0, SteadyTask::Ice);
+    let mut shaky = mid_steady(7, 300.0);
     let (m1, f1, o1) = (shaky.state.miles, shaky.state.food, shaky.state.oxen);
     shaky.resolve_steady(false, 0.5);
     let shaky_loss =
@@ -494,8 +494,26 @@ fn a_steady_hand_costs_less_than_a_shaky_one() {
 }
 
 #[test]
+fn a_broken_ice_crossing_shows_the_splinter_line_before_game_over() {
+    // A badly shaky crossing breaks the ice; the narration must be drained (shown
+    // in Interaction mode) before the GameOver screen, not orphaned in the queue.
+    let mut g = mid_steady(7, super::state::CUMBERLAND_RIVER_AT);
+    g.resolve_steady(false, 0.0); // drift > 0.6 → the ice gives way
+    assert!(
+        g.outcome
+            .as_ref()
+            .is_some_and(|e| e.cause_kind == GameOverCause::IceBroke),
+        "the party goes into the river"
+    );
+    assert_eq!(g.mode, Mode::Interaction, "the splinter line shows first");
+    assert!(!g.pending.is_empty(), "the narration is still queued to show");
+    g.resolve(Response::Acknowledge);
+    assert_eq!(g.mode, Mode::GameOver);
+}
+
+#[test]
 fn resolve_steady_ignores_stale_double_taps() {
-    let mut g = mid_steady(7, 300.0, SteadyTask::Ice);
+    let mut g = mid_steady(7, 300.0);
     g.resolve_steady(false, 0.5); // first call lands the crossing (survives)
     let snapshot = g.clone();
     g.resolve_steady(true, 1.0); // stale: mode is no longer Steady
@@ -556,7 +574,7 @@ fn resolve_sequence_ignores_stale_double_taps() {
 /// Stand a game up at the bucket-brigade screen for a given task, ready to resolve.
 fn mid_brigade(seed: u64, miles: f64, task: BrigadeTask) -> Game {
     let mut g = ready_for_event(seed, miles);
-    g.pending_brigade = Some(task);
+    g.pending_task = Some(MiniTask::Brigade(task));
     g.mode = Mode::Brigade;
     g
 }
@@ -572,7 +590,7 @@ fn fire_and_rains_launch_the_brigade_game() {
         let flow = g.do_event();
         if g.mode == Mode::Brigade {
             assert_eq!(flow, Flow::Pause, "a launched brigade pauses the leg");
-            match g.pending_brigade.expect("a task must be stashed") {
+            match g.brigade_task().expect("a task must be stashed") {
                 BrigadeTask::Fire => saw_fire = true,
                 BrigadeTask::Rains => saw_rains = true,
                 BrigadeTask::Blizzard => panic!("no blizzard below the mountains"),
@@ -653,7 +671,7 @@ fn a_well_clothed_party_rides_out_the_blizzard() {
     g.resolve_brigade(true, 0, 25);
     assert_ne!(g.mode, Mode::Brigade);
     assert_ne!(g.mode, Mode::Dose);
-    assert!(g.pending_brigade.is_none(), "the resolve clears the task");
+    assert!(g.brigade_task().is_none(), "the resolve clears the task");
 }
 
 #[test]
@@ -793,7 +811,7 @@ fn cover_keys_supersede_then_fall_back() {
 
     // A narrative minigame key supersedes the general Sequence key.
     g.mode = Mode::Sequence;
-    g.pending_sequence = Some(SequenceTask::Frostbite);
+    g.pending_task = Some(MiniTask::Sequence(SequenceTask::Frostbite));
     assert_eq!(
         cover_keys(&g),
         vec!["sequence-frostbite".to_string(), "sequence".to_string()]

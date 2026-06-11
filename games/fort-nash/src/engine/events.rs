@@ -7,7 +7,7 @@ use super::interaction::{ShotPurpose, Tactic};
 use super::state::{
     EatLevel, GameOverCause, CUMBERLAND_GAP_AT, CUMBERLAND_RIVER_AT, MOUNTAINS_AT,
 };
-use super::{BrigadeTask, Flow, Game, Illness, RiderEncounter, SequenceTask, SteadyTask};
+use super::{BrigadeTask, Flow, Game, Illness, RiderEncounter, SequenceTask};
 
 impl Game {
     // ===== Riders =====
@@ -349,7 +349,7 @@ impl Game {
             self.state.cleared_cumberland_river = true;
             // The Steady screen narrates the frozen crossing; no queued message
             // (which would otherwise drain after the minigame, out of order).
-            self.begin_steady(SteadyTask::Ice);
+            self.begin_ice_crossing();
             return Flow::Pause;
         }
         Flow::Continue

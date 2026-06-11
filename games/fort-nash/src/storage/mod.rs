@@ -8,7 +8,10 @@ use crate::engine::Game;
 
 const SAVE_KEY: &str = "fort-nash.save";
 const SCORES_KEY: &str = "fort-nash.highscores";
-const SAVE_VERSION: u32 = 1;
+// Bumped to 2: the four pending_* minigame slots became one pending_task and
+// SteadyTask was folded into MiniTask, so v1 blobs no longer deserialize — an old
+// save falls back to a fresh game rather than mis-loading.
+const SAVE_VERSION: u32 = 2;
 const MAX_SCORES: usize = 10;
 
 /// Resume a saved journey, or start at the title screen.

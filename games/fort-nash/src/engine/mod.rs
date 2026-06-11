@@ -62,17 +62,6 @@ pub enum Illness {
     Serious,
 }
 
-/// Which catastrophe put up the steady-hand minigame, held while it runs so the
-/// resolve applies the right losses. Trades a sustained-steadiness trace for
-/// graded supply hits — a steady hand costs little, a shaky one the full toll
-/// (and, on the ice, a badly shaky crossing can drop the party through).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SteadyTask {
-    /// The frozen Cumberland on Christmas Day — drive the livestock across the
-    /// ice without breaking it, holding a steady line against the slipping herd.
-    Ice,
-}
-
 /// Which catastrophe put up the sequence (order-memory) minigame, held while it
 /// runs so the resolve applies the right losses. Each trades reproducing a short
 /// ordered procedure for graded supply hits — get the order right and you pay the
@@ -102,6 +91,35 @@ pub enum BrigadeTask {
     Blizzard,
 }
 
+/// The one minigame currently paused for the player. Holding a single tagged task
+/// (rather than four parallel `Option` fields) keeps the live task and the screen
+/// it belongs to from ever desyncing, and means a new minigame is one variant plus
+/// its [`Self::mode`] arm. The shot/riders encounters carry their own state and
+/// stay separate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MiniTask {
+    /// Measuring out a dose for an illness of the rolled severity.
+    Dose(Illness),
+    /// Driving the livestock over the frozen Cumberland (the steady-hand trace).
+    Ice,
+    /// Reproducing an ordered first-aid/repair procedure.
+    Sequence(SequenceTask),
+    /// Beating back a spreading threat (fire, sleet, blizzard).
+    Brigade(BrigadeTask),
+}
+
+impl MiniTask {
+    /// The screen this task is played on.
+    pub fn mode(self) -> Mode {
+        match self {
+            MiniTask::Dose(_) => Mode::Dose,
+            MiniTask::Ice => Mode::Steady,
+            MiniTask::Sequence(_) => Mode::Sequence,
+            MiniTask::Brigade(_) => Mode::Brigade,
+        }
+    }
+}
+
 /// Riders on the trail: what they look like, and what they actually are.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RiderEncounter {
@@ -125,14 +143,8 @@ pub struct Game {
     pub shot: Option<ShotPurpose>,
     /// Which of the four words the gunfight is flashing.
     pub shot_word: usize,
-    /// The severity rolled for the illness the dosing game is resolving.
-    pub pending_illness: Option<Illness>,
-    /// Which catastrophe the steady-hand minigame is resolving.
-    pub pending_steady: Option<SteadyTask>,
-    /// Which catastrophe the sequence (order-memory) minigame is resolving.
-    pub pending_sequence: Option<SequenceTask>,
-    /// Which catastrophe the bucket-brigade minigame is resolving.
-    pub pending_brigade: Option<BrigadeTask>,
+    /// The one minigame (dose / ice / sequence / brigade) currently paused, if any.
+    pub pending_task: Option<MiniTask>,
     pub outcome: Option<EndGame>,
     pub rng: GameRng,
 }
@@ -148,10 +160,7 @@ impl Game {
             riders: None,
             shot: None,
             shot_word: 0,
-            pending_illness: None,
-            pending_steady: None,
-            pending_sequence: None,
-            pending_brigade: None,
+            pending_task: None,
             outcome: None,
             rng: GameRng::from_seed(seed),
         }
@@ -164,8 +173,11 @@ impl Game {
         self.state.marksman = marksman.clamp(1, 5);
         self.pending.clear();
         self.leg = None;
+        self.resume = Resume::Trail;
         self.riders = None;
         self.shot = None;
+        self.shot_word = 0;
+        self.pending_task = None;
         self.outcome = None;
         self.mode = Mode::Outfit;
     }
@@ -393,6 +405,14 @@ impl Game {
             self.message("The going turns rough — you backtrack through the rocks and lose ground.");
         }
         // Fall through to the passes, then on along the leg to the next fortnight.
+        self.resume_after_mountain_incident();
+    }
+
+    /// After a mountain-stage minigame (climb / blizzard) resolves, run the
+    /// remaining one-time passes; if they don't pause for another minigame, drain
+    /// the queue and carry on along the leg. Shared by `resolve_climb` and the
+    /// blizzard arm of `resolve_brigade` so the fall-through lives in one place.
+    fn resume_after_mountain_incident(&mut self) {
         if let Flow::Continue = self.do_mountain_passes() {
             self.advance();
         }
@@ -455,10 +475,40 @@ impl Game {
 
     // ----- Measuring out medicine -----
 
+    /// Park the given minigame and switch to its screen.
+    fn begin_task(&mut self, task: MiniTask) {
+        self.mode = task.mode();
+        self.pending_task = Some(task);
+    }
+
+    // ----- task accessors (the UI reads the live task to label its screen) -----
+
+    pub fn illness_task(&self) -> Option<Illness> {
+        match self.pending_task {
+            Some(MiniTask::Dose(i)) => Some(i),
+            _ => None,
+        }
+    }
+    pub fn sequence_task(&self) -> Option<SequenceTask> {
+        match self.pending_task {
+            Some(MiniTask::Sequence(t)) => Some(t),
+            _ => None,
+        }
+    }
+    pub fn brigade_task(&self) -> Option<BrigadeTask> {
+        match self.pending_task {
+            Some(MiniTask::Brigade(t)) => Some(t),
+            _ => None,
+        }
+    }
+    /// Whether the paused minigame is the frozen-Cumberland ice crossing.
+    pub fn is_ice_crossing(&self) -> bool {
+        matches!(self.pending_task, Some(MiniTask::Ice))
+    }
+
     /// Put up the timing game: measure out a dose for the illness just rolled.
     fn begin_dose(&mut self, severity: Illness) {
-        self.pending_illness = Some(severity);
-        self.mode = Mode::Dose;
+        self.begin_task(MiniTask::Dose(severity));
     }
 
     /// Resolve measuring out the medicine. `on_target` = the pour landed in the
@@ -471,9 +521,10 @@ impl Game {
         if self.mode != Mode::Dose {
             return;
         }
-        let Some(severity) = self.pending_illness.take() else {
+        let Some(MiniTask::Dose(severity)) = self.pending_task else {
             return;
         };
+        self.pending_task = None;
         match severity {
             Illness::Mild => {
                 self.message("A mild illness — medicine used.");
@@ -505,50 +556,49 @@ impl Game {
 
     // ----- Holding a hand steady under strain -----
 
-    /// Put up the precision-trace game for whichever catastrophe just struck.
-    fn begin_steady(&mut self, task: SteadyTask) {
-        self.pending_steady = Some(task);
-        self.mode = Mode::Steady;
+    /// Put up the precision-trace game for the frozen Cumberland ice crossing.
+    fn begin_ice_crossing(&mut self) {
+        self.begin_task(MiniTask::Ice);
     }
 
-    /// Resolve the steady-hand trace. `steady` = the run held on target past the
-    /// pass threshold; `accuracy` (0..=1) is the fraction of the run on target.
-    /// The losses are graded by how shaky the hand was: a steady run costs the
-    /// floor, a wandering one the full toll. Guarded against stale double-taps
-    /// like `resolve_dose`.
+    /// Resolve the steady-hand trace over the frozen Cumberland. `steady` = the run
+    /// held on target past the pass threshold; `accuracy` (0..=1) is the fraction of
+    /// the run on target. The losses are graded by how shaky the hand was: a steady
+    /// run costs the floor, a wandering one the full toll, and a badly shaky crossing
+    /// breaks the ice. Guarded against stale double-taps like `resolve_dose`.
     pub fn resolve_steady(&mut self, steady: bool, accuracy: f64) {
         if self.mode != Mode::Steady {
             return;
         }
-        let Some(task) = self.pending_steady.take() else {
+        if !matches!(self.pending_task, Some(MiniTask::Ice)) {
             return;
-        };
+        }
+        self.pending_task = None;
         // How much the hand drifted: 0 = dead steady, 1 = all over the place.
         let drift = (1.0 - accuracy).clamp(0.0, 1.0);
-        match task {
-            SteadyTask::Ice => {
-                // A badly shaky crossing cracks the ice and takes the party down.
-                if !steady && drift > 0.6 {
-                    self.message_keyed(
-                        "The ice splinters under the herd in a long, sickening crack.",
-                        "ice-broke",
-                    );
-                    self.die(GameOverCause::IceBroke);
-                    return;
-                }
-                self.state.food -= 20.0 + 30.0 * drift;
-                self.state.oxen -= 15.0 + 35.0 * drift;
-                self.state.miles -= 5.0 + 20.0 * drift;
-                if steady {
-                    self.message(
-                        "You read the ice and drive the livestock over in good order — across the frozen Cumberland on Christmas Day.",
-                    );
-                } else {
-                    self.message(
-                        "The livestock balk and slip on the ice — you lose stock and supplies into the dark water, but the party makes the far bank.",
-                    );
-                }
-            }
+        // A badly shaky crossing cracks the ice and takes the party down.
+        if !steady && drift > 0.6 {
+            self.message_keyed(
+                "The ice splinters under the herd in a long, sickening crack.",
+                "ice-broke",
+            );
+            self.die(GameOverCause::IceBroke);
+            // Drain the queue so the splinter line shows before the GameOver
+            // screen, like every other death-with-narration path.
+            self.advance();
+            return;
+        }
+        self.state.food -= 20.0 + 30.0 * drift;
+        self.state.oxen -= 15.0 + 35.0 * drift;
+        self.state.miles -= 5.0 + 20.0 * drift;
+        if steady {
+            self.message(
+                "You read the ice and drive the livestock over in good order — across the frozen Cumberland on Christmas Day.",
+            );
+        } else {
+            self.message(
+                "The livestock balk and slip on the ice — you lose stock and supplies into the dark water, but the party makes the far bank.",
+            );
         }
         self.advance();
     }
@@ -557,8 +607,7 @@ impl Game {
 
     /// Put up the order-memory game for whichever catastrophe just struck.
     fn begin_sequence(&mut self, task: SequenceTask) {
-        self.pending_sequence = Some(task);
-        self.mode = Mode::Sequence;
+        self.begin_task(MiniTask::Sequence(task));
     }
 
     /// Resolve the order-memory game. `correct_prefix` of `length` steps were
@@ -571,9 +620,10 @@ impl Game {
         if self.mode != Mode::Sequence {
             return;
         }
-        let Some(task) = self.pending_sequence.take() else {
+        let Some(MiniTask::Sequence(task)) = self.pending_task else {
             return;
         };
+        self.pending_task = None;
         // How much of the procedure was botched: 0 = flawless order, 1 = fumbled
         // from the very first step.
         let miss = if length == 0 {
@@ -647,8 +697,7 @@ impl Game {
 
     /// Put up the triage-against-spread game for whichever catastrophe just struck.
     fn begin_brigade(&mut self, task: BrigadeTask) {
-        self.pending_brigade = Some(task);
-        self.mode = Mode::Brigade;
+        self.begin_task(MiniTask::Brigade(task));
     }
 
     /// Resolve the bucket-brigade. `contained` = the threat was beaten back to
@@ -664,9 +713,10 @@ impl Game {
         if self.mode != Mode::Brigade {
             return;
         }
-        let Some(task) = self.pending_brigade.take() else {
+        let Some(MiniTask::Brigade(task)) = self.pending_task else {
             return;
         };
+        self.pending_task = None;
         // How much got away: 0 = beaten back clean, 1 = it spread across the load.
         let sev = if capacity > 0 {
             (leaked as f64 / capacity as f64).clamp(0.0, 1.0)
@@ -724,11 +774,9 @@ impl Game {
                     self.illness();
                     return;
                 }
-                // Otherwise fall through to the remaining pass (Blue Mountains)
-                // and on along the leg, mirroring `resolve_climb`.
-                if let Flow::Continue = self.do_mountain_passes() {
-                    self.advance();
-                }
+                // Otherwise fall through to the remaining one-time passes (the
+                // Cumberland Gap and the river crossing) and on along the leg.
+                self.resume_after_mountain_incident();
             }
         }
     }
@@ -750,13 +798,18 @@ impl Game {
         if self.mode != Mode::Shoot {
             return;
         }
+        // No-op on a missing purpose (a stale double-tap / desynced save) rather
+        // than fabricating a gunfight, matching the other resolvers' guard.
+        let Some(purpose) = self.shot.take() else {
+            return;
+        };
         let handicap = (self.state.marksman.clamp(1, 5) as f64 - 1.0) * 0.3;
         let b1 = if correct {
             (reaction_secs + handicap).max(0.0)
         } else {
             9.0
         };
-        match self.shot.take().unwrap_or(ShotPurpose::Bandits) {
+        match purpose {
             ShotPurpose::Bandits => self.finish_bandits(b1),
             ShotPurpose::WildAnimals => self.finish_wolves(b1),
             ShotPurpose::Riders { circle } => self.finish_rider_fight(b1, circle),
