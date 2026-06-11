@@ -11,7 +11,7 @@ use super::state::{EndGame, GameState};
 
 /// Total worth of what's left in the wagon, in rough dollar-points.
 pub fn leftover_value(s: &GameState) -> f64 {
-    s.food + s.clothing + s.misc + s.cash + s.bullets / 50.0
+    retro_kit::scoring::leftover_value(s.food, s.clothing, s.misc, s.cash, s.bullets)
 }
 
 /// Score a finished journey. Arriving is worth a great deal; arriving early
@@ -37,51 +37,11 @@ pub fn rank(score: i64) -> &'static str {
     }
 }
 
-/// Day-of-year (1847 is a common year) and weekday for an arrival `turn`
-/// fortnights out plus a fraction `f9` of the final fortnight. The trek leaves
-/// Independence on Monday, March 29, 1847.
+/// Arrival date and days-on-the-trail for a journey `turn` fortnights out plus
+/// a fraction `f9` of the final fortnight. The trek leaves Independence on
+/// Monday, March 29, 1847 — day-of-year 88 (31 + 28 + 29).
 pub fn arrival_date(turn: u32, f9: f64) -> (String, i64) {
-    const MONTHS: [(&str, i64); 12] = [
-        ("January", 31),
-        ("February", 28),
-        ("March", 31),
-        ("April", 30),
-        ("May", 31),
-        ("June", 30),
-        ("July", 31),
-        ("August", 31),
-        ("September", 30),
-        ("October", 31),
-        ("November", 30),
-        ("December", 31),
-    ];
-    const WEEKDAYS: [&str; 7] = [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
-    ];
-    // March 29 is day-of-year 88 (31 + 28 + 29).
-    let days_out = turn as i64 * 14 + (f9 * 14.0).floor() as i64;
-    let weekday = WEEKDAYS[(days_out.rem_euclid(7)) as usize];
-    // Pin the displayed calendar date to the year (a turn-19 arrival can spill
-    // past Dec 31); the returned day count is always the true days on the trail.
-    let doy = (88 + days_out).min(365);
-    let mut month = "December";
-    let mut day = 31;
-    let mut acc = 0;
-    for (name, len) in MONTHS {
-        if doy <= acc + len {
-            month = name;
-            day = doy - acc;
-            break;
-        }
-        acc += len;
-    }
-    (format!("{weekday}, {month} {day}, 1847"), days_out)
+    retro_kit::scoring::arrival_date(turn, f9, 14, 88, 0, 1847)
 }
 
 /// One line in the trailside hall of fame.

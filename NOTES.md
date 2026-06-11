@@ -113,9 +113,13 @@ mid-playback.
 **Persistence.** Use `retro_kit::storage` with keys `"<name>.save"` /
 `"<name>.highscores"` and a per-game `SAVE_VERSION` const (bump it on any
 breaking serde change — old saves are then silently discarded, by design).
-Auto-save from one `use_effect` in the app root that reads the game signal;
-on game over: clear the save and `record_score` exactly once (guard with a
-`recorded` flag inside the game state).
+The auto-save effect is shared: `impl retro_kit::game_flow::Persisted for Game`
+(four small methods — `is_transient`, `is_game_over`, `save`, `finish`) and
+drop `use_persistence(game)` into the app root in place of a hand-rolled
+`use_effect`. It saves on every non-transient transition and, on game over,
+clears the save and `record_score`s exactly once (guard with a `recorded`
+flag inside the game state). `finish` is where per-game divergence lives
+(e.g. kaintuck scores on `state.trader`, the trail games on `state.party`).
 
 **Start screen (required).** Every game must open on its title/splash screen
 on every load — never drop the player straight into a resumed game. A save
@@ -137,6 +141,39 @@ The splash also ends with two muted footer lines: the period attribution
 (`text-xs opacity-60`, "After … as published in …"), then a porting credit
 `p { class: "text-xs opacity-50", "Ported to mobile by Tony Bierman" }` —
 include both on every game's title screen.
+
+## Shared code: retro-kit, and what deliberately stays per-game
+
+`crates/retro-kit` holds the pieces that are genuinely game-agnostic. Beyond
+the CRT theme, `rng`, `storage`, and UI components, three modules carry shared
+game logic worth reusing across the trail-style games:
+
+- `rations::EatLevel` — the ration enum (`food_cost = 8 + 5·E`), re-exported by
+  each game's `engine::state` (`pub use retro_kit::rations::EatLevel;`).
+- `scoring` — `arrival_date`/`calendar_date` (the date walk, parameterized by
+  epoch/period/year) and `leftover_value`. Each game keeps its own
+  `score`/`rank`/`HighScore`; only the identical math is shared.
+- `game_flow` — the `Persisted` trait + `use_persistence` helper (see
+  Persistence above).
+
+**The oregon-trail and fort-nash engines stay separate — on purpose.** They
+look ~99% identical by line count, and it is tempting to merge them into one
+parametrized "trail engine." Don't. A close diff shows the overlap is the
+*probability/formula skeleton*, while the divergence is dominated by inline
+narrative voice — ~200 flavor strings and image-key slugs woven through nearly
+every function (`"An ox wanders off" / "ox-wanders-off"` →
+`"A pack animal wanders off" / "livestock-strays"`). Pulling those into a
+profile/trait would replace readable inline prose with a string lookup table —
+a maintainability regression — and each game would lose the local voice that
+makes it its own game. On top of that there are real behavioral forks, not just
+text: fort-nash's `SteadyTask::Ice` has different balance and an extra death
+path (`IceBroke`) vs oregon's `Ford`; fort-nash has a third one-time crossing
+(the scripted Cumberland River ice minigame); the same random-event slot is a
+Ford *minigame* in oregon but a plain toll ("swollen creek") in fort-nash; and
+the period differs (fortnights `turn*14` vs weeks `turn*7`). Net: a full engine
+merge is high-churn, high-risk, and a likely readability regression. Share the
+small game-agnostic mechanics via retro-kit (above); let each trail engine keep
+its own events, terrain, causes, and voice. (Evaluated 2026-06-11.)
 
 ## Dioxus 0.7 pitfalls (each of these bit once)
 

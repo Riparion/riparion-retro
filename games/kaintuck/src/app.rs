@@ -2,13 +2,38 @@
 //! persists every transition to localStorage.
 
 use dioxus::prelude::*;
+use retro_kit::game_flow::{use_persistence, Persisted};
 
 use crate::engine::scoring::HighScore;
 use crate::engine::state::Mode;
+use crate::engine::Game;
 use crate::storage;
 use crate::ui::components::cover::Cover;
 use crate::ui::components::status_bar::StatusBar;
 use crate::ui::screens;
+
+impl Persisted for Game {
+    fn is_transient(&self) -> bool {
+        matches!(self.mode, Mode::Splash | Mode::NewGame)
+    }
+    fn is_game_over(&self) -> bool {
+        matches!(self.mode, Mode::GameOver)
+    }
+    fn save(&self) {
+        storage::save(self);
+    }
+    fn finish(mut game: Signal<Self>) {
+        storage::clear_save();
+        let snapshot = game.read();
+        if let Some(end) = snapshot.outcome.clone().filter(|e| !e.recorded) {
+            storage::record_score(HighScore::from_end(&snapshot.state.trader, &end));
+            drop(snapshot);
+            if let Some(out) = game.write().outcome.as_mut() {
+                out.recorded = true;
+            }
+        }
+    }
+}
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
@@ -32,7 +57,7 @@ pub fn App() -> Element {
 
 #[component]
 fn GameRoot() -> Element {
-    let mut game = use_signal(storage::load_or_new);
+    let game = use_signal(storage::load_or_new);
     use_context_provider(|| game);
     // Every load opens on the title screen, even when a save resumes a journey
     // (the splash then offers RESUME / NEW GAME). See NOTES.md "Start screen".
@@ -40,23 +65,7 @@ fn GameRoot() -> Element {
     use_context_provider(|| on_splash);
 
     // Persist every transition; finished journeys clear the save and post a score.
-    use_effect(move || {
-        let snapshot = game.read();
-        match snapshot.mode {
-            Mode::Splash | Mode::NewGame => {}
-            Mode::GameOver => {
-                storage::clear_save();
-                if let Some(end) = snapshot.outcome.clone().filter(|e| !e.recorded) {
-                    storage::record_score(HighScore::from_end(&snapshot.state.trader, &end));
-                    drop(snapshot);
-                    if let Some(out) = game.write().outcome.as_mut() {
-                        out.recorded = true;
-                    }
-                }
-            }
-            _ => storage::save(&snapshot),
-        }
-    });
+    use_persistence(game);
 
     let mode = game.read().mode.clone();
     let show_splash = on_splash();
