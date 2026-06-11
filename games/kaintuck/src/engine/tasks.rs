@@ -63,32 +63,81 @@ pub enum BrigadeTask {
     Bail,
 }
 
+/// The one minigame currently paused for the player. Holding a single tagged
+/// task (rather than six parallel `Option` fields) keeps the live task and the
+/// screen it belongs to from ever desyncing, and means a new minigame is one
+/// variant plus its [`Self::mode`] arm.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MiniTask {
+    Steady(SteadyTask),
+    Quick(QuickTask),
+    Crowd(CrowdTask),
+    Timing(TimingTask),
+    Sequence(SequenceTask),
+    Brigade(BrigadeTask),
+}
+
+impl MiniTask {
+    /// The screen this task is played on.
+    pub fn mode(self) -> Mode {
+        match self {
+            MiniTask::Steady(_) => Mode::Steady,
+            MiniTask::Quick(_) => Mode::Quick,
+            MiniTask::Crowd(_) => Mode::Crowd,
+            MiniTask::Timing(_) => Mode::Timing,
+            MiniTask::Sequence(_) => Mode::Sequence,
+            MiniTask::Brigade(_) => Mode::Brigade,
+        }
+    }
+}
+
 impl Game {
     // ----- launchers -----
 
+    /// Park the given minigame and switch to its screen.
+    fn begin_task(&mut self, task: MiniTask) {
+        self.mode = task.mode();
+        self.pending_task = Some(task);
+    }
+
     pub(crate) fn begin_steady(&mut self, task: SteadyTask) {
-        self.pending_steady = Some(task);
-        self.mode = Mode::Steady;
+        self.begin_task(MiniTask::Steady(task));
     }
     pub(crate) fn begin_quick(&mut self, task: QuickTask) {
-        self.pending_quick = Some(task);
-        self.mode = Mode::Quick;
+        self.begin_task(MiniTask::Quick(task));
     }
     pub(crate) fn begin_crowd(&mut self, task: CrowdTask) {
-        self.pending_crowd = Some(task);
-        self.mode = Mode::Crowd;
+        self.begin_task(MiniTask::Crowd(task));
     }
     pub(crate) fn begin_timing(&mut self, task: TimingTask) {
-        self.pending_timing = Some(task);
-        self.mode = Mode::Timing;
+        self.begin_task(MiniTask::Timing(task));
     }
     pub(crate) fn begin_sequence(&mut self, task: SequenceTask) {
-        self.pending_sequence = Some(task);
-        self.mode = Mode::Sequence;
+        self.begin_task(MiniTask::Sequence(task));
     }
     pub(crate) fn begin_brigade(&mut self, task: BrigadeTask) {
-        self.pending_brigade = Some(task);
-        self.mode = Mode::Brigade;
+        self.begin_task(MiniTask::Brigade(task));
+    }
+
+    // ----- task accessors (the UI reads the live task to label its screen) -----
+
+    pub fn steady_task(&self) -> Option<SteadyTask> {
+        match self.pending_task {
+            Some(MiniTask::Steady(t)) => Some(t),
+            _ => None,
+        }
+    }
+    pub fn quick_task(&self) -> Option<QuickTask> {
+        match self.pending_task {
+            Some(MiniTask::Quick(t)) => Some(t),
+            _ => None,
+        }
+    }
+    pub fn timing_task(&self) -> Option<TimingTask> {
+        match self.pending_task {
+            Some(MiniTask::Timing(t)) => Some(t),
+            _ => None,
+        }
     }
 
     // ----- resolves -----
@@ -99,16 +148,19 @@ impl Game {
         if self.mode != Mode::Steady {
             return;
         }
-        let Some(task) = self.pending_steady.take() else {
+        let Some(MiniTask::Steady(task)) = self.pending_task else {
             return;
         };
+        self.pending_task = None;
         let drift = (1.0 - accuracy).clamp(0.0, 1.0);
         match task {
             SteadyTask::Sandbar => {
                 if steady {
                     self.message("You feel her touch the bar and ease her off without losing a thing.");
                 } else {
-                    let lost = self.lose_cargo_fraction(0.05 + 0.08 * drift);
+                    // A deeper-drafted boat sits harder on the bar and sheds more.
+                    let draft = self.state.boat.map(|b| b.draft()).unwrap_or(1.0);
+                    let lost = self.lose_cargo_fraction((0.05 + 0.08 * drift) * draft);
                     self.dent_morale(8.0);
                     self.message(format!(
                         "She grinds onto a sandbar — you work her free, but {} of cargo is lost overboard.",
@@ -168,9 +220,10 @@ impl Game {
         if self.mode != Mode::Quick {
             return;
         }
-        let Some(task) = self.pending_quick.take() else {
+        let Some(MiniTask::Quick(task)) = self.pending_task else {
             return;
         };
+        self.pending_task = None;
         let good = hit && reaction_secs <= 1.0;
         let slow = hit && reaction_secs > 1.0;
         match task {
@@ -242,9 +295,10 @@ impl Game {
         if self.mode != Mode::Crowd {
             return;
         }
-        let Some(_) = self.pending_crowd.take() else {
+        if !matches!(self.pending_task, Some(MiniTask::Crowd(_))) {
             return;
-        };
+        }
+        self.pending_task = None;
         if cleared {
             self.adjust_reputation(1.0);
             self.message("You keep the Trace clear in your mind and make good time through the tangle of side trails.");
@@ -262,35 +316,36 @@ impl Game {
         if self.mode != Mode::Timing {
             return;
         }
-        let Some(task) = self.pending_timing.take() else {
+        let Some(MiniTask::Timing(task)) = self.pending_task else {
             return;
         };
+        self.pending_task = None;
         match task {
             TimingTask::Gamble => {
+                // The stake was escrowed out of cash when the bet was laid
+                // (see `gamble`). A win returns it plus equal winnings; a loss
+                // simply keeps it.
                 let stake = self.pending_stake;
                 self.pending_stake = 0.0;
                 if hit {
-                    self.state.cash += stake;
+                    self.state.cash += stake * 2.0;
                     self.message(format!(
                         "Luck runs your way Under-the-Hill — you walk out {} richer.",
                         fmt_money(stake)
                     ));
+                } else if accuracy < 0.3 && self.state.cash > 0.0 {
+                    let extra = (self.state.cash * 0.1).floor();
+                    self.state.cash -= extra;
+                    self.message(format!(
+                        "You lose the {} stake — and a cutpurse lifts {} more on your way up the hill.",
+                        fmt_money(stake),
+                        fmt_money(extra)
+                    ));
                 } else {
-                    self.state.cash -= stake;
-                    if accuracy < 0.3 && self.state.cash > 0.0 {
-                        let extra = (self.state.cash * 0.1).floor();
-                        self.state.cash -= extra;
-                        self.message(format!(
-                            "You lose the {} stake — and a cutpurse lifts {} more on your way up the hill.",
-                            fmt_money(stake),
-                            fmt_money(extra)
-                        ));
-                    } else {
-                        self.message(format!(
-                            "The cards turn against you. The {} stake is gone.",
-                            fmt_money(stake)
-                        ));
-                    }
+                    self.message(format!(
+                        "The cards turn against you. The {} stake is gone.",
+                        fmt_money(stake)
+                    ));
                 }
                 self.state.cash = self.state.cash.max(0.0);
             }
@@ -314,9 +369,10 @@ impl Game {
         if self.mode != Mode::Sequence {
             return;
         }
-        let Some(_) = self.pending_sequence.take() else {
+        if !matches!(self.pending_task, Some(MiniTask::Sequence(_))) {
             return;
-        };
+        }
+        self.pending_task = None;
         let miss = if length == 0 {
             0.0
         } else {
@@ -340,9 +396,10 @@ impl Game {
         if self.mode != Mode::Brigade {
             return;
         }
-        let Some(_) = self.pending_brigade.take() else {
+        if !matches!(self.pending_task, Some(MiniTask::Brigade(_))) {
             return;
-        };
+        }
+        self.pending_task = None;
         let sev = if capacity > 0 {
             (leaked as f64 / capacity as f64).clamp(0.0, 1.0)
         } else {

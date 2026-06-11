@@ -8,7 +8,10 @@ use crate::engine::Game;
 
 const SAVE_KEY: &str = "kaintuck.save";
 const SCORES_KEY: &str = "kaintuck.highscores";
-const SAVE_VERSION: u32 = 1;
+// Bumped to 2: the `Boat` struct dropped its cached fields and the six
+// `pending_*` minigame slots became one `pending_task`, so v1 blobs no longer
+// deserialize — an old save falls back to a fresh game rather than mis-loading.
+const SAVE_VERSION: u32 = 2;
 const MAX_SCORES: usize = 10;
 
 /// Resume a saved journey, or start at the title screen.

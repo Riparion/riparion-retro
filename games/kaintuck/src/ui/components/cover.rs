@@ -8,7 +8,7 @@
 use dioxus::prelude::*;
 
 use crate::engine::interaction::Interaction;
-use crate::engine::state::Mode;
+use crate::engine::state::{Mode, TOWN_SLUGS, NUM_RIVER_TOWNS};
 use crate::engine::tasks::{QuickTask, SteadyTask, TimingTask};
 use crate::engine::Game;
 
@@ -39,15 +39,7 @@ fn mode_key(mode: &Mode) -> &'static str {
 }
 
 fn town_slug(town: usize) -> &'static str {
-    match town {
-        0 => "pittsburgh",
-        1 => "wheeling",
-        2 => "cincinnati",
-        3 => "louisville",
-        4 => "cairo",
-        5 => "memphis",
-        _ => "natchez",
-    }
+    TOWN_SLUGS[town.min(NUM_RIVER_TOWNS - 1)]
 }
 
 /// Candidate cover keys for the current screen+state, most specific first.
@@ -61,7 +53,7 @@ pub fn cover_keys(game: &Game) -> Vec<String> {
             }
         }
         Mode::Steady => {
-            if let Some(task) = game.pending_steady {
+            if let Some(task) = game.steady_task() {
                 let v = match task {
                     SteadyTask::Sandbar => "sandbar",
                     SteadyTask::FallsRun => "falls-run",
@@ -72,7 +64,7 @@ pub fn cover_keys(game: &Game) -> Vec<String> {
             }
         }
         Mode::Quick => {
-            if let Some(task) = game.pending_quick {
+            if let Some(task) = game.quick_task() {
                 let v = match task {
                     QuickTask::Pirates => "pirates",
                     QuickTask::Mason => "mason",
@@ -83,7 +75,7 @@ pub fn cover_keys(game: &Game) -> Vec<String> {
         }
         Mode::Crowd => keys.push("crowd-side-trail".to_string()),
         Mode::Timing => {
-            if let Some(task) = game.pending_timing {
+            if let Some(task) = game.timing_task() {
                 let v = match task {
                     TimingTask::Gamble => "gamble",
                     TimingTask::Dose => "dose",

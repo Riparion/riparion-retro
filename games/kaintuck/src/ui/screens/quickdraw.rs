@@ -14,7 +14,7 @@ const WORDS: [&str; 4] = ["FIRE", "DRAW", "BANG", "CRACK"];
 pub fn Quick() -> Element {
     let mut game = use_context::<Signal<Game>>();
     let g = game.read();
-    let task = g.pending_quick.unwrap_or(QuickTask::Pirates);
+    let task = g.quick_task().unwrap_or(QuickTask::Pirates);
     let seed = g.encounter_seed(0x0BAD_F00D);
     drop(g);
 

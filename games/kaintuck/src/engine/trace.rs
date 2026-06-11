@@ -143,35 +143,41 @@ impl Game {
         }
     }
 
-    /// Settle the day: reach a stand or hit the Duck River crossing. Handles the
-    /// nearest unreached stand whose milepost the day's travel passed; if a long
-    /// day vaults past two, the next is picked up on the following day.
+    /// Settle the day: reach every stand whose milepost the day's travel passed.
+    /// Rest stands pause to their screen (resumed from [`leave_stand`]); the Duck
+    /// River crossing runs inline. Looping here means a long day that vaults two
+    /// stops can't silently drop the second — in particular the river crossing
+    /// can't be skipped by a fast final day on the way into Nashville.
     fn settle_day(&mut self) -> Flow {
         let posts = Stand::POSTS;
-        if self.state.stand_idx >= posts.len() {
-            return Flow::Continue;
-        }
-        let (stand, post) = posts[self.state.stand_idx];
-        if self.state.miles < post {
-            return Flow::Continue;
-        }
-        self.state.stand_idx += 1;
-        match stand {
-            Stand::DuckRiver => {
-                if self.state.has_horse {
-                    self.message_keyed(
-                        "You reach the Duck River. Astride your horse you pick a line through the current and cross without much trouble.",
-                        "trace-duck-river",
-                    );
-                } else {
-                    // A ferryman waits — pay the toll or ford it.
-                    self.pending.push_back(Interaction::FerryToll { toll: 6.0 });
-                }
-                Flow::Continue
+        loop {
+            if self.state.stand_idx >= posts.len() {
+                return Flow::Continue;
             }
-            _ => {
-                self.mode = Mode::Stand;
-                Flow::Pause
+            let (stand, post) = posts[self.state.stand_idx];
+            if self.state.miles < post {
+                return Flow::Continue;
+            }
+            self.state.stand_idx += 1;
+            match stand {
+                Stand::DuckRiver => {
+                    if self.state.has_horse {
+                        self.message_keyed(
+                            "You reach the Duck River. Astride your horse you pick a line through the current and cross without much trouble.",
+                            "trace-duck-river",
+                        );
+                        // Crossing handled; carry on settling any further stand.
+                    } else {
+                        // A ferryman waits — pay the toll or ford it. The prompt
+                        // must resolve before the day can end.
+                        self.pending.push_back(Interaction::FerryToll { toll: 6.0 });
+                        return Flow::Continue;
+                    }
+                }
+                _ => {
+                    self.mode = Mode::Stand;
+                    return Flow::Pause;
+                }
             }
         }
     }
@@ -221,11 +227,18 @@ impl Game {
         self.buy_horse(price);
     }
 
-    /// Leave the stand and carry on (the next "press on" is a fresh day).
+    /// Leave the stand and carry on. First settle any further crossing the day's
+    /// travel already passed (e.g. the Duck River lying just beyond a rest stand),
+    /// then end the day — so leaving a stand can never vault the river crossing.
     pub fn leave_stand(&mut self) {
         if self.mode != Mode::Stand {
             return;
         }
-        self.next_day();
+        match self.settle_day() {
+            // Another stop this same day — stay parked on its screen.
+            Flow::Pause => {}
+            // Nothing (or only an inline crossing) left: run it out to day's end.
+            Flow::Continue => self.advance(),
+        }
     }
 }
