@@ -15,8 +15,8 @@ For the current screen the renderer builds an ordered list of candidate keys —
 **most-specific narrative key first, then the general screen key** — and renders
 the **first one that has a jpg**. If none exist, no cover renders.
 
-So a general key is the floor (`steady.jpg` covers every steady-hand event), and
-a narrative key **supersedes** it when present (`steady-snakebite.jpg` shows only
+So a general key is the floor (`sequence.jpg` covers every order-memory event), and
+a narrative key **supersedes** it when present (`sequence-snakebite.jpg` shows only
 for the snakebite). You never have to provide both.
 
 - General key = the screen's `Mode`, kebab-cased.
@@ -32,8 +32,8 @@ is compiled out of `--release`.
 ## General keys (one per screen — the fallback)
 
 `splash` · `new-game` · `outfit` · `trail` · `fort` · `eat` · `shoot` · `hunt` ·
-`flee` · `climb` · `fog` · `splint` · `dose` · `steady` · `brigade` · `riders` ·
-`interaction` · `game-over`
+`flee` · `climb` · `fog` · `splint` · `dose` · `steady` · `brigade` · `sequence` ·
+`riders` · `interaction` · `game-over`
 
 ## Narrative keys (supersede the general key)
 
@@ -53,9 +53,7 @@ crossing (the same "where you are" bands shown on screen).
 ### Steady-hand events (`steady`)
 | Key | When |
 | --- | --- |
-| `steady-snakebite` | drawing snake venom |
 | `steady-ford` | holding the wagon level fording a river |
-| `steady-ox-leg` | wrapping a hurt ox's leg |
 
 ### Bucket-brigade events (`brigade`)
 | Key | When |
@@ -63,6 +61,13 @@ crossing (the same "where you are" bands shown on screen).
 | `brigade-fire` | fire in the wagon |
 | `brigade-rains` | heavy rains, leaking load |
 | `brigade-blizzard` | guttering fire in a blizzard pass |
+
+### Sequence (order-memory) events (`sequence`)
+| Key | When |
+| --- | --- |
+| `sequence-wheel` | re-seating a broken wagon wheel (jack → block → bolt → seat) |
+| `sequence-ox-leg` | dressing a hurt ox's leg (wrap → pad → bind) |
+| `sequence-snakebite` | the snakebite first-aid steps (tourniquet → lance → dress) |
 
 ### Gunfights (`shoot`)
 | Key | When |
@@ -89,7 +94,6 @@ crossing (the same "where you are" bands shown on screen).
 These are the tap-to-continue narration beats.
 | Key | When |
 | --- | --- |
-| `interaction-wagon-wheel-breaks` | a wagon wheel breaks |
 | `interaction-ox-wanders-off` | an ox wanders off |
 | `interaction-son-lost` | your son gets lost |
 | `interaction-unsafe-water` | unsafe water |

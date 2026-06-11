@@ -5,7 +5,7 @@
 
 use super::interaction::{ShotPurpose, Tactic};
 use super::state::{EatLevel, GameOverCause, BLUE_MOUNTAINS_AT, MOUNTAINS_AT};
-use super::{BrigadeTask, Flow, Game, Illness, RiderEncounter, SteadyTask};
+use super::{BrigadeTask, Flow, Game, Illness, RiderEncounter, SequenceTask, SteadyTask};
 
 impl Game {
     // ===== Riders =====
@@ -137,17 +137,16 @@ impl Game {
         }
         match idx {
             1 => {
-                self.message_keyed(
-                    "One of your wagon wheels breaks down. Lose time and supplies.",
-                    "wagon-wheel-breaks",
-                );
-                self.state.miles -= 15.0 + 5.0 * self.rng.uniform();
-                self.state.misc -= 8.0;
+                // Re-seating the wheel in the right order (jack → block → bolt →
+                // seat) is its own minigame; `resolve_sequence` tallies how botched
+                // the order was (the prompt announces the breakdown).
+                self.begin_sequence(SequenceTask::Wheel);
+                return Flow::Pause;
             }
             2 => {
-                // Steadying the hurt leg to wrap it is its own minigame;
-                // `resolve_steady` tallies how snug the wrap held.
-                self.begin_steady(SteadyTask::OxLeg);
+                // Dressing the hurt leg in sequence (wrap → pad → bind) is its own
+                // minigame; `resolve_sequence` tallies how botched the order was.
+                self.begin_sequence(SequenceTask::OxLeg);
                 return Flow::Pause;
             }
             3 => {
@@ -207,11 +206,11 @@ impl Game {
                 return Flow::Pause;
             }
             11 => {
-                // Drawing the venom with a steady blade is its own minigame
-                // (the prompt announces the bite); `resolve_steady` tallies how
-                // much medicine the hand wasted — and whether enough was left to
-                // survive.
-                self.begin_steady(SteadyTask::Snakebite);
+                // Working the first-aid steps in order (tourniquet → lance →
+                // dress) is its own minigame (the prompt announces the bite);
+                // `resolve_sequence` tallies how much medicine a botched order
+                // wasted — and whether enough was left to survive.
+                self.begin_sequence(SequenceTask::Snakebite);
                 return Flow::Pause;
             }
             12 => {

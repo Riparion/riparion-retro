@@ -213,6 +213,10 @@ pub enum Mode {
     /// Beating back a spreading threat — fire in the wagon, a leaking load in
     /// heavy rains, a guttering fire in a blizzard (the bucket-brigade game).
     Brigade,
+    /// Reproducing a short ordered procedure from memory — re-seating a broken
+    /// wheel, dressing a hurt ox's leg, working the snakebite first-aid steps in
+    /// order (the order-memory game).
+    Sequence,
     /// Riders ahead — choose your tactics.
     Riders,
     /// Showing the head of the pending message/prompt queue.
