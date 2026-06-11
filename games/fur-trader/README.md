@@ -49,6 +49,6 @@ Runs auto-save and resume on reload.
 
 ```bash
 dx serve                   # develop
-dx build --release         # production wasm bundle
+dx build --release --debug-symbols false --keep-names true         # production wasm bundle
 cargo test -p fur-trader   # engine suite (host, no browser needed)
 ```

@@ -28,6 +28,6 @@ and resume on reload.
 
 ```bash
 dx serve            # develop
-dx build --release  # production wasm bundle
+dx build --release --debug-symbols false --keep-names true  # production wasm bundle
 cargo test -p hammurabi   # engine suite (host, no browser needed)
 ```

@@ -71,7 +71,7 @@ queueing the year's narration so a refresh resumes mid-year in place.
 dx serve              # develop (Tailwind compiles automatically)
 cargo test            # engine test suite (runs on host, no browser)
 cargo clippy --all-targets
-dx build --release    # production wasm bundle
+dx build --release --debug-symbols false --keep-names true    # production wasm bundle
 ```
 
 The CRT identity comes from `retro-kit`; Tailwind handles layout only.
