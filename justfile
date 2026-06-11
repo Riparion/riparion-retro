@@ -12,6 +12,13 @@ run game:
 dev game:
     dx serve --package {{game}}
 
+# Build a game's production wasm bundle (e.g. `just build oregon-trail`).
+# --debug-symbols false works around dx 0.7.9's pinned binaryen (v127) choking
+# on DWARF 5 (rustc emits it, wasm-opt SIGABRTs reading it, dx silently ships
+# the UN-optimized wasm); --keep-names true keeps readable panic backtraces.
+build game:
+    dx build --release --package {{game}} --debug-symbols false --keep-names true
+
 # Per-game release shortcuts
 oregon-trail:
     dx serve --release --package oregon-trail
