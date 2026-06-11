@@ -5,9 +5,10 @@
 //!
 //! This is a thin wrapper over the shared `minigames_kit::timing_bar::TimingBar`
 //! component: the sweep is the moment to stop pouring. The prompt names the
-//! severity the engine already rolled (held in `pending_illness`). It derives a
+//! severity the engine already rolled. It derives a
 //! per-encounter seed from game state (so the zone moves each time while staying
-//! deterministic for a given save) and routes the result into `resolve_dose`.
+//! deterministic for a given save) and routes the result into `resolve_dose`. The
+//! severity is read via `Game::illness_task()`.
 
 use dioxus::prelude::*;
 
@@ -28,9 +29,9 @@ fn prompt_for(severity: Option<Illness>) -> &'static str {
 pub fn Dose() -> Element {
     let mut game = use_context::<Signal<Game>>();
     let g = game.read();
-    let prompt = prompt_for(g.pending_illness);
+    let prompt = prompt_for(g.illness_task());
     // A serious illness gives a tighter zone — the dose has to be exact.
-    let tolerance = if g.pending_illness == Some(Illness::Serious) {
+    let tolerance = if g.illness_task() == Some(Illness::Serious) {
         0.08
     } else {
         0.11

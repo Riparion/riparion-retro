@@ -12,7 +12,7 @@ use dioxus::prelude::*;
 
 use crate::engine::interaction::{Interaction, ShotPurpose};
 use crate::engine::state::Mode;
-use crate::engine::{BrigadeTask, Game, Illness, SequenceTask, SteadyTask};
+use crate::engine::{BrigadeTask, Game, Illness, SequenceTask};
 
 // build.rs writes `cover_asset(key) -> Option<Asset>`, one arm per jpg present.
 include!(concat!(env!("OUT_DIR"), "/covers.rs"));
@@ -55,15 +55,12 @@ pub fn cover_keys(game: &Game) -> Vec<String> {
             keys.push(format!("trail-{}", game.state.terrain_kind().key()));
         }
         Mode::Steady => {
-            if let Some(task) = game.pending_steady {
-                let v = match task {
-                    SteadyTask::Ice => "ice",
-                };
-                keys.push(format!("steady-{v}"));
+            if game.is_ice_crossing() {
+                keys.push("steady-ice".to_string());
             }
         }
         Mode::Sequence => {
-            if let Some(task) = game.pending_sequence {
+            if let Some(task) = game.sequence_task() {
                 let v = match task {
                     SequenceTask::Wheel => "wheel",
                     SequenceTask::OxLeg => "ox-leg",
@@ -73,7 +70,7 @@ pub fn cover_keys(game: &Game) -> Vec<String> {
             }
         }
         Mode::Brigade => {
-            if let Some(task) = game.pending_brigade {
+            if let Some(task) = game.brigade_task() {
                 let v = match task {
                     BrigadeTask::Fire => "fire",
                     BrigadeTask::Rains => "rains",
@@ -100,7 +97,7 @@ pub fn cover_keys(game: &Game) -> Vec<String> {
             }
         }
         Mode::Dose => {
-            if let Some(illness) = game.pending_illness {
+            if let Some(illness) = game.illness_task() {
                 let v = match illness {
                     Illness::Mild => "mild",
                     Illness::Bad => "bad",

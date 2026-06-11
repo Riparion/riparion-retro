@@ -114,18 +114,19 @@ impl GameState {
     }
 
     /// The checkpoint of the Wilderness Road you're crossing right now, by mileage.
+    /// Boundaries are read off [`CHECKPOINTS`] — one table that references the named
+    /// mile constants the passes also key on, so the displayed terrain can't drift
+    /// from where a pass actually fires.
     pub fn terrain_kind(&self) -> Terrain {
-        match self.miles {
-            m if m < 180.0 => Terrain::FortPatrickHenry,
-            m if m < MOUNTAINS_AT => Terrain::MoccasinGap,
-            m if m < 560.0 => Terrain::PowellValley,
-            m if m < CUMBERLAND_GAP_AT => Terrain::MartinsStation,
-            m if m < 1000.0 => Terrain::CumberlandGap,
-            m if m < 1200.0 => Terrain::CrabOrchard,
-            m if m < CUMBERLAND_RIVER_AT => Terrain::KentuckyBarrens,
-            m if m < TRAIL_MILES => Terrain::CumberlandRiver,
-            _ => Terrain::FortNashborough,
+        let mut here = CHECKPOINTS[0].1;
+        for (start, terrain) in CHECKPOINTS {
+            if self.miles >= start {
+                here = terrain;
+            } else {
+                break;
+            }
         }
+        here
     }
 
     /// The stretch of country you're crossing, by mileage — flavor for the
@@ -224,6 +225,21 @@ pub enum Terrain {
     CumberlandRiver,
     FortNashborough,
 }
+
+/// Each terrain band keyed by the mile at which it begins, in trail order. The
+/// pass mileposts come from the named constants (so `terrain_kind` and the passes
+/// share one source); the in-between display boundaries live only here.
+const CHECKPOINTS: [(f64, Terrain); 9] = [
+    (0.0, Terrain::FortPatrickHenry),
+    (180.0, Terrain::MoccasinGap),
+    (MOUNTAINS_AT, Terrain::PowellValley),
+    (560.0, Terrain::MartinsStation),
+    (CUMBERLAND_GAP_AT, Terrain::CumberlandGap),
+    (1000.0, Terrain::CrabOrchard),
+    (1200.0, Terrain::KentuckyBarrens),
+    (CUMBERLAND_RIVER_AT, Terrain::CumberlandRiver),
+    (TRAIL_MILES, Terrain::FortNashborough),
+];
 
 impl Terrain {
     /// The "where you are" line shown on the trail hub.

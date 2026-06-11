@@ -4,7 +4,7 @@
 //! it run and the load is lost.
 //!
 //! This is a thin wrapper over the shared `minigames_kit::bucket_brigade::BucketBrigade`
-//! component, shared across three catastrophes: it reads `pending_brigade` to pick
+//! component, shared across three catastrophes: it reads the pending task to pick
 //! the prompt and per-task difficulty, derives a per-encounter seed from game state
 //! (deterministic for a given save, distinct from a same-fortnight splint or dose),
 //! normalizes the leaked-cell count into a 0..1 severity, and routes the result
@@ -21,8 +21,8 @@ pub fn Brigade() -> Element {
     let mut game = use_context::<Signal<Game>>();
     let g = game.read();
     // Default to the wagon fire if somehow mounted without a pending task — the
-    // resolve is guarded on `pending_brigade`, so a stray mount just no-ops.
-    let task = g.pending_brigade.unwrap_or(BrigadeTask::Fire);
+    // resolve is guarded on the pending task, so a stray mount just no-ops.
+    let task = g.brigade_task().unwrap_or(BrigadeTask::Fire);
     // A per-encounter layout seed — varies with progress but stays deterministic
     // for a given save and doesn't perturb the game's RNG stream. The salt keeps it
     // distinct from a same-fortnight splint, dose, or steady trace.
