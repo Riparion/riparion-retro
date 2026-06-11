@@ -13,4 +13,4 @@ mod tests;
 
 pub use game::Game;
 pub use state::{Line, Mode};
-pub use text::modernize;
+pub use text::{modernize, reflow};

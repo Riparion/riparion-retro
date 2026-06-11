@@ -4,7 +4,7 @@
 
 use dioxus::prelude::*;
 
-use crate::engine::{modernize, Game, Line};
+use crate::engine::{modernize, reflow, Game, Line};
 
 #[component]
 pub fn Transcript() -> Element {
@@ -25,7 +25,14 @@ pub fn Transcript() -> Element {
             for (i, line) in g.transcript.iter().enumerate() {
                 match line {
                     Line::Echo(s) => rsx! { p { key: "{i}", class: "t-echo", "> {s}" } },
-                    Line::Out(s) => rsx! { p { key: "{i}", class: "t-out", "{modernize(s.trim_end())}" } },
+                    Line::Out(s) => rsx! {
+                        // De-wrap the teletype line breaks and render one <p> per
+                        // paragraph so prose reflows to the viewport and paragraphs
+                        // are visually separated.
+                        for (pi, para) in reflow(s.trim_end()).into_iter().enumerate() {
+                            p { key: "{i}-{pi}", class: "t-out", "{modernize(&para)}" }
+                        }
+                    },
                 }
             }
         }
