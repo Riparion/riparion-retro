@@ -1,0 +1,29 @@
+/* kaintuck — game-specific styling. The CRT identity (palette, scanlines,
+   buttons, inputs, panels) comes from retro-kit's crt.css; layer on the
+   shared CSS vars (--phosphor, --phosphor-dim, ...) — don't fork them. */
+
+/* Progress track on the river/trace hubs: a dim rail, a phosphor fill, and a
+   marker riding the leading edge. */
+.trail-track {
+  position: relative;
+  height: 0.5rem;
+  border: 1px solid var(--phosphor-dim, #1b3a1b);
+  background: rgba(0, 0, 0, 0.4);
+  overflow: visible;
+}
+
+.trail-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--phosphor-dim, #1b3a1b);
+  opacity: 0.6;
+}
+
+.trail-wagon {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.9rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 3px var(--phosphor, #33ff66));
+}
