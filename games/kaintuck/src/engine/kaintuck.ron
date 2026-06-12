@@ -38,7 +38,27 @@ Scenario(
             (name: "Louisville", slug: "louisville", milepost: 600.0,  base_ranks: [3, 14, 6, 10, 8,  9,  18], moneylender: false),
             (name: "Cairo",      slug: "cairo",      milepost: 980.0,  base_ranks: [3, 15, 6, 11, 8,  10, 19], moneylender: false),
             (name: "Memphis",    slug: "memphis",    milepost: 1430.0, base_ranks: [3, 16, 6, 11, 9,  11, 19], moneylender: true),
-            (name: "Natchez",    slug: "natchez",    milepost: 1830.0, base_ranks: [4, 21, 8, 14, 11, 15, 18], moneylender: false),
+            (name: "Natchez",    slug: "natchez",    milepost: 1830.0, base_ranks: [4, 21, 8, 14, 11, 15, 18], moneylender: false,
+                // The lower river (Cave-in-Rock down toward Natchez) was the
+                // piracy gauntlet. The pirate arm is arms[3], whose band is
+                // (thresholds[1], thresholds[2]]: this override widens it from
+                // (20,30] = 10% to (14,44] = 30%, trimming the other minor arms.
+                // The top threshold stays 60, so the clean residual above it is
+                // unchanged at 40% — this leg is no more eventful overall, its
+                // events are just three times as likely to be river pirates.
+                hazards: Some((
+                    thresholds: [8.0, 14.0, 44.0, 50.0, 55.0, 60.0],
+                    grouped_thins: [],
+                    arms: [
+                        Clean(message: Some("The current carries you on, but every snag on the bank looks like a hidden skiff.")),
+                        Minigame(outcome: "sandbar"),
+                        Minigame(outcome: "patch"),
+                        Minigame(outcome: "pirates", message: Some("River pirates pull alongside!"), cover: Some("pirates")),
+                        Special("spoilage"),
+                        Special("crew-grumble"),
+                        Minigame(outcome: "bail"),
+                    ],
+                ))),
         ],
         // arms[0] is a clean leg; arms[1..] line up with the thresholds above.
         hazards: (

@@ -160,6 +160,14 @@ pub struct Town {
     pub base_ranks: Vec<i64>,
     /// Whether a generous moneylender here raises the credit cap.
     pub moneylender: bool,
+    /// Hazard table for the leg *arriving at* this town, overriding the
+    /// phase-wide [`RiverPhase::hazards`]. Keyed on the destination, so this is
+    /// the override for Pittsburgh→here, not here→next; Pittsburgh's own entry
+    /// is therefore never consulted (you never arrive at the start). Absent for
+    /// most towns — only set where a leg's odds should differ historically (e.g.
+    /// heavier piracy on the lower river toward Natchez).
+    #[serde(default)]
+    pub hazards: Option<HazardTable>,
 }
 
 /// Phase 2 — Natchez to Nashville.

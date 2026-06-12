@@ -640,9 +640,11 @@ fn fnv1a(s: &str) -> u64 {
 fn golden_trace_is_stable() {
     let trace = golden_trace();
     let got = fnv1a(&trace);
-    // Baseline captured before the data-driven refactor. Behavior must not drift;
-    // if this trips, run `print_golden_trace` (below) before and after to diff.
-    const EXPECTED: u64 = 0xfc5e_6ce0_af78_1cb9;
+    // Baseline captured before the data-driven refactor, re-pinned when the
+    // lower-river leg into Natchez got its own per-leg hazard table (heavier
+    // piracy). Behavior must not drift; if this trips, run `print_golden_trace`
+    // (below) before and after to diff.
+    const EXPECTED: u64 = 0xff6b_255a_0ddc_cba2;
     assert_eq!(
         got, EXPECTED,
         "golden trace drifted: got {:#018x} over {} bytes",

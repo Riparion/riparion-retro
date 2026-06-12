@@ -84,7 +84,12 @@ impl Game {
     /// The arm itself — which minigame, which special — comes from the scenario.
     fn do_river_hazard(&mut self) -> Flow {
         let r1 = self.rng.uniform() * 100.0;
-        let hazards = &scenario().river.hazards;
+        let river = &scenario().river;
+        // A leg's odds come from its destination town's override when present,
+        // else the phase-wide table. `to_town` is set while the voyage is in its
+        // Hazard stage; fall back to the next landing if a stray call lacks one.
+        let to = self.voyage.map_or(self.state.town, |v| v.to_town);
+        let hazards = river.towns[to].hazards.as_ref().unwrap_or(&river.hazards);
         let mut idx = 0usize;
         for (i, t) in hazards.thresholds.iter().enumerate() {
             if r1 <= *t {
