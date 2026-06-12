@@ -90,6 +90,7 @@ fn GameRoot() -> Element {
                         Mode::Moneylender => rsx! { screens::moneylender::Moneylender {} },
                         Mode::Falls => rsx! { screens::falls::Falls {} },
                         Mode::GrandTower => rsx! { screens::grand_tower::GrandTower {} },
+                        Mode::CaveInRock => rsx! { screens::cave_in_rock::CaveInRock {} },
                         Mode::Natchez => rsx! { screens::natchez::Natchez {} },
                         Mode::TraceHub => rsx! { screens::trace_hub::TraceHub {} },
                         Mode::Stand => rsx! { screens::stand::Stand {} },

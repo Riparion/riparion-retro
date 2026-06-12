@@ -23,6 +23,7 @@ pub const NUM_RIVER_TOWNS: usize = 11;
 pub const PITTSBURGH: usize = 0;
 pub const CINCINNATI: usize = 4; // a generous moneylender
 pub const LOUISVILLE: usize = 5; // the Falls of the Ohio
+pub const CAIRO: usize = 7; // the Ohio–Mississippi confluence; Cave-in-Rock lies just above
 pub const GRAND_TOWER: usize = 8; // the rivermen's initiation, on the Mississippi
 pub const MEMPHIS: usize = 9; // a generous moneylender
 pub const NATCHEZ: usize = 10;
@@ -230,14 +231,31 @@ pub struct GameState {
     pub miles: f64,
     pub provisions: f64,
     pub health: f64,
+    /// Days lost to deliberate dawdling (convoy waits, a late ferry) on top of
+    /// the river-mile and Trace-day reckoning. Folds into the speed score.
+    /// `serde(default)` keeps pre-convoy saves loading.
+    #[serde(default)]
+    pub extra_days: u32,
     pub has_horse: bool,
     pub pace: Pace,
     pub grouped: bool,
+    /// River-side analogue of `grouped`: the boat runs the lower river in a
+    /// convoy ("sailing in company"), thinning pirate odds and halving their
+    /// take. `serde(default)` keeps pre-convoy saves loading.
+    #[serde(default)]
+    pub river_convoy: bool,
     pub stand_idx: usize,
     pub day: u32,
     // --- shared / scoring ---
     pub reputation: f64,
     pub robbed: bool,
+    /// You tangled with Mason's river gang at Cave-in-Rock — i.e. you took the
+    /// stranger's offer with a hold worth robbing and were boarded (the pirate
+    /// quick-draw). Set only on that confrontation, not on merely passing the
+    /// cave. Persists into the Trace (Phase 2) to gate the wanted-poster payoff.
+    /// `serde(default)` keeps older saves loading.
+    #[serde(default)]
+    pub crossed_mason: bool,
     pub crew_at_natchez: i64,
     /// Keys of ambient banter beats already heard this run, so each plays once.
     /// `serde(default)` keeps pre-banter saves loading (they resume with none).
@@ -284,13 +302,16 @@ impl GameState {
             miles: 0.0,
             provisions: 0.0,
             health: 100.0,
+            extra_days: 0,
             has_horse: false,
             pace: Pace::Steady,
             grouped: false,
+            river_convoy: false,
             stand_idx: 0,
             day: 0,
             reputation: 0.0,
             robbed: false,
+            crossed_mason: false,
             crew_at_natchez: 0,
             heard_banter: std::collections::HashSet::new(),
         }
@@ -381,6 +402,9 @@ pub enum Mode {
     Falls,
     /// Grand Tower on the Mississippi — the rivermen's initiation: treat or ducking.
     GrandTower,
+    /// Cave-in-Rock, on the run down to Cairo — the relay-pilot con: take the
+    /// stranger's offer, hire your own pilot, or run the shoals.
+    CaveInRock,
     /// Natchez: sell everything, the boat for lumber, and a night Under-the-Hill.
     Natchez,
     // --- Trace ---

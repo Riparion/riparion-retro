@@ -19,6 +19,8 @@ pub enum SteadyTask {
     Sandbar,
     /// Running the Falls of the Ohio (River).
     FallsRun,
+    /// Running the shoals below Cave-in-Rock (River).
+    CaveRun,
     /// A swamp crossing on the Trace.
     Swamp,
     /// Fording the Duck River on foot (Trace).
@@ -100,6 +102,7 @@ impl MiniTask {
         match self {
             MiniTask::Steady(SteadyTask::Sandbar) => "sandbar",
             MiniTask::Steady(SteadyTask::FallsRun) => "falls-run",
+            MiniTask::Steady(SteadyTask::CaveRun) => "cave-run",
             MiniTask::Steady(SteadyTask::Swamp) => "swamp",
             MiniTask::Steady(SteadyTask::DuckFord) => "duck-ford",
             MiniTask::Quick(QuickTask::Pirates) => "pirates",
@@ -150,6 +153,7 @@ impl Game {
         match outcome {
             "sandbar" => self.begin_steady(SteadyTask::Sandbar),
             "falls-run" => self.begin_steady(SteadyTask::FallsRun),
+            "cave-run" => self.begin_steady(SteadyTask::CaveRun),
             "swamp" => self.begin_steady(SteadyTask::Swamp),
             "duck-ford" => self.begin_steady(SteadyTask::DuckFord),
             "pirates" => self.begin_quick(QuickTask::Pirates),
@@ -426,7 +430,11 @@ impl EffectTarget for Game {
         self.state.boat.map(|b| b.draft()).unwrap_or(1.0)
     }
     fn grouped(&self) -> bool {
-        self.state.grouped
+        // Either kind of company counts: `grouped` on the Trace, `river_convoy`
+        // on the water. They never overlap in practice — `grouped` is only ever
+        // set in the Trace hub, and `enter_trace` clears `river_convoy` on the way
+        // in — so this also feeds the pirates' `halve_if_grouped` cargo relief.
+        self.state.grouped || self.state.river_convoy
     }
     fn health_now(&self) -> f64 {
         self.state.health

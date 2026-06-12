@@ -25,6 +25,7 @@ fn mode_key(mode: &Mode) -> &'static str {
         Mode::Moneylender => "moneylender",
         Mode::Falls => "falls",
         Mode::GrandTower => "grand-tower",
+        Mode::CaveInRock => "cave-in-rock",
         Mode::Natchez => "natchez",
         Mode::TraceHub => "trace",
         Mode::Stand => "stand",
@@ -58,6 +59,7 @@ pub fn cover_keys(game: &Game) -> Vec<String> {
                 let v = match task {
                     SteadyTask::Sandbar => "sandbar",
                     SteadyTask::FallsRun => "falls-run",
+                    SteadyTask::CaveRun => "cave-run",
                     SteadyTask::Swamp => "swamp",
                     SteadyTask::DuckFord => "duck-ford",
                 };
