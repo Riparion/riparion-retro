@@ -89,6 +89,7 @@ fn GameRoot() -> Element {
                         Mode::Trade { buying } => rsx! { screens::trade::Trade { buying } },
                         Mode::Moneylender => rsx! { screens::moneylender::Moneylender {} },
                         Mode::Falls => rsx! { screens::falls::Falls {} },
+                        Mode::GrandTower => rsx! { screens::grand_tower::GrandTower {} },
                         Mode::Natchez => rsx! { screens::natchez::Natchez {} },
                         Mode::TraceHub => rsx! { screens::trace_hub::TraceHub {} },
                         Mode::Stand => rsx! { screens::stand::Stand {} },

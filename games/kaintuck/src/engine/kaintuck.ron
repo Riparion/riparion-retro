@@ -32,13 +32,17 @@ Scenario(
     river: (
         river_miles: 1830.0,
         towns: [
-            (name: "Pittsburgh", slug: "pittsburgh", milepost: 0.0,    base_ranks: [2, 8,  4, 6,  5,  7,  12], moneylender: false),
-            (name: "Wheeling",   slug: "wheeling",   milepost: 90.0,   base_ranks: [2, 10, 4, 7,  6,  7,  11], moneylender: false),
-            (name: "Cincinnati", slug: "cincinnati", milepost: 470.0,  base_ranks: [3, 13, 6, 9,  7,  8,  17], moneylender: true),
-            (name: "Louisville", slug: "louisville", milepost: 600.0,  base_ranks: [3, 14, 6, 10, 8,  9,  18], moneylender: false),
-            (name: "Cairo",      slug: "cairo",      milepost: 980.0,  base_ranks: [3, 15, 6, 11, 8,  10, 19], moneylender: false),
-            (name: "Memphis",    slug: "memphis",    milepost: 1430.0, base_ranks: [3, 16, 6, 11, 9,  11, 19], moneylender: true),
-            (name: "Natchez",    slug: "natchez",    milepost: 1830.0, base_ranks: [4, 21, 8, 14, 11, 15, 18], moneylender: false,
+            (name: "Pittsburgh",  slug: "pittsburgh",  milepost: 0.0,    base_ranks: [2, 8,  4, 6,  5,  7,  12], moneylender: false),
+            (name: "Wheeling",    slug: "wheeling",    milepost: 90.0,   base_ranks: [2, 10, 4, 7,  6,  7,  11], moneylender: false),
+            (name: "Marietta",    slug: "marietta",    milepost: 170.0,  base_ranks: [2, 11, 5, 8,  6,  7,  13], moneylender: false),
+            (name: "Maysville",   slug: "maysville",   milepost: 410.0,  base_ranks: [3, 12, 5, 8,  7,  8,  15], moneylender: false),
+            (name: "Cincinnati",  slug: "cincinnati",  milepost: 470.0,  base_ranks: [3, 13, 6, 9,  7,  8,  17], moneylender: true),
+            (name: "Louisville",  slug: "louisville",  milepost: 600.0,  base_ranks: [3, 14, 6, 10, 8,  9,  18], moneylender: false),
+            (name: "Shawneetown", slug: "shawneetown", milepost: 850.0,  base_ranks: [3, 14, 6, 11, 8,  9,  18], moneylender: false),
+            (name: "Cairo",       slug: "cairo",       milepost: 980.0,  base_ranks: [3, 15, 6, 11, 8,  10, 19], moneylender: false),
+            (name: "Grand Tower", slug: "grand-tower", milepost: 1010.0, base_ranks: [3, 16, 6, 11, 9,  10, 19], moneylender: false),
+            (name: "Memphis",     slug: "memphis",     milepost: 1430.0, base_ranks: [3, 16, 6, 11, 9,  11, 19], moneylender: true),
+            (name: "Natchez",     slug: "natchez",     milepost: 1830.0, base_ranks: [4, 21, 8, 14, 11, 15, 18], moneylender: false,
                 // The lower river (Cave-in-Rock down toward Natchez) was the
                 // piracy gauntlet. The pirate arm is arms[3], whose band is
                 // (thresholds[1], thresholds[2]]: this override widens it from
@@ -150,6 +154,10 @@ Scenario(
             (label: "Hire a falls pilot — {cost}", hint: "A local takes the oar and threads you down. A sure thing.", cost: 8.0, action: "falls-pilot"),
             (label: "Run the falls yourself",       hint: "Free — but the current is violent. Hold your line.", primary: true, action: "falls-run"),
             (label: "Wait for high water",          hint: "Safe passage, but it costs days and frays the crew.", action: "falls-wait"),
+        ]),
+        grandtower: (options: [
+            (label: "Stand a treat — {cost}", hint: "Buy the round and pass the Grand Tower with your dignity — and the crew's good humor.", cost: 2.0, action: "gt-treat"),
+            (label: "Refuse — take the ducking", hint: "Let them shave and duck the greenhorn. It costs nothing but pride.", primary: true, action: "gt-duck"),
         ]),
         natchez: (options: [
             (label: "Sell cargo",                   hint: "Top prices on the river — sell it all.", gate: [HasCargo], action: "sell-cargo"),

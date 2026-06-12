@@ -24,6 +24,7 @@ fn mode_key(mode: &Mode) -> &'static str {
         Mode::Trade { .. } => "trade",
         Mode::Moneylender => "moneylender",
         Mode::Falls => "falls",
+        Mode::GrandTower => "grand-tower",
         Mode::Natchez => "natchez",
         Mode::TraceHub => "trace",
         Mode::Stand => "stand",

@@ -136,6 +136,7 @@ fn scripted_full_playthrough_smoke() {
             match g.mode {
                 Mode::Pittsburgh | Mode::Town => g.depart(),
                 Mode::Falls => g.falls_pilot(8.0),
+                Mode::GrandTower => g.grand_tower_duck(),
                 Mode::Natchez | Mode::GameOver => break,
                 other => panic!("seed {seed}: unexpected river mode {other:?}"),
             }
@@ -574,6 +575,13 @@ fn golden_run(seed: u64, log: &mut String) {
                 1 => g.falls_run(),
                 _ => g.falls_wait(),
             },
+            Mode::GrandTower => {
+                if feed.next() % 2 == 0 {
+                    g.grand_tower_treat(2.0)
+                } else {
+                    g.grand_tower_duck()
+                }
+            }
             Mode::Natchez => {
                 if natchez_first {
                     natchez_first = false;
@@ -643,9 +651,12 @@ fn golden_trace_is_stable() {
     // Baseline captured before the data-driven refactor, re-pinned for: the
     // lower-river leg into Natchez getting its own hazard table (heavier piracy),
     // then ambient crew banter replacing the flat clean-leg lines (narrative
-    // only — no state or RNG change). Behavior must not drift; if this trips, run
-    // `print_golden_trace` (below) before and after to diff.
-    const EXPECTED: u64 = 0x3725_a0ef_3b58_7cf4;
+    // only), then a boatmen flavor pass (more banter + folk hazard names), and
+    // now four new river landings (Marietta, Maysville, Shawneetown, Grand Tower)
+    // with the Grand Tower initiation set-piece — a real behavior change: more
+    // legs means a longer RNG stream and more markets. Behavior must not drift;
+    // if this trips, run `print_golden_trace` (below) before and after to diff.
+    const EXPECTED: u64 = 0x9a47_4593_7bcc_0023;
     assert_eq!(
         got, EXPECTED,
         "golden trace drifted: got {:#018x} over {} bytes",
@@ -916,10 +927,15 @@ fn scenario_is_self_consistent() {
     // Every set-piece menu option names a known action, and the costs the menu
     // shows match the economy the engine actually charges.
     let known = [
-        "falls-pilot", "falls-run", "falls-wait", "sell-cargo", "sell-boat", "gamble",
-        "buy-horse", "set-out", "rest", "leave",
+        "falls-pilot", "falls-run", "falls-wait", "gt-treat", "gt-duck", "sell-cargo", "sell-boat",
+        "gamble", "buy-horse", "set-out", "rest", "leave",
     ];
-    for menu in [&sc.menus.falls, &sc.menus.natchez, &sc.menus.stand] {
+    for menu in [
+        &sc.menus.falls,
+        &sc.menus.grandtower,
+        &sc.menus.natchez,
+        &sc.menus.stand,
+    ] {
         for opt in &menu.options {
             assert!(known.contains(&opt.action.as_str()), "unknown action {}", opt.action);
         }
@@ -930,6 +946,7 @@ fn scenario_is_self_consistent() {
         menu.options.iter().find(|o| o.action == action).unwrap().cost
     };
     assert_eq!(cost_of(&sc.menus.falls, "falls-pilot"), 8.0);
+    assert_eq!(cost_of(&sc.menus.grandtower, "gt-treat"), 2.0);
     assert_eq!(cost_of(&sc.menus.natchez, "buy-horse"), 12.0);
     assert_eq!(cost_of(&sc.menus.stand, "rest"), 8.0);
     assert_eq!(cost_of(&sc.menus.stand, "buy-horse"), 14.0);

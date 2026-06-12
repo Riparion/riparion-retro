@@ -18,21 +18,26 @@ pub const GOOD_NAMES: [&str; NUM_GOODS] = [
 /// Hold units each good occupies. Livestock is bulky — two units a head.
 pub const GOOD_UNITS: [i64; NUM_GOODS] = [1, 1, 1, 1, 1, 1, 2];
 
-pub const NUM_RIVER_TOWNS: usize = 7;
+pub const NUM_RIVER_TOWNS: usize = 11;
 
 pub const PITTSBURGH: usize = 0;
-pub const CINCINNATI: usize = 2; // a generous moneylender
-pub const LOUISVILLE: usize = 3; // the Falls of the Ohio
-pub const MEMPHIS: usize = 5; // a generous moneylender
-pub const NATCHEZ: usize = 6;
+pub const CINCINNATI: usize = 4; // a generous moneylender
+pub const LOUISVILLE: usize = 5; // the Falls of the Ohio
+pub const GRAND_TOWER: usize = 8; // the rivermen's initiation, on the Mississippi
+pub const MEMPHIS: usize = 9; // a generous moneylender
+pub const NATCHEZ: usize = 10;
 
 /// Cover-art slugs per landing, in canonical town-index order.
 pub const TOWN_SLUGS: [&str; NUM_RIVER_TOWNS] = [
     "pittsburgh",
     "wheeling",
+    "marietta",
+    "maysville",
     "cincinnati",
     "louisville",
+    "shawneetown",
     "cairo",
+    "grand-tower",
     "memphis",
     "natchez",
 ];
@@ -374,6 +379,8 @@ pub enum Mode {
     Moneylender,
     /// The Falls of the Ohio — portage, pilot, or run them.
     Falls,
+    /// Grand Tower on the Mississippi — the rivermen's initiation: treat or ducking.
+    GrandTower,
     /// Natchez: sell everything, the boat for lumber, and a night Under-the-Hill.
     Natchez,
     // --- Trace ---

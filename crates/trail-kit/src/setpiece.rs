@@ -14,10 +14,15 @@
 
 use serde::{Deserialize, Serialize};
 
-/// The three set-piece menus.
+/// The set-piece menus.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Menus {
     pub falls: SetPiece<Gate>,
+    /// Grand Tower, on the Mississippi: the rivermen's initiation — stand a
+    /// treat or take the ducking. Defaults to empty so other scenarios that
+    /// never reach it can omit it.
+    #[serde(default)]
+    pub grandtower: SetPiece<Gate>,
     pub natchez: SetPiece<Gate>,
     pub stand: SetPiece<Gate>,
 }
@@ -26,6 +31,16 @@ pub struct Menus {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SetPiece<G> {
     pub options: Vec<SetPieceOption<G>>,
+}
+
+// Hand-written so an empty menu needs no `G: Default` (the derive would demand
+// it); lets `#[serde(default)]` fields omit a never-reached menu.
+impl<G> Default for SetPiece<G> {
+    fn default() -> Self {
+        Self {
+            options: Vec::new(),
+        }
+    }
 }
 
 /// One menu button, with visibility gated by the host game's gate vocabulary `G`.

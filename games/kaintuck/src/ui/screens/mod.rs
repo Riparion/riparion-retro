@@ -1,5 +1,6 @@
 pub mod falls;
 pub mod game_over;
+pub mod grand_tower;
 pub mod interaction_host;
 pub mod minigame;
 pub mod moneylender;

@@ -52,6 +52,7 @@ pub(crate) enum Flow {
 pub enum Resume {
     Town,
     Falls,
+    GrandTower,
     Natchez,
     TraceHub,
     Leg,
@@ -276,6 +277,7 @@ impl Game {
                 } else {
                     match self.resume {
                         Resume::Falls => self.mode = Mode::Falls,
+                        Resume::GrandTower => self.mode = Mode::GrandTower,
                         Resume::Natchez => self.mode = Mode::Natchez,
                         _ => self.mode = Mode::Town,
                     }
@@ -412,6 +414,8 @@ impl Game {
             "falls-pilot" => self.falls_pilot(cost),
             "falls-run" => self.falls_run(),
             "falls-wait" => self.falls_wait(),
+            "gt-treat" => self.grand_tower_treat(cost),
+            "gt-duck" => self.grand_tower_duck(),
             "sell-boat" => self.sell_boat(),
             "buy-horse" => self.buy_horse(cost),
             "set-out" => self.set_out_on_trace(),
