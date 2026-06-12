@@ -51,7 +51,7 @@ Scenario(
                     grouped_thins: [],
                     arms: [
                         Clean(message: Some("The current carries you on, but every snag on the bank looks like a hidden skiff.")),
-                        Minigame(outcome: "sandbar"),
+                        Minigame(outcome: "sandbar", message: Some("The river bends hard at the Devil's Elbow and a bar reaches out from the point.")),
                         Minigame(outcome: "patch"),
                         Minigame(outcome: "pirates", message: Some("River pirates pull alongside!"), cover: Some("pirates")),
                         Special("spoilage"),
@@ -381,6 +381,25 @@ Scenario(
                         (voice: "The boatwright thumps the gunwale:", text: "Whiskey, flour, salt pork — worth three times at Natchez what it fetched in Pittsburgh. Float it down, sell it high, break the boat up for lumber. That's the whole game."),
                     ],
                 ),
+                (
+                    key: "the-fiddler",
+                    lines: [
+                        (voice: "The farmhand nods at the old man sawing a fiddle at the bow:", text: "Does he pull an oar like the rest of us, or just play?"),
+                        (voice: "The old riverman grins:", text: "Pappy? First man in the water when she grounds on a bar, and he fiddles the whole night watch besides. Brought nothing aboard but his violin and Katy and his plunder. Worth two hands for the singing alone."),
+                    ],
+                ),
+                (
+                    key: "rowing-song",
+                    lines: [
+                        (voice: "The crew settles into a stroke, and a song goes up to keep the time:", text: "\"Some rows up, but we rows down — all the way to Shawnee town — pull away, pull away!\""),
+                    ],
+                ),
+                (
+                    key: "marietta-yard",
+                    lines: [
+                        (voice: "The boatwright jerks a thumb at a riverside town of saw-pits and ways:", text: "Marietta yonder builds seagoing ships — rigged brigs at fifty dollar a ton — and floats 'em clear down to the ocean. Our flatboat won't ever see salt water. She's a pile of lumber the day we tie up at Natchez."),
+                    ],
+                ),
             ],
         ),
         // ----- Lower Ohio: the Falls, and the wreckers' cave -----
@@ -398,6 +417,33 @@ Scenario(
                     lines: [
                         (voice: "The farmhand points at a black gash in the bluffs:", text: "What's that cave yonder?"),
                         (voice: "The old riverman doesn't look up:", text: "Cave-in-Rock. River pirates laired there — hung out a sign for liquor to lure boats ashore, then took the cargo and sank the rest. Keep to the channel. Don't put in, no matter who waves you down."),
+                    ],
+                ),
+                (
+                    key: "the-hail",
+                    lines: [
+                        (voice: "A boat sweeps past and a man cups his hands across the water:", text: "\"Where you from? What's your lading? Who's your captain? Where you bound?\""),
+                        (voice: "The old riverman bawls back without missing a beat:", text: "\"Redstone! Millstones! Whetstone! — Limestone!\" Same four hollers, every boat on the river. Quick with the answer or you're the joke of the reach."),
+                    ],
+                ),
+                (
+                    key: "blackguarding",
+                    lines: [
+                        (voice: "Two boats drift in earshot and the crews start trading insults across the gap:", text: "Whooping, hollering, every man straining to outdo the last."),
+                        (voice: "The old riverman, cheerful:", text: "Blackguardin', we call it. Whoever leaves the other fellow with nothing left to say is the hero of the day. The one who runs dry is his crew's joke for a week. It's all wind — mostly."),
+                    ],
+                ),
+                (
+                    key: "the-horn",
+                    lines: [
+                        (voice: "The farmhand startles at a low, mournful note rolling over the water:", text: "What in creation was that?"),
+                        (voice: "The old riverman:", text: "Boat horn. Sound it in fog so the next fellow don't run you down — and they say it scares off the devil and brings fair luck besides. Can't hurt. Wind it again, boy."),
+                    ],
+                ),
+                (
+                    key: "shore-dance",
+                    lines: [
+                        (voice: "Tied up by a settler's cabin, a fiddle strikes up and the men stamp out the time:", text: "\"Dance, boatman, dance — dance all night till broad daylight — and go home with the gals in the morning!\""),
                     ],
                 ),
             ],
@@ -426,6 +472,33 @@ Scenario(
                     key: "natchez-under-the-hill",
                     lines: [
                         (voice: "The old riverman lowers his voice:", text: "Natchez sits proud on the bluff, but the landing under it — Natchez-under-the-Hill — is all grog, cards, and cut throats. Sell your cargo up top. Men have lost the whole trip down below."),
+                    ],
+                ),
+                (
+                    key: "river-names",
+                    lines: [
+                        (voice: "The old riverman reads the water like a page, naming every snarl as it slides past:", text: "Yonder's the Devil's Elbow — worst bend on the river. That cluster of islands is Paddy's Hen and Chickens. That long bar's General Hull's Left Leg. Every reach has its name, and knowing 'em is half of staying afloat."),
+                    ],
+                ),
+                (
+                    key: "night-camp",
+                    lines: [
+                        (voice: "You tie up at dusk and the boy slaps at the air:", text: "These skeeters mean to carry me clean off."),
+                        (voice: "The old riverman heaps green wood on a smudge fire:", text: "Smudge'll hold 'em back. Eat your ration, then it's cards or a coon hunt or a yarn till the fire dies down. Sleep on the bank — or atop the cargo if it comes on to rain. We're off again at first light."),
+                    ],
+                ),
+                (
+                    key: "boatman-song",
+                    gates: [MoraleAbove(60.0)],
+                    lines: [
+                        (voice: "Late, with the jug going round the deck, the old song starts up of its own accord:", text: "\"The boatman is a lucky man, no one can do as the boatman can... Hi-O, away we go, floating down the river on the O-hi-o!\""),
+                    ],
+                ),
+                (
+                    key: "french-song",
+                    lines: [
+                        (voice: "A barge of Creole boatmen sweeps past, the steersman calling a line and the crew answering it back:", text: "\"L'on, ton, laridon, danée... L'on, ton, laridon, dai!\""),
+                        (voice: "The old riverman listens a moment:", text: "French rivermen. Better singers than us by a country mile — sing the whole day to keep their minds off the work and the wild country. Half don't know what the words mean. Don't seem to matter."),
                     ],
                 ),
             ],
