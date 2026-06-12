@@ -37,7 +37,7 @@ pub struct Scenario {
     /// The branching outcomes of each minigame hazard, keyed by id.
     pub outcomes: Vec<Outcome>,
     /// The launch parameters of each minigame, keyed by the same id.
-    pub minigames: Vec<MinigameSpec>,
+    pub minigames: Vec<MinigameSpec<MiniParams>>,
 }
 
 /// The set-piece numbers and single-line prose that are NOT already a menu

@@ -15,33 +15,34 @@ pub fn leftover_value(s: &GameState) -> f64 {
 
 /// Score a finished journey. Arriving is worth a great deal; arriving early with
 /// full packs is worth more. A journey cut short still earns partial credit for
-/// the miles covered.
+/// the miles covered. The weights live in the scenario's `scoring` table.
 pub fn score(won: bool, miles: f64, days: i64, leftover: f64) -> i64 {
+    let s = &super::scenario_data::scenario().scoring;
     if won {
         // The whole trek runs ~8 weeks; reward beating the deep winter in.
-        let speed_bonus = (70 - days).max(0) as f64 * 8.0;
-        (1500.0 + leftover + speed_bonus).floor() as i64
+        let speed_bonus = (s.speed_par_days - days).max(0) as f64 * s.speed_per_day;
+        (s.base_win + leftover + speed_bonus).floor() as i64
     } else {
-        ((miles / 4.0) + leftover / 4.0).floor() as i64
+        ((miles / s.loss_miles_div) + leftover / s.loss_leftover_div).floor() as i64
     }
 }
 
 pub fn rank(score: i64) -> &'static str {
-    match score {
-        s if s >= 3500 => "Founder",
-        s if s >= 2200 => "Long Hunter",
-        s if s >= 1500 => "Settler",
-        s if s >= 600 => "Frontiersman",
-        s if s >= 1 => "Greenhorn",
-        _ => "Tenderfoot",
-    }
+    let s = &super::scenario_data::scenario().scoring;
+    s.ranks
+        .iter()
+        .find(|t| score >= t.min)
+        .map(|t| t.name.as_str())
+        .unwrap_or(&s.floor_rank)
 }
 
 /// Arrival date and days-on-the-trail for a journey `turn` weeks out plus a
-/// fraction `f9` of the final week. The party marches out of Fort Patrick Henry
-/// on Monday, November 1, 1779 — day-of-year 305.
+/// fraction `f9` of the final week. The calendar epoch (the party marches out of
+/// Fort Patrick Henry on Monday, November 1, 1779 — day-of-year 305) is read from
+/// the scenario.
 pub fn arrival_date(turn: u32, f9: f64) -> (String, i64) {
-    retro_kit::scoring::arrival_date(turn, f9, 7, 305, 0, 1779)
+    let c = &super::scenario_data::scenario().calendar;
+    retro_kit::scoring::arrival_date(turn, f9, c.period_days, c.epoch_doy, c.epoch_weekday, c.year)
 }
 
 /// One line in the trailside hall of fame.

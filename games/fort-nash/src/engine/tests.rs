@@ -413,7 +413,7 @@ fn the_frozen_cumberland_launches_the_steady_game() {
     // once and pauses the leg.
     let mut g = fresh(7);
     g.outfit(240.0, 200.0, 100.0, 50.0, 60.0).unwrap();
-    g.state.miles = super::state::CUMBERLAND_RIVER_AT;
+    g.state.miles = super::scenario_data::scenario().trail.cumberland_river_at;
     g.state.cleared_south_pass = true;
     g.state.cleared_blue_mountains = true;
     assert!(!g.state.cleared_cumberland_river, "the river starts uncrossed");
@@ -428,7 +428,7 @@ fn the_frozen_cumberland_launches_the_steady_game() {
     // re-launch it.
     let mut h = fresh(8);
     h.outfit(240.0, 200.0, 100.0, 50.0, 60.0).unwrap();
-    h.state.miles = super::state::CUMBERLAND_RIVER_AT;
+    h.state.miles = super::scenario_data::scenario().trail.cumberland_river_at;
     h.state.cleared_south_pass = true;
     h.state.cleared_blue_mountains = true;
     h.state.cleared_cumberland_river = true;
@@ -439,7 +439,7 @@ fn the_frozen_cumberland_launches_the_steady_game() {
 #[test]
 fn a_botched_ice_crossing_can_break_the_ice() {
     // A badly shaky run drops the party through the ice — a fatal ending.
-    let mut g = mid_steady(7, super::state::CUMBERLAND_RIVER_AT);
+    let mut g = mid_steady(7, super::scenario_data::scenario().trail.cumberland_river_at);
     g.resolve_steady(false, 0.0);
     let end = g.outcome.expect("a broken-ice crossing should end the journey");
     assert!(!end.won, "going through the ice is a loss");
@@ -497,7 +497,7 @@ fn a_steady_hand_costs_less_than_a_shaky_one() {
 fn a_broken_ice_crossing_shows_the_splinter_line_before_game_over() {
     // A badly shaky crossing breaks the ice; the narration must be drained (shown
     // in Interaction mode) before the GameOver screen, not orphaned in the queue.
-    let mut g = mid_steady(7, super::state::CUMBERLAND_RIVER_AT);
+    let mut g = mid_steady(7, super::scenario_data::scenario().trail.cumberland_river_at);
     g.resolve_steady(false, 0.0); // drift > 0.6 → the ice gives way
     assert!(
         g.outcome
@@ -754,15 +754,16 @@ fn play(seed: u64, good: bool) -> Game {
 
 #[test]
 fn full_games_terminate_with_a_sane_report() {
+    let trail = &super::scenario_data::scenario().trail;
     for seed in 0..40u64 {
         let g = play(seed, true);
         let end = g.outcome.expect("game ended without an outcome");
         // The journey can't run past the winter deadline.
-        assert!(g.state.turn <= MAX_TURNS, "seed {seed} ran too long");
+        assert!(g.state.turn <= trail.max_turns, "seed {seed} ran too long");
         // The final report never shows negative supplies.
         assert!(end.food >= 0 && end.bullets >= 0 && end.clothing >= 0);
         assert!(end.misc >= 0 && end.cash >= 0);
-        assert!(end.miles >= 0 && end.miles <= TRAIL_MILES as i64);
+        assert!(end.miles >= 0 && end.miles <= trail.total_miles as i64);
         assert!(!end.rank.is_empty());
     }
 }
@@ -773,13 +774,14 @@ fn good_play_outlasts_bad_play() {
     let mut good_total = 0i64;
     let mut bad_total = 0i64;
     let mut good_wins = 0;
+    let total_miles = super::scenario_data::scenario().trail.total_miles;
     for seed in seeds {
         let good = play(seed, true);
-        good_total += good.state.miles.min(TRAIL_MILES) as i64;
+        good_total += good.state.miles.min(total_miles) as i64;
         if good.outcome.is_some_and(|e| e.won) {
             good_wins += 1;
         }
-        bad_total += play(seed, false).state.miles.min(TRAIL_MILES) as i64;
+        bad_total += play(seed, false).state.miles.min(total_miles) as i64;
     }
     assert!(
         good_total > bad_total,
@@ -837,4 +839,473 @@ fn cover_keys_supersede_then_fall_back() {
         cover_keys(&g),
         vec!["game-over-frostbite".to_string(), "game-over".to_string()]
     );
+}
+
+// ===== Golden-trace harness =====
+//
+// Behavior-preservation oracle for the data-driven refactor. A fully scripted,
+// deterministic run across seven seeds, snapshotting the whole world state after
+// every engine transition into one long string, then hashing it. The minigame /
+// interaction feed is deterministic but *varied* (it cycles through clean runs,
+// botched runs, and the occasional catastrophe) so both the winning and losing
+// branches of every hazard are exercised. While the refactor preserves behavior
+// the hash holds; the moment a coefficient, an RNG draw order, or a branch drifts
+// the hash changes and the gate trips. Run `cargo test -p fort-nash` after every
+// stage. To eyeball a drift, `cargo test -p fort-nash print_golden_trace --
+// --ignored --nocapture` dumps the full trace for diffing.
+
+/// A deterministic counter threaded through every scripted decision, so the
+/// inputs depend only on the call sequence — which, as long as behavior holds,
+/// is itself stable.
+struct Feed {
+    n: u64,
+}
+impl Feed {
+    fn next(&mut self) -> u64 {
+        let v = self.n;
+        self.n = self.n.wrapping_add(1);
+        v
+    }
+}
+
+fn snap(g: &Game, log: &mut String) {
+    use std::fmt::Write;
+    let s = &g.state;
+    let _ = write!(
+        log,
+        "{:?}|c{:?}|fd{:?}|bu{:?}|cl{:?}|mc{:?}|ox{:?}|mi{:?}|m0{:?}|tn{}|mk{}|il{}|in{}|sp{}|bm{}|cr{}|eat{:?}\n",
+        g.mode,
+        s.cash,
+        s.food,
+        s.bullets,
+        s.clothing,
+        s.misc,
+        s.oxen,
+        s.miles,
+        s.miles_at_turn_start,
+        s.turn,
+        s.marksman,
+        s.ill,
+        s.injured,
+        s.cleared_south_pass,
+        s.cleared_blue_mountains,
+        s.cleared_cumberland_river,
+        s.eat_level,
+    );
+    // Also snapshot the resume/leg bookkeeping, the pending encounter/shot/task,
+    // and the narration queue (message text + cover keys). Every prose string and
+    // cover slug — the bulk of the data-driven port — folds into the hash, closing
+    // the gap where the numeric snapshot alone couldn't catch a dropped cover key
+    // or a reworded message.
+    let _ = write!(
+        log,
+        "  leg{:?} res{:?} rid{:?} shot{:?} task{:?}\n  q{:?}\n",
+        g.leg, g.resume, g.riders, g.shot, g.pending_task, g.pending,
+    );
+}
+
+/// Resolve whatever minigame / interaction sits at the head with a
+/// varied-but-deterministic answer, snapshotting after each step, until we land
+/// on a hub (Trail / Eat / Fort / Riders) or an ending.
+fn settle_feed(g: &mut Game, feed: &mut Feed, log: &mut String) {
+    let mut guard = 0;
+    loop {
+        match g.mode {
+            Mode::Interaction => g.resolve(Response::Acknowledge),
+            Mode::Shoot => {
+                let (secs, correct) = match feed.next() % 4 {
+                    0 => (0.4, true),  // a dead-eye draw
+                    1 => (1.4, true),  // a hit, but slow
+                    2 => (3.5, false), // a flubbed word
+                    _ => (0.8, true),
+                };
+                g.resolve_shot(secs, correct);
+            }
+            Mode::Hunt => {
+                let (hit, shots) = match feed.next() % 3 {
+                    0 => (true, 1),  // a clean one-shot kill
+                    1 => (false, 6), // emptied the bag, missed
+                    _ => (true, 3),
+                };
+                g.resolve_hunt(hit, shots);
+            }
+            Mode::Flee => {
+                let (cleared, acc) = match feed.next() % 3 {
+                    0 => (true, 0.95),
+                    1 => (false, 0.15), // run down into the gunfight
+                    _ => (true, 0.7),
+                };
+                g.resolve_flee(cleared, acc);
+            }
+            Mode::Climb => {
+                let (cleared, acc) = match feed.next() % 3 {
+                    0 => (true, 0.95),
+                    1 => (false, 0.2),
+                    _ => (true, 0.6),
+                };
+                g.resolve_climb(cleared, acc);
+            }
+            Mode::Fog => {
+                let (cleared, acc) = match feed.next() % 3 {
+                    0 => (true, 0.95),
+                    1 => (false, 0.2),
+                    _ => (false, 0.7),
+                };
+                g.resolve_fog(cleared, acc);
+            }
+            Mode::Splint => {
+                let (clean, acc) = match feed.next() % 3 {
+                    0 => (true, 0.95),
+                    1 => (false, 0.1),
+                    _ => (true, 0.6),
+                };
+                g.resolve_splint(clean, acc);
+            }
+            Mode::Dose => {
+                let (on_target, acc) = match feed.next() % 4 {
+                    0 => (true, 0.95),
+                    1 => (false, 0.5),
+                    2 => (false, 0.05), // a badly spilled dose
+                    _ => (true, 0.6),
+                };
+                g.resolve_dose(on_target, acc);
+            }
+            Mode::Steady => {
+                let (steady, acc) = match feed.next() % 5 {
+                    0 => (true, 0.95),
+                    1 => (false, 0.55),
+                    2 => (true, 0.80),
+                    3 => (false, 0.30),
+                    _ => (false, 0.10), // drift > 0.6 → the ice gives way
+                };
+                g.resolve_steady(steady, acc);
+            }
+            Mode::Sequence => {
+                let (prefix, len, perfect) = match feed.next() % 3 {
+                    0 => (4, 4, true),
+                    1 => (0, 4, false),
+                    _ => (2, 4, false),
+                };
+                g.resolve_sequence(prefix, len, perfect);
+            }
+            Mode::Brigade => {
+                let (contained, leaked, cap) = match feed.next() % 3 {
+                    0 => (true, 0, 25),
+                    1 => (false, 25, 25),
+                    _ => (false, 12, 25),
+                };
+                g.resolve_brigade(contained, leaked, cap);
+            }
+            _ => return,
+        }
+        snap(g, log);
+        guard += 1;
+        assert!(guard < 4000, "settle_feed never converged (mode {:?})", g.mode);
+    }
+}
+
+/// One full scripted playthrough for `seed`, appended to `log`.
+fn golden_run(seed: u64, log: &mut String) {
+    use std::fmt::Write;
+    let mut feed = Feed {
+        n: seed.wrapping_mul(2_654_435_761),
+    };
+    let mut g = Game::new(seed);
+    // Vary marksmanship by seed to exercise the gunfight handicap; a fixed,
+    // well-stocked outfit otherwise (total $700, enough powder to hunt).
+    g.begin("Golden Party".into(), (seed % 5) as u8 + 1);
+    let _ = write!(log, "=== seed {seed} ===\n");
+    g.outfit(240.0, 300.0, 80.0, 40.0, 40.0).unwrap();
+    snap(&g, log);
+
+    let mut guard = 0;
+    loop {
+        settle_feed(&mut g, &mut feed, log);
+        match g.mode {
+            Mode::Trail => {
+                // Survive deep enough to reach the passes and the Christmas ice
+                // crossing: hunt when the larder runs low, stop at a station when
+                // one's offered, otherwise press on.
+                if g.state.food < 90.0 && g.state.bullets > 39.0 {
+                    let _ = g.choose_hunt();
+                } else if g.state.fort_available() && feed.next() % 2 == 0 {
+                    g.choose_fort();
+                } else {
+                    g.choose_continue();
+                }
+            }
+            Mode::Fort => {
+                if feed.next() % 2 == 0 {
+                    g.buy_at_fort(40.0, 10.0, 10.0, 10.0);
+                } else {
+                    g.leave_fort();
+                }
+            }
+            Mode::Eat => {
+                // Eat as well as the larder allows — well-fed parties travel
+                // farther, so the trace reaches the mountains, the ice, and the
+                // French Lick. Minigame variety (above) still drives the branches.
+                let lvl = if g.state.food >= EatLevel::Well.food_cost() {
+                    EatLevel::Well
+                } else if g.state.food >= EatLevel::Moderately.food_cost() {
+                    EatLevel::Moderately
+                } else {
+                    EatLevel::Poorly
+                };
+                g.choose_eat(lvl);
+            }
+            Mode::Riders => {
+                let tactic = match feed.next() % 4 {
+                    0 => Tactic::Run,
+                    1 => Tactic::Attack,
+                    2 => Tactic::Continue,
+                    _ => Tactic::CircleWagons,
+                };
+                g.resolve_tactic(tactic);
+            }
+            Mode::GameOver => break,
+            other => panic!("seed {seed}: unexpected mode {other:?}"),
+        }
+        snap(&g, log);
+        guard += 1;
+        assert!(guard < 2000, "seed {seed}: run never ended (mode {:?})", g.mode);
+    }
+    let _ = write!(log, "outcome {:?}\n", g.outcome);
+}
+
+/// The full deterministic trace across every seed.
+fn golden_trace() -> String {
+    let mut log = String::new();
+    for seed in [
+        11u64, 22, 33, 44, 55, 66, 77, 88, 99, 111, 222, 333, 444, 555,
+    ] {
+        golden_run(seed, &mut log);
+    }
+    log
+}
+
+fn fnv1a(s: &str) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in s.as_bytes() {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    h
+}
+
+#[test]
+fn golden_trace_is_stable() {
+    let trace = golden_trace();
+    let got = fnv1a(&trace);
+    // Baseline captured before the data-driven refactor. Behavior must not drift;
+    // if this trips, run `print_golden_trace` (below) before and after to diff.
+    const EXPECTED: u64 = 0xc26e_ed8b_ea10_a5f7;
+    assert_eq!(
+        got, EXPECTED,
+        "golden trace drifted: got {:#018x} over {} bytes",
+        got,
+        trace.len()
+    );
+}
+
+#[test]
+#[ignore = "diagnostic: dumps the full golden trace for diffing"]
+fn print_golden_trace() {
+    print!("{}", golden_trace());
+}
+
+// ===== Scenario data-shape consistency =====
+//
+// While behaviour is locked by the golden trace, these guard the *shape* of the
+// embedded RON: that it parses, lines up with the engine's structural constants,
+// and that every id / cause key it cross-references actually resolves.
+
+#[test]
+fn scenario_parses() {
+    let _ = super::scenario_data::scenario();
+}
+
+#[test]
+fn scenario_is_self_consistent() {
+    use trail_kit::fortnash::{Effect, HazardArm, MinigameParams};
+    let sc = super::scenario_data::scenario();
+
+    // Checkpoints run from the start to the trail's end, strictly ascending.
+    assert_eq!(sc.checkpoints.first().unwrap().mile, 0.0);
+    assert_eq!(
+        sc.checkpoints.last().unwrap().mile,
+        sc.trail.total_miles
+    );
+    for w in sc.checkpoints.windows(2) {
+        assert!(w[0].mile < w[1].mile, "checkpoints must ascend by mile");
+    }
+
+    // One date per week on the trail.
+    assert_eq!(sc.dates.len(), sc.trail.max_turns as usize);
+
+    // The checkpoint lookup lands on the right band: at each checkpoint's starting
+    // mile, the engine reports that checkpoint's label and cover key.
+    use super::state::GameState;
+    for cp in &sc.checkpoints {
+        let mut s = GameState::new("T".into());
+        s.miles = cp.mile;
+        assert_eq!(s.terrain(), cp.label, "terrain label at mile {}", cp.mile);
+        assert_eq!(s.terrain_key(), cp.key, "terrain key at mile {}", cp.mile);
+    }
+
+    // Every ending the engine can reach has scenario text, and only the victory
+    // is a win.
+    for cause in [
+        GameOverCause::Starved,
+        GameOverCause::Pneumonia,
+        GameOverCause::Frostbite,
+        GameOverCause::Winter,
+        GameOverCause::CantAffordDoctor,
+        GameOverCause::RiderMassacre,
+        GameOverCause::Wolves,
+        GameOverCause::IceBroke,
+        GameOverCause::Victory,
+    ] {
+        let end = sc
+            .ending(cause.key())
+            .unwrap_or_else(|| panic!("no ending for cause {}", cause.key()));
+        assert_eq!(end.won, cause.won(), "won flag for {}", cause.key());
+    }
+
+    // The event table has exactly one more arm than threshold.
+    assert_eq!(sc.events.arms.len(), sc.events.thresholds.len() + 1);
+
+    // Collect every outcome id a Minigame event arm fires, and confirm each
+    // resolves to a defined outcome. (Branch arms nest, so walk them too.)
+    fn collect_minigame_ids<'a>(arm: &'a HazardArm, into: &mut Vec<&'a str>) {
+        match arm {
+            HazardArm::Minigame { outcome } => into.push(outcome),
+            HazardArm::Branch {
+                past_mountains,
+                before,
+            } => {
+                collect_minigame_ids(past_mountains, into);
+                collect_minigame_ids(before, into);
+            }
+            _ => {}
+        }
+    }
+    let mut event_ids = Vec::new();
+    for arm in &sc.events.arms {
+        collect_minigame_ids(arm, &mut event_ids);
+    }
+    for id in &event_ids {
+        assert!(sc.outcome(id).is_some(), "event arm fires unknown outcome {id}");
+        assert!(
+            sc.minigame_params(id).is_some(),
+            "event arm fires minigame {id} with no params"
+        );
+    }
+
+    // Every string the event table hands to the host resolves to a real handler,
+    // so a data-only typo fails this test instead of panicking mid-fortnight: a
+    // Minigame arm must be launchable by begin_event_minigame, a Special arm must
+    // be known to run_special, and any inline Effects death must name a cause that
+    // both has an ending and round-trips through GameOverCause::from_key.
+    fn check_event_arm(arm: &HazardArm, sc: &trail_kit::fortnash::Scenario) {
+        match arm {
+            HazardArm::Minigame { outcome } => assert!(
+                super::events::is_event_minigame(outcome),
+                "event table fires Minigame({outcome}), which begin_event_minigame can't launch"
+            ),
+            HazardArm::Special(name) => assert!(
+                super::events::is_special_handler(name),
+                "event table fires Special({name}), which run_special doesn't handle"
+            ),
+            HazardArm::Effects(effects) => {
+                for e in effects {
+                    if let Effect::Die(cause) | Effect::DieIfBroke(cause) = e {
+                        assert!(
+                            sc.ending(cause).is_some() && GameOverCause::from_key(cause).is_some(),
+                            "event Effects arm dies with unresolved cause {cause}"
+                        );
+                    }
+                }
+            }
+            HazardArm::Branch {
+                past_mountains,
+                before,
+            } => {
+                check_event_arm(past_mountains, sc);
+                check_event_arm(before, sc);
+            }
+        }
+    }
+    for arm in &sc.events.arms {
+        check_event_arm(arm, sc);
+    }
+
+    // Every minigame id has a matching outcome, and vice-versa, so the host can
+    // always pair the screen it launches with the tier it resolves.
+    for m in &sc.minigames {
+        assert!(
+            sc.outcome(&m.id).is_some(),
+            "minigame {} has no outcome",
+            m.id
+        );
+    }
+    for o in &sc.outcomes {
+        assert!(
+            sc.minigame_params(&o.id).is_some(),
+            "outcome {} has no minigame params",
+            o.id
+        );
+    }
+
+    // Every death an outcome triggers names a real ending, and a death gate is
+    // always the last effect in its tier (nothing runs after the journey ends).
+    for o in &sc.outcomes {
+        for tier in [
+            o.success.as_slice(),
+            o.partial.as_slice(),
+            o.fail.as_slice(),
+            o.catastrophe.as_slice(),
+        ] {
+            for (i, e) in tier.iter().enumerate() {
+                if let Effect::Die(cause) | Effect::DieIfBroke(cause) = e {
+                    assert!(
+                        sc.ending(cause).is_some(),
+                        "outcome {} dies with unknown cause {cause}",
+                        o.id
+                    );
+                    // The cause must also round-trip through GameOverCause::from_key,
+                    // or kill() panics at runtime when this tier fires.
+                    assert!(
+                        GameOverCause::from_key(cause).is_some(),
+                        "outcome {} dies with cause {cause} that GameOverCause::from_key can't resolve",
+                        o.id
+                    );
+                    assert_eq!(
+                        i,
+                        tier.len() - 1,
+                        "a death gate must be the last effect in outcome {}'s tier",
+                        o.id
+                    );
+                }
+            }
+        }
+    }
+
+    // Each minigame param variant is the kind its task expects.
+    let kind_ok = |id: &str, f: fn(&MinigameParams) -> bool| {
+        f(sc.minigame_params(id).unwrap())
+    };
+    assert!(kind_ok("ice", |p| matches!(p, MinigameParams::Steady { .. })));
+    for id in ["wheel", "ox-leg", "frostbite"] {
+        assert!(kind_ok(id, |p| matches!(p, MinigameParams::Sequence { .. })));
+    }
+    for id in ["fire", "rains", "blizzard"] {
+        assert!(kind_ok(id, |p| matches!(p, MinigameParams::Brigade { .. })));
+    }
+    for id in ["splint", "dose-mild", "dose-bad", "dose-serious"] {
+        assert!(kind_ok(id, |p| matches!(p, MinigameParams::Timing { .. })));
+    }
+    for id in ["fog", "flee", "climb"] {
+        assert!(kind_ok(id, |p| matches!(p, MinigameParams::Crowd { .. })));
+    }
 }

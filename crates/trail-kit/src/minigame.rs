@@ -52,9 +52,12 @@ pub enum MiniParams {
     },
 }
 
-/// A minigame instance: its id and the parameters to launch it with.
+/// A minigame instance: its id and the parameters to launch it with. Generic
+/// over the host game's params enum `P` (kaintuck's [`MiniParams`], Fort Nash's
+/// [`MinigameParams`](crate::fortnash::MinigameParams)) so both games share one
+/// id↔params spec shape while keeping their own parameter vocabularies.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct MinigameSpec {
+pub struct MinigameSpec<P> {
     pub id: String,
-    pub params: MiniParams,
+    pub params: P,
 }

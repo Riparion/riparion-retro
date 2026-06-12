@@ -52,7 +52,7 @@ pub fn cover_keys(game: &Game) -> Vec<String> {
     match game.mode {
         Mode::Trail => {
             // Location-specific art for the hub, by the stretch of country.
-            keys.push(format!("trail-{}", game.state.terrain_kind().key()));
+            keys.push(format!("trail-{}", game.state.terrain_key()));
         }
         Mode::Steady => {
             if game.is_ice_crossing() {

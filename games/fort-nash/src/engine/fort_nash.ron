@@ -1,0 +1,448 @@
+// Fort Nash — the data-driven scenario. Content AND deterministic flow for the
+// Wilderness Road run from Fort Patrick Henry to the French Lick, interpreted by
+// `trail_kit::fortnash`. Every coefficient and narration string is a verbatim
+// port of the hand-written engine; the golden-trace oracle in tests.rs proves the
+// behavior is preserved. RNG-bespoke events (bad water, the creek ford, the sleet
+// storm, the gunfight launches, the illness/cold-weather rolls) stay host
+// `Special` handlers so their `self.rng` draw order is untouched.
+(
+    start: (
+        cash: 700.0,
+        oxen_min: 200.0,
+        oxen_max: 300.0,
+        bullets_per_dollar: 50.0,
+        bullets_per_shot: 5.0,
+    ),
+    trail: (
+        total_miles: 1600.0,
+        mountains_at: 360.0,
+        cumberland_gap_at: 760.0,
+        cumberland_river_at: 1400.0,
+        max_turns: 9,
+    ),
+    fort: (
+        detour_miles: 45.0,
+        hunt_min_bullets: 39.0,
+        // Goods return two-thirds their cost at a frontier station; a ratio (not a
+        // decimal) so the host's exact 2/3 arithmetic is unchanged.
+        value_num: 2.0,
+        value_den: 3.0,
+    ),
+    // The party marches out Monday, November 1, 1779 — day-of-year 305 — on a
+    // 7-day-per-turn calendar.
+    calendar: (
+        period_days: 7,
+        epoch_doy: 305,
+        epoch_weekday: 0,
+        year: 1779,
+    ),
+    dates: [
+        "November 1",
+        "November 8",
+        "November 15",
+        "November 22",
+        "November 29",
+        "December 6",
+        "December 13",
+        "December 20",
+        "December 27",
+    ],
+    checkpoints: [
+        (mile: 0.0,    label: "Fort Patrick Henry",   key: "fort-patrick-henry"),
+        (mile: 180.0,  label: "Moccasin Gap",         key: "moccasin-gap"),
+        (mile: 360.0,  label: "Powell Valley",        key: "powell-valley"),
+        (mile: 560.0,  label: "Martin's Station",     key: "martins-station"),
+        (mile: 760.0,  label: "The Cumberland Gap",   key: "cumberland-gap"),
+        (mile: 1000.0, label: "Crab Orchard",         key: "crab-orchard"),
+        (mile: 1200.0, label: "The Kentucky barrens", key: "kentucky-barrens"),
+        (mile: 1400.0, label: "The Cumberland River", key: "cumberland-river"),
+        (mile: 1600.0, label: "Fort Nashborough",     key: "fort-nashborough"),
+    ],
+    // The random-event table. A percentile roll `r1` in 0..100 selects `arms[i]`
+    // for the first threshold it falls under; clearing every threshold runs the
+    // final arm (the helpful long-hunters). Mirrors `do_event`'s THRESH list.
+    events: (
+        thresholds: [6.0, 11.0, 13.0, 15.0, 17.0, 22.0, 32.0, 35.0, 37.0, 42.0, 44.0, 54.0, 64.0, 69.0, 95.0],
+        arms: [
+            Minigame(outcome: "wheel"),     // 1  — cart wheel breaks
+            Minigame(outcome: "ox-leg"),    // 2  — pack animal's leg
+            Minigame(outcome: "splint"),    // 3  — a child breaks an arm
+            Effects([                       // 4  — a pack animal strays
+                Message(text: "A pack animal wanders off in the night. You spend time rounding it up.", cover: Some("livestock-strays")),
+                AdjustMiles(base: -17.0),
+            ]),
+            Effects([                       // 5  — a child strays
+                Message(text: "A child strays from the column. You hunt for them and lose time.", cover: Some("child-lost")),
+                AdjustMiles(base: -10.0),
+            ]),
+            Special("bad-water"),           // 6  — bad water (RNG toll)
+            Branch(                         // 7  — heavy rains / cold weather
+                past_mountains: Special("cold-weather"),
+                before: Minigame(outcome: "rains"),
+            ),
+            Special("outlaws"),             // 8  — outlaws (gunfight)
+            Minigame(outcome: "fire"),      // 9  — fire in camp
+            Minigame(outcome: "fog"),       // 10 — heavy fog
+            Minigame(outcome: "frostbite"), // 11 — frostbite first-aid
+            Special("creek"),               // 12 — swollen creek (RNG toll)
+            Special("wolves"),              // 13 — wolves (gunfight)
+            Special("sleet"),               // 14 — sleet storm (RNG toll)
+            Special("illness-roll"),        // 15 — the eat-level sickness roll
+            Effects([                       // 16 — helpful long-hunters (default)
+                Message(text: "Long hunters share a cache of game and point you to more.", cover: Some("long-hunters")),
+                AdjustFood(base: 14.0),
+            ]),
+        ],
+    ),
+    scoring: (
+        base_win: 1500.0,
+        speed_par_days: 70,
+        speed_per_day: 8.0,
+        loss_miles_div: 4.0,
+        loss_leftover_div: 4.0,
+        ranks: [
+            (min: 3500, name: "Founder"),
+            (min: 2200, name: "Long Hunter"),
+            (min: 1500, name: "Settler"),
+            (min: 600,  name: "Frontiersman"),
+            (min: 1,    name: "Greenhorn"),
+        ],
+        floor_rank: "Tenderfoot",
+    ),
+    endings: [
+        (cause: "starved",       won: false, message: "Your provisions ran out and the party starved on the trail."),
+        (cause: "pneumonia",     won: false, message: "Your medicine ran out and the sickness turned to pneumonia in the cold."),
+        (cause: "frostbite",     won: false, message: "Frostbite took hold with no medicine left to treat it — the party could go no farther."),
+        (cause: "winter",        won: false, message: "You've been on the trail too long. The deep winter closes the road and buries the party in the first hard blizzard."),
+        (cause: "cant-tend-sick", won: false, message: "With nothing left to trade for care, the sickness took the party."),
+        (cause: "raid-massacre", won: false, message: "Your powder ran out and the war party overran the camp."),
+        (cause: "wolves",        won: false, message: "The wolves overpowered you. You died of your injuries."),
+        (cause: "ice-broke",     won: false, message: "The ice gave way under the livestock and the party went into the freezing Cumberland."),
+        (cause: "victory",       won: true,  message: "You reached the French Lick and raised Fort Nashborough on the Cumberland — December 1779. Now hold the settlement through the winter until Donelson's river party arrives, April 24, 1780. A true founder!"),
+    ],
+    // Per-tier effect lists for each minigame outcome. The host resolver picks the
+    // tier (it knows what `steady`/`contained`/`perfect`/`cleared` mean) and threads
+    // the severity (`drift` = the miss / leak / 1−accuracy) for the `base + slope*drift`
+    // coefficients. Tiers carry identical tolls and differ only by their narration,
+    // exactly as the hand-written resolvers did.
+    outcomes: [
+        // --- Sequence (order-memory) catastrophes; drift = the order miss ---
+        (
+            id: "wheel",
+            success: [
+                AdjustMiles(base: -6.0, drift_coeff: -16.0),
+                AdjustMisc(base: -3.0, drift_coeff: -6.0),
+                Message(text: "Jack, block, bolt, seat — you re-hang the wheel in good order and barely lose a step."),
+            ],
+            fail: [
+                AdjustMiles(base: -6.0, drift_coeff: -16.0),
+                AdjustMisc(base: -3.0, drift_coeff: -6.0),
+                Message(text: "You botch the order and have to start the wheel over — losing time and spare parts."),
+            ],
+        ),
+        (
+            id: "ox-leg",
+            success: [
+                AdjustOxen(base: -20.0),
+                AdjustMiles(base: -8.0, drift_coeff: -24.0),
+                Message(text: "Wrap, pad, bind — you dress the lame animal's leg in the right order and it slows you only a little."),
+            ],
+            fail: [
+                AdjustOxen(base: -20.0),
+                AdjustMiles(base: -8.0, drift_coeff: -24.0),
+                Message(text: "You fumble the dressing and the animal can't settle — you lose ground."),
+            ],
+        ),
+        (
+            id: "frostbite",
+            success: [
+                AdjustBullets(base: -10.0),
+                AdjustMisc(base: -5.0, drift_coeff: -6.0),
+                Message(text: "Warm, wrap, bind — you work the frostbite steps in order and save the limb."),
+                DieIfBroke("frostbite"),
+            ],
+            fail: [
+                AdjustBullets(base: -10.0),
+                AdjustMisc(base: -5.0, drift_coeff: -6.0),
+                Message(text: "You muddle the frostbite first-aid and waste the medicine."),
+                DieIfBroke("frostbite"),
+            ],
+        ),
+        // --- Bucket-brigade triage; drift = the leaked fraction ---
+        (
+            id: "fire",
+            success: [
+                AdjustFood(base: -8.0, drift_coeff: -32.0),
+                AdjustBullets(base: -80.0, drift_coeff: -320.0),
+                AdjustMisc(base: -2.0, drift_coeff: -9.0),
+                AdjustMiles(base: -4.0, drift_coeff: -11.0),
+                Message(text: "You stamp out the flames before they reach the supplies."),
+            ],
+            fail: [
+                AdjustFood(base: -8.0, drift_coeff: -32.0),
+                AdjustBullets(base: -80.0, drift_coeff: -320.0),
+                AdjustMisc(base: -2.0, drift_coeff: -9.0),
+                AdjustMiles(base: -4.0, drift_coeff: -11.0),
+                Message(text: "The fire races through the camp — food and supplies destroyed!"),
+            ],
+        ),
+        (
+            id: "rains",
+            success: [
+                AdjustFood(base: -2.0, drift_coeff: -8.0),
+                AdjustBullets(base: -100.0, drift_coeff: -400.0),
+                AdjustMisc(base: -3.0, drift_coeff: -12.0),
+                AdjustMiles(base: -3.0, drift_coeff: -12.0),
+                Message(text: "You cover the packs — the freezing sleet barely reaches them."),
+            ],
+            fail: [
+                AdjustFood(base: -2.0, drift_coeff: -8.0),
+                AdjustBullets(base: -100.0, drift_coeff: -400.0),
+                AdjustMisc(base: -3.0, drift_coeff: -12.0),
+                AdjustMiles(base: -3.0, drift_coeff: -12.0),
+                Message(text: "Freezing sleet soaks the packs — food and supplies lost."),
+            ],
+        ),
+        (
+            id: "blizzard",
+            success: [
+                AdjustFood(base: -5.0, drift_coeff: -20.0),
+                AdjustMisc(base: -2.0, drift_coeff: -8.0),
+                AdjustBullets(base: -60.0, drift_coeff: -240.0),
+                AdjustMiles(base: -6.0, drift_coeff: -64.0),
+                Message(text: "You keep the fire fed against the wind and push on through the blizzard."),
+            ],
+            fail: [
+                AdjustFood(base: -5.0, drift_coeff: -20.0),
+                AdjustMisc(base: -2.0, drift_coeff: -8.0),
+                AdjustBullets(base: -60.0, drift_coeff: -240.0),
+                AdjustMiles(base: -6.0, drift_coeff: -64.0),
+                Message(text: "The fire dies in the wind — the blizzard takes its toll."),
+            ],
+        ),
+        // --- Setting a broken bone (timing); drift = 1−accuracy ---
+        (
+            id: "splint",
+            success: [
+                AdjustMiles(base: -4.0, drift_coeff: -8.0),
+                AdjustMisc(base: -2.0, drift_coeff: -4.0),
+                Message(text: "You set the bone cleanly and splint it, losing little time."),
+            ],
+            fail: [
+                AdjustMiles(base: -4.0, drift_coeff: -8.0),
+                AdjustMisc(base: -2.0, drift_coeff: -4.0),
+                Message(text: "It takes a few tries to set the bone — you lose time and supplies."),
+            ],
+        ),
+        // --- Measuring a dose (timing); drift = the spill (1−accuracy). The illness's
+        // own toll lands at drift 0; a shaky pour spills extra medicine (the -6 slope on
+        // misc), which can tip a thin party into pneumonia (DieIfBroke). The Fail tier
+        // adds the "hand shook" spill line; both share the toll. ---
+        (
+            id: "dose-mild",
+            success: [
+                Message(text: "A mild illness — medicine used."),
+                AdjustMiles(base: -5.0),
+                AdjustMisc(base: -2.0),
+                AdjustMisc(base: 0.0, drift_coeff: -6.0),
+                DieIfBroke("pneumonia"),
+            ],
+            fail: [
+                Message(text: "A mild illness — medicine used."),
+                AdjustMiles(base: -5.0),
+                AdjustMisc(base: -2.0),
+                AdjustMisc(base: 0.0, drift_coeff: -6.0),
+                Message(text: "Your hand shook measuring the dose — you spill some medicine."),
+                DieIfBroke("pneumonia"),
+            ],
+        ),
+        (
+            id: "dose-bad",
+            success: [
+                Message(text: "A bad illness — medicine used."),
+                AdjustMiles(base: -5.0),
+                AdjustMisc(base: -5.0),
+                AdjustMisc(base: 0.0, drift_coeff: -6.0),
+                DieIfBroke("pneumonia"),
+            ],
+            fail: [
+                Message(text: "A bad illness — medicine used."),
+                AdjustMiles(base: -5.0),
+                AdjustMisc(base: -5.0),
+                AdjustMisc(base: 0.0, drift_coeff: -6.0),
+                Message(text: "Your hand shook measuring the dose — you spill some medicine."),
+                DieIfBroke("pneumonia"),
+            ],
+        ),
+        (
+            id: "dose-serious",
+            success: [
+                Message(text: "A serious illness — you must stop for medical attention."),
+                AdjustMisc(base: -10.0),
+                SetIll,
+                AdjustMisc(base: 0.0, drift_coeff: -6.0),
+                DieIfBroke("pneumonia"),
+            ],
+            fail: [
+                Message(text: "A serious illness — you must stop for medical attention."),
+                AdjustMisc(base: -10.0),
+                SetIll,
+                AdjustMisc(base: 0.0, drift_coeff: -6.0),
+                Message(text: "Your hand shook measuring the dose — you spill some medicine."),
+                DieIfBroke("pneumonia"),
+            ],
+        ),
+        // --- Heavy fog (route-memory); drift = 1−accuracy, applied only on a wander ---
+        (
+            id: "fog",
+            success: [
+                Message(text: "You keep the trail clear in your mind and come through the fog losing no time."),
+            ],
+            fail: [
+                AdjustMiles(base: -5.0, drift_coeff: -10.0),
+                Message(text: "You lose your way in the fog, wandering before you find the trail again."),
+            ],
+        ),
+        // --- The rugged climb (route-memory); drift = 1−accuracy. The host runs the
+        // one-time passes after applying this. ---
+        (
+            id: "climb",
+            success: [
+                AdjustMiles(base: -15.0, drift_coeff: -80.0),
+                Message(text: "You pick a clean line through the rocks and barely lose a step."),
+            ],
+            fail: [
+                AdjustMiles(base: -15.0, drift_coeff: -80.0),
+                Message(text: "The going turns rough — you backtrack through the rocks and lose ground."),
+            ],
+        ),
+        // --- Outrunning hostile riders (route-memory); drift = 1−accuracy. A clean
+        // getaway gains ground and clears the encounter; a foul drops into the gunfight
+        // (the host launches it after applying the Fail toll). ---
+        (
+            id: "flee",
+            success: [
+                AdjustMisc(base: -5.0, drift_coeff: -10.0),
+                AdjustOxen(base: -10.0, drift_coeff: -30.0),
+                AdjustMiles(base: 20.0),
+                Message(text: "You thread the breaks and leave the war party behind — a clean getaway."),
+            ],
+            fail: [
+                AdjustMisc(base: -5.0, drift_coeff: -10.0),
+                AdjustOxen(base: -10.0, drift_coeff: -30.0),
+            ],
+        ),
+        // --- The frozen-Cumberland ice crossing (steady-hand); drift = 1−accuracy. A
+        // badly shaky run (the host's `!steady && drift > 0.6`) is the catastrophe that
+        // cracks the ice. ---
+        (
+            id: "ice",
+            success: [
+                AdjustFood(base: -20.0, drift_coeff: -30.0),
+                AdjustOxen(base: -15.0, drift_coeff: -35.0),
+                AdjustMiles(base: -5.0, drift_coeff: -20.0),
+                Message(text: "You read the ice and drive the livestock over in good order — across the frozen Cumberland on Christmas Day."),
+            ],
+            fail: [
+                AdjustFood(base: -20.0, drift_coeff: -30.0),
+                AdjustOxen(base: -15.0, drift_coeff: -35.0),
+                AdjustMiles(base: -5.0, drift_coeff: -20.0),
+                Message(text: "The livestock balk and slip on the ice — you lose stock and supplies into the dark water, but the party makes the far bank."),
+            ],
+            catastrophe: [
+                Message(text: "The ice splinters under the herd in a long, sickening crack.", cover: Some("ice-broke")),
+                Die("ice-broke"),
+            ],
+        ),
+    ],
+    // Minigame difficulty/presentation, keyed by id. UI-only — the host splats these
+    // into the minigames-kit components. The dose comes in three severities; the host
+    // picks the id from the rolled illness.
+    minigames: [
+        (id: "ice", params: Steady(
+            prompt: "Christmas Day — drive the livestock over the frozen Cumberland. Hold a steady line; a slip cracks the ice.",
+            tolerance: 0.12, duration_ms: 7000, drift_speed: 1.4,
+        )),
+        (id: "wheel", params: Sequence(
+            prompt: "A cart wheel breaks down — re-hang it in order.",
+            symbols: ["JACK", "BLOCK", "BOLT", "SEAT"], length: 4, show_ms: 750,
+        )),
+        (id: "ox-leg", params: Sequence(
+            prompt: "A pack animal hurt its leg — dress it in sequence.",
+            symbols: ["WRAP", "PAD", "BIND", "SPLINT"], length: 4, show_ms: 700,
+        )),
+        (id: "frostbite", params: Sequence(
+            prompt: "Frostbite sets in! Work the first-aid steps in order.",
+            symbols: ["WARM", "DRY", "WRAP", "PAD", "BIND"], length: 5, show_ms: 600,
+        )),
+        (id: "fire", params: Brigade(
+            prompt: "Fire in camp — stamp out the flames before they reach the supplies!",
+            threat_icon: "🔥", initial_active: 3, spread_ms: 650, spread_chance: 0.45, duration_ms: 8000,
+        )),
+        (id: "rains", params: Brigade(
+            prompt: "Freezing sleet — cover the packs before it soaks the load!",
+            threat_icon: "💧", initial_active: 3, spread_ms: 800, spread_chance: 0.40, duration_ms: 8000,
+        )),
+        (id: "blizzard", params: Brigade(
+            prompt: "Blizzard in the pass — keep the fire fed against the wind!",
+            threat_icon: "❄️", initial_active: 3, spread_ms: 700, spread_chance: 0.45, duration_ms: 8500,
+        )),
+        (id: "splint", params: Timing(
+            prompt: "A child breaks an arm — set the bone clean!",
+            action: "SET", tolerance: 0.10, period_ms: 1500,
+        )),
+        (id: "dose-mild", params: Timing(
+            prompt: "A mild illness — measure the dose!",
+            action: "POUR", tolerance: 0.11, period_ms: 1400,
+        )),
+        (id: "dose-bad", params: Timing(
+            prompt: "A bad illness — measure the dose carefully!",
+            action: "POUR", tolerance: 0.11, period_ms: 1400,
+        )),
+        (id: "dose-serious", params: Timing(
+            prompt: "A serious illness — every drop counts!",
+            action: "POUR", tolerance: 0.08, period_ms: 1400,
+        )),
+        (id: "fog", params: Crowd(
+            prompt: "Fog rolls in — fix the trail before it closes!",
+            crowd_size: 10, member_icon: "🌫️", player_icon: "🐂", exit_icon: "🚩",
+        )),
+        (id: "flee", params: Crowd(
+            prompt: "Ride hard — thread the breaks and lose them!",
+            crowd_size: 10, member_icon: "🌲", player_icon: "🐎", exit_icon: "🌄",
+        )),
+        (id: "climb", params: Crowd(
+            prompt: "Rugged ridges — pick a clean line over the rocks!",
+            crowd_size: 12, member_icon: "🪨", player_icon: "🐂", exit_icon: "🏔️",
+        )),
+    ],
+    menus: (
+        trail: (options: [
+            (
+                label: "🏰 Stop at the next station",
+                hint: "Trade for supplies — but goods cost more here",
+                gate: [FortAvailable],
+                action: "fort",
+            ),
+            (
+                label: "🦌 Go hunting",
+                hint: "Spend powder and time for meat",
+                disable_gate: [CanHunt],
+                disabled_hint: Some("Need 40+ rounds"),
+                action: "hunt",
+            ),
+            (
+                label: "🛞 Press on down the road ▸",
+                hint: "",
+                primary: true,
+                action: "press-on",
+            ),
+        ]),
+        riders: (options: [
+            (label: "Run for it", hint: "thread the breaks to shake them", action: "run"),
+            (label: "Attack",     hint: "raise your rifle and fight",      action: "attack"),
+            (label: "Keep going", hint: "hold your course and hope",       action: "keep-going"),
+            (label: "Fort up",    hint: "dig in and defend",               action: "fort-up"),
+        ]),
+    ),
+)

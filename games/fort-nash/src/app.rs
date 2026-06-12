@@ -94,14 +94,15 @@ fn GameRoot() -> Element {
                     Mode::Eat => rsx! { screens::eat::Eat {} },
                     Mode::Shoot => rsx! { screens::shoot::Shoot {} },
                     Mode::Hunt => rsx! { screens::hunt::Hunt {} },
-                    Mode::Flee => rsx! { screens::flee::Flee {} },
-                    Mode::Climb => rsx! { screens::climb::Climb {} },
-                    Mode::Fog => rsx! { screens::fog::Fog {} },
-                    Mode::Splint => rsx! { screens::splint::Splint {} },
-                    Mode::Dose => rsx! { screens::dose::Dose {} },
-                    Mode::Steady => rsx! { screens::steady::Steady {} },
-                    Mode::Brigade => rsx! { screens::brigade::Brigade {} },
-                    Mode::Sequence => rsx! { screens::sequence::Sequence {} },
+                    // The eight data-driven minigames route through one generic host.
+                    Mode::Flee
+                    | Mode::Climb
+                    | Mode::Fog
+                    | Mode::Splint
+                    | Mode::Dose
+                    | Mode::Steady
+                    | Mode::Brigade
+                    | Mode::Sequence => rsx! { screens::minigame::Minigame {} },
                     Mode::Riders => rsx! { screens::riders::Riders {} },
                     Mode::Interaction => rsx! { screens::interaction_host::InteractionHost {} },
                     Mode::GameOver => rsx! { screens::game_over::GameOver {} },

@@ -1,22 +1,10 @@
 //! The embedded Kaintuck scenario. The RON content/flow file is compiled into
 //! the binary and parsed once, lazily, into an immutable [`Scenario`] behind a
-//! [`OnceLock`] — the same shape as the adventure game's `data()` (see
-//! `games/adventure/src/engine/data.rs`). The engine reads it ad hoc through
-//! [`scenario()`] rather than holding a borrow, so [`Game`](super::Game) stays
-//! `Serialize`.
+//! [`OnceLock`]. The engine reads it ad hoc through [`scenario()`] rather than
+//! holding a borrow, so [`Game`](super::Game) stays `Serialize`.
+//!
+//! The `OnceLock` + `include_str!` + parse boilerplate is shared with fort-nash
+//! through [`trail_kit::embed_scenario!`]; only the path, type, and parse fn
+//! differ.
 
-use std::sync::OnceLock;
-
-use trail_kit::Scenario;
-
-/// The verbatim scenario source, embedded in the binary.
-const KAINTUCK_RON: &str = include_str!("kaintuck.ron");
-
-/// The parsed, immutable scenario. Parsed once on first access; a malformed RON
-/// file is a programming error, so a parse failure panics with the span.
-pub fn scenario() -> &'static Scenario {
-    static SCENARIO: OnceLock<Scenario> = OnceLock::new();
-    SCENARIO.get_or_init(|| {
-        trail_kit::parse_scenario(KAINTUCK_RON).expect("kaintuck.ron failed to parse")
-    })
-}
+trail_kit::embed_scenario!("kaintuck.ron", trail_kit::Scenario, trail_kit::parse_scenario);

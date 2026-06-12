@@ -1,21 +1,22 @@
-//! The weekly hub: hunt, stop at a station, or press on down the road.
+//! The weekly hub: hunt, stop at a station, or press on down the road. The
+//! buttons come from the scenario's `trail` menu, rendered through the generic
+//! `SetPieceMenu`; the station button shows only when a station is offered this
+//! week and the hunt button only with powder enough (40+ rounds) to hunt.
 
 use dioxus::prelude::*;
 
-use crate::engine::state::TRAIL_MILES;
+use crate::engine::scenario_data::scenario;
 use crate::engine::Game;
-use retro_kit::components::menu_button::MenuButton;
+use crate::ui::components::set_piece_menu::SetPieceMenu;
 use retro_kit::theme::SCREEN_CENTERED;
 
 #[component]
 pub fn Trail() -> Element {
     let mut game = use_context::<Signal<Game>>();
-    let mut error = use_signal(String::new);
     let g = game.read();
-    let fort = g.state.fort_available();
-    let can_hunt = g.state.bullets > 39.0;
     let terrain = g.state.terrain();
-    let progress = (g.state.miles.max(0.0) / TRAIL_MILES * 100.0).min(100.0) as i64;
+    let progress =
+        (g.state.miles.max(0.0) / scenario().trail.total_miles * 100.0).min(100.0) as i64;
     drop(g);
 
     rsx! {
@@ -30,31 +31,21 @@ pub fn Trail() -> Element {
                 div { class: "text-xs opacity-60 mt-1", "{progress}% of the way to the French Lick" }
             }
             h2 { class: "text-center text-lg", "The road runs on. What now?" }
-            if !error.read().is_empty() {
-                p { class: "text-center chip-danger p-1", "{error}" }
-            }
-            if fort {
-                MenuButton {
-                    title: "🏰 Stop at the next station".to_string(),
-                    hint: "Trade for supplies — but goods cost more here".to_string(),
-                    onclick: move |_| game.write().choose_fort(),
-                }
-            }
-            MenuButton {
-                title: "🦌 Go hunting".to_string(),
-                hint: (if can_hunt { "Spend powder and time for meat" } else { "Need 40+ rounds" })
-                    .to_string(),
-                disabled: !can_hunt,
-                onclick: move |_| {
-                    if let Err(e) = game.write().choose_hunt() {
-                        error.set(e);
+            SetPieceMenu {
+                options: scenario().menus.trail.options.as_slice(),
+                onselect: move |action: String| {
+                    let mut w = game.write();
+                    match action.as_str() {
+                        "fort" => w.choose_fort(),
+                        "hunt" => {
+                            // The button only shows with powder enough, so this
+                            // never errors; the guard in `choose_hunt` stays anyway.
+                            let _ = w.choose_hunt();
+                        }
+                        "press-on" => w.choose_continue(),
+                        _ => {}
                     }
                 },
-            }
-            MenuButton {
-                title: "🛞 Press on down the road ▸".to_string(),
-                primary: true,
-                onclick: move |_| game.write().choose_continue(),
             }
         }
     }

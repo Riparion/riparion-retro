@@ -3,7 +3,7 @@
 
 use dioxus::prelude::*;
 
-use crate::engine::state::TRAIL_MILES;
+use crate::engine::scenario_data::scenario;
 use crate::engine::Game;
 use retro_kit::components::chip::Chip;
 use retro_kit::format::{fmt_dollars_compact, fmt_num, group_thousands};
@@ -14,7 +14,7 @@ pub fn StatusBar() -> Element {
     let g = game.read();
     let s = &g.state;
     let miles = s.miles.max(0.0);
-    let remaining = (TRAIL_MILES - miles).max(0.0);
+    let remaining = (scenario().trail.total_miles - miles).max(0.0);
     let unwell = s.ill || s.injured;
     let low_food = s.food < 30.0;
     let low_ammo = s.bullets < 40.0;

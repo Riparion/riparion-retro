@@ -9,39 +9,6 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Fort Patrick Henry (Kingsport) → Fort Nashborough (French Lick): the whole
-/// Wilderness Road, on the engine's stylized mileage scale.
-pub const TRAIL_MILES: f64 = 1600.0;
-/// $1 buys a horn of 50 rounds.
-pub const BULLETS_PER_DOLLAR: f64 = 50.0;
-/// Rounds spent per shot fired in the hunting gallery.
-pub const BULLETS_PER_SHOT: f64 = 5.0;
-/// You start with $700 in coin and trade goods, Kingsport, autumn of 1779.
-pub const STARTING_CASH: f64 = 700.0;
-/// Mile mark past which the ridges (Powell Mountain, Wallen's Ridge) begin.
-pub const MOUNTAINS_AT: f64 = 360.0;
-/// Mile mark of the Cumberland Gap — the passage through the Appalachian spine.
-pub const CUMBERLAND_GAP_AT: f64 = 760.0;
-/// Mile mark of the frozen Cumberland River crossing (the Christmas crossing).
-pub const CUMBERLAND_RIVER_AT: f64 = 1400.0;
-/// 9 weeks out of Kingsport and the deep winter buries you on the trail.
-pub const MAX_TURNS: u32 = 9;
-
-/// Date at the start of each week, indexed by turn (turn 0 = the Monday you
-/// march out of Fort Patrick Henry, November 1, 1779). Turn `MAX_TURNS` is past
-/// the end — caught by winter.
-pub const DATES: [&str; MAX_TURNS as usize] = [
-    "November 1",
-    "November 8",
-    "November 15",
-    "November 22",
-    "November 29",
-    "December 6",
-    "December 13",
-    "December 20",
-    "December 27",
-];
-
 /// How well you ate this week — drives provisions spend and illness odds. The
 /// ration model is shared across the trail games; see [`retro_kit::rations`].
 pub use retro_kit::rations::EatLevel;
@@ -83,7 +50,7 @@ impl GameState {
     pub fn new(party: String) -> Self {
         Self {
             party,
-            cash: STARTING_CASH,
+            cash: super::scenario_data::scenario().start.cash,
             food: 0.0,
             bullets: 0.0,
             clothing: 0.0,
@@ -109,19 +76,21 @@ impl GameState {
     }
 
     pub fn date_string(&self) -> String {
-        let idx = (self.turn as usize).min(DATES.len() - 1);
-        format!("{} 1779", DATES[idx])
+        let sc = super::scenario_data::scenario();
+        let idx = (self.turn as usize).min(sc.dates.len() - 1);
+        format!("{} {}", sc.dates[idx], sc.calendar.year)
     }
 
-    /// The checkpoint of the Wilderness Road you're crossing right now, by mileage.
-    /// Boundaries are read off [`CHECKPOINTS`] — one table that references the named
-    /// mile constants the passes also key on, so the displayed terrain can't drift
-    /// from where a pass actually fires.
-    pub fn terrain_kind(&self) -> Terrain {
-        let mut here = CHECKPOINTS[0].1;
-        for (start, terrain) in CHECKPOINTS {
-            if self.miles >= start {
-                here = terrain;
+    /// The checkpoint of the Wilderness Road you're crossing right now, by mileage
+    /// — the last scenario checkpoint whose starting mile you've reached. The
+    /// checkpoint mileposts line up with where the passes fire, so the displayed
+    /// terrain can't drift from the geography.
+    pub fn current_checkpoint(&self) -> &'static trail_kit::fortnash::Checkpoint {
+        let cps = &super::scenario_data::scenario().checkpoints;
+        let mut here = &cps[0];
+        for cp in cps {
+            if self.miles >= cp.mile {
+                here = cp;
             } else {
                 break;
             }
@@ -132,7 +101,12 @@ impl GameState {
     /// The stretch of country you're crossing, by mileage — flavor for the
     /// trail hub and a sense of progress between checkpoints.
     pub fn terrain(&self) -> &'static str {
-        self.terrain_kind().label()
+        &self.current_checkpoint().label
+    }
+
+    /// Kebab-case cover-art slug for the current stretch, e.g. `trail-<key>`.
+    pub fn terrain_key(&self) -> &'static str {
+        &self.current_checkpoint().key
     }
 
     /// Healthy / Ill / Injured for the status line.
@@ -210,69 +184,6 @@ pub enum Mode {
     GameOver,
 }
 
-/// The checkpoint of the Wilderness Road you're crossing, by mileage. The
-/// on-trail prose lives in [`Terrain::label`]; [`Terrain::key`] is the slug
-/// location-specific trail cover art keys on, e.g. `trail-<key>`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Terrain {
-    FortPatrickHenry,
-    MoccasinGap,
-    PowellValley,
-    MartinsStation,
-    CumberlandGap,
-    CrabOrchard,
-    KentuckyBarrens,
-    CumberlandRiver,
-    FortNashborough,
-}
-
-/// Each terrain band keyed by the mile at which it begins, in trail order. The
-/// pass mileposts come from the named constants (so `terrain_kind` and the passes
-/// share one source); the in-between display boundaries live only here.
-const CHECKPOINTS: [(f64, Terrain); 9] = [
-    (0.0, Terrain::FortPatrickHenry),
-    (180.0, Terrain::MoccasinGap),
-    (MOUNTAINS_AT, Terrain::PowellValley),
-    (560.0, Terrain::MartinsStation),
-    (CUMBERLAND_GAP_AT, Terrain::CumberlandGap),
-    (1000.0, Terrain::CrabOrchard),
-    (1200.0, Terrain::KentuckyBarrens),
-    (CUMBERLAND_RIVER_AT, Terrain::CumberlandRiver),
-    (TRAIL_MILES, Terrain::FortNashborough),
-];
-
-impl Terrain {
-    /// The "where you are" line shown on the trail hub.
-    pub fn label(self) -> &'static str {
-        match self {
-            Terrain::FortPatrickHenry => "Fort Patrick Henry",
-            Terrain::MoccasinGap => "Moccasin Gap",
-            Terrain::PowellValley => "Powell Valley",
-            Terrain::MartinsStation => "Martin's Station",
-            Terrain::CumberlandGap => "The Cumberland Gap",
-            Terrain::CrabOrchard => "Crab Orchard",
-            Terrain::KentuckyBarrens => "The Kentucky barrens",
-            Terrain::CumberlandRiver => "The Cumberland River",
-            Terrain::FortNashborough => "Fort Nashborough",
-        }
-    }
-
-    /// Kebab-case cover-art slug, e.g. `trail-<key>`.
-    pub fn key(self) -> &'static str {
-        match self {
-            Terrain::FortPatrickHenry => "fort-patrick-henry",
-            Terrain::MoccasinGap => "moccasin-gap",
-            Terrain::PowellValley => "powell-valley",
-            Terrain::MartinsStation => "martins-station",
-            Terrain::CumberlandGap => "cumberland-gap",
-            Terrain::CrabOrchard => "crab-orchard",
-            Terrain::KentuckyBarrens => "kentucky-barrens",
-            Terrain::CumberlandRiver => "cumberland-river",
-            Terrain::FortNashborough => "fort-nashborough",
-        }
-    }
-}
-
 /// Why the journey ended — a stable tag for each death and the victory. The
 /// on-screen prose lives in [`GameOverCause::message`]; [`GameOverCause::key`]
 /// is the slug cover art keys on (see FORTNASH_IMAGE_KEYS.md).
@@ -310,35 +221,31 @@ impl GameOverCause {
         }
     }
 
-    /// The line shown on the game-over screen.
+    /// The cause with the given key, if any — the inverse of [`Self::key`], used
+    /// to map a data-driven `Die`/`DieIfBroke` effect's cause string back to the
+    /// engine's cause.
+    pub fn from_key(key: &str) -> Option<Self> {
+        Some(match key {
+            "starved" => GameOverCause::Starved,
+            "pneumonia" => GameOverCause::Pneumonia,
+            "frostbite" => GameOverCause::Frostbite,
+            "winter" => GameOverCause::Winter,
+            "cant-tend-sick" => GameOverCause::CantAffordDoctor,
+            "raid-massacre" => GameOverCause::RiderMassacre,
+            "wolves" => GameOverCause::Wolves,
+            "ice-broke" => GameOverCause::IceBroke,
+            "victory" => GameOverCause::Victory,
+            _ => return None,
+        })
+    }
+
+    /// The line shown on the game-over screen, read from the scenario's ending
+    /// table (keyed by [`Self::key`]).
     pub fn message(self) -> &'static str {
-        match self {
-            GameOverCause::Starved => {
-                "Your provisions ran out and the party starved on the trail."
-            }
-            GameOverCause::Pneumonia => {
-                "Your medicine ran out and the sickness turned to pneumonia in the cold."
-            }
-            GameOverCause::Frostbite => {
-                "Frostbite took hold with no medicine left to treat it — the party could go no farther."
-            }
-            GameOverCause::Winter => {
-                "You've been on the trail too long. The deep winter closes the road and buries the party in the first hard blizzard."
-            }
-            GameOverCause::CantAffordDoctor => {
-                "With nothing left to trade for care, the sickness took the party."
-            }
-            GameOverCause::RiderMassacre => {
-                "Your powder ran out and the war party overran the camp."
-            }
-            GameOverCause::Wolves => "The wolves overpowered you. You died of your injuries.",
-            GameOverCause::IceBroke => {
-                "The ice gave way under the livestock and the party went into the freezing Cumberland."
-            }
-            GameOverCause::Victory => {
-                "You reached the French Lick and raised Fort Nashborough on the Cumberland — December 1779. Now hold the settlement through the winter until Donelson's river party arrives, April 24, 1780. A true founder!"
-            }
-        }
+        super::scenario_data::scenario()
+            .ending(self.key())
+            .map(|e| e.message.as_str())
+            .unwrap_or("The journey ended on the trail.")
     }
 }
 

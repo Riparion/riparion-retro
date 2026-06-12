@@ -1,12 +1,15 @@
 [package]
 name = "fort-nash"
-version = "0.1.4"
+version = "0.1.6"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 retro-kit = { workspace = true }
+# The data-driven scenario engine: Fort Nash's content and flow live in
+# fort_nash.ron, interpreted through trail-kit's fortnash schema.
+trail-kit = { workspace = true }
 # QuickDraw drives gunfights; Hunter drives the hunting gallery; CrowdThreading
 # drives the escape from a war party; TimingBar drives setting a broken bone and
 # measuring out medicine; SteadyHands drives the frozen-Cumberland ice crossing;

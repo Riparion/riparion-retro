@@ -24,7 +24,7 @@ struct Btn {
 
 #[component]
 pub fn SetPieceMenu(
-    options: &'static [SetPieceOption],
+    options: &'static [SetPieceOption<Gate>],
     onselect: EventHandler<(String, f64)>,
 ) -> Element {
     let game = use_context::<Signal<Game>>();
@@ -36,17 +36,29 @@ pub fn SetPieceMenu(
     let buttons: Vec<Btn> = options
         .iter()
         .filter(|o| gate_ok(&g, &o.gate))
-        .map(|o| Btn {
-            title: if o.label.contains("{cost}") {
-                o.label.replace("{cost}", &fmt_money(o.cost))
-            } else {
-                o.label.clone()
-            },
-            hint: o.hint.clone(),
-            primary: o.primary,
-            disabled: o.affordable_only && cash < o.cost,
-            action: o.action.clone(),
-            cost: o.cost,
+        .map(|o| {
+            // Disabled when a disable-gate fails or the option is unaffordable;
+            // a disable-gate (unlike the hiding `gate`) keeps the button visible
+            // and swaps in its disabled hint.
+            let gated_off = !gate_ok(&g, &o.disable_gate);
+            let unaffordable = o.affordable_only && cash < o.cost;
+            let disabled = gated_off || unaffordable;
+            let hint = match (gated_off, &o.disabled_hint) {
+                (true, Some(h)) => h.clone(),
+                _ => o.hint.clone(),
+            };
+            Btn {
+                title: if o.label.contains("{cost}") {
+                    o.label.replace("{cost}", &fmt_money(o.cost))
+                } else {
+                    o.label.clone()
+                },
+                hint,
+                primary: o.primary,
+                disabled,
+                action: o.action.clone(),
+                cost: o.cost,
+            }
         })
         .collect();
     drop(g);
