@@ -33,15 +33,111 @@ Scenario(
         river_miles: 1830.0,
         towns: [
             (name: "Pittsburgh",  slug: "pittsburgh",  milepost: 0.0,    base_ranks: [2, 8,  4, 6,  5,  7,  12], moneylender: false),
-            (name: "Wheeling",    slug: "wheeling",    milepost: 90.0,   base_ranks: [2, 10, 4, 7,  6,  7,  11], moneylender: false),
-            (name: "Marietta",    slug: "marietta",    milepost: 170.0,  base_ranks: [2, 11, 5, 8,  6,  7,  13], moneylender: false),
+            (name: "Wheeling",    slug: "wheeling",    milepost: 90.0,   base_ranks: [2, 10, 4, 7,  6,  7,  11], moneylender: false,
+                // Upper Ohio: the first hundred miles are one long string of
+                // riffles and bars (the sandbar arm 1 widened to 18%); piracy
+                // this far up is near nil (arm 3 trimmed to 3%).
+                hazards: Some((
+                    thresholds: [18.0, 26.0, 29.0, 37.0, 45.0, 52.0],
+                    grouped_thins: [3],
+                    arms: [
+                        Clean(message: Some("The current carries you down a long staircase of riffles — the boatmen's word for the broken water that frets over the bars.")),
+                        Minigame(outcome: "sandbar", message: Some("The first hundred miles of the Ohio are so full of bars a careless pilot grounds a dozen times a day. One reaches out for you now.")),
+                        Minigame(outcome: "patch"),
+                        Minigame(outcome: "pirates", message: Some("River pirates pull alongside!"), cover: Some("pirates")),
+                        Special("spoilage"),
+                        Special("crew-grumble"),
+                        Minigame(outcome: "bail"),
+                    ],
+                ))),
+            (name: "Marietta",    slug: "marietta",    milepost: 170.0,  base_ranks: [2, 11, 5, 8,  6,  7,  13], moneylender: false,
+                // Still the upper Ohio — riffles and bars, with Letart's Rapids
+                // on the reach above (a touch more bail). Piracy still slight.
+                hazards: Some((
+                    thresholds: [16.0, 24.0, 27.0, 35.0, 43.0, 52.0],
+                    grouped_thins: [3],
+                    arms: [
+                        Clean(message: Some("Quiet water, but for the riffles breaking over the bars and the warping-tackle left standing at Letart's Rapids upstream.")),
+                        Minigame(outcome: "sandbar", message: Some("A bar reaches out from the head of an island — the kind the Navigator numbers by the score on this reach.")),
+                        Minigame(outcome: "patch"),
+                        Minigame(outcome: "pirates", message: Some("River pirates pull alongside!"), cover: Some("pirates")),
+                        Special("spoilage"),
+                        Special("crew-grumble"),
+                        Minigame(outcome: "bail"),
+                    ],
+                ))),
             (name: "Maysville",   slug: "maysville",   milepost: 410.0,  base_ranks: [3, 12, 5, 8,  7,  8,  15], moneylender: false),
             (name: "Cincinnati",  slug: "cincinnati",  milepost: 470.0,  base_ranks: [3, 13, 6, 9,  7,  8,  17], moneylender: true),
             (name: "Louisville",  slug: "louisville",  milepost: 600.0,  base_ranks: [3, 14, 6, 10, 8,  9,  18], moneylender: false),
-            (name: "Shawneetown", slug: "shawneetown", milepost: 850.0,  base_ranks: [3, 14, 6, 11, 8,  9,  18], moneylender: false),
-            (name: "Cairo",       slug: "cairo",       milepost: 980.0,  base_ranks: [3, 15, 6, 11, 8,  10, 19], moneylender: false),
-            (name: "Grand Tower", slug: "grand-tower", milepost: 1010.0, base_ranks: [3, 16, 6, 11, 9,  10, 19], moneylender: false),
-            (name: "Memphis",     slug: "memphis",     milepost: 1430.0, base_ranks: [3, 16, 6, 11, 9,  11, 19], moneylender: true),
+            (name: "Shawneetown", slug: "shawneetown", milepost: 850.0,  base_ranks: [3, 14, 6, 11, 8,  9,  18], moneylender: false,
+                // Lower Ohio: the snags begin — planters and sawyers fixed in the
+                // bottom (the patch arm 2 widened to 17%), and the first whiff of
+                // the piracy that thickens toward Cave-in-Rock.
+                hazards: Some((
+                    thresholds: [9.0, 26.0, 33.0, 41.0, 48.0, 56.0],
+                    grouped_thins: [3],
+                    arms: [
+                        Clean(message: Some("The lower Ohio runs broad and brown. Floating logs — the boatmen call the worst of them planters and sawyers — slide past on the current.")),
+                        Minigame(outcome: "sandbar"),
+                        Minigame(outcome: "patch", message: Some("A sawyer — a sunken log with its free end bobbing in the current — heaves up under the bow and stoves a plank.")),
+                        Minigame(outcome: "pirates", message: Some("River pirates pull alongside!"), cover: Some("pirates")),
+                        Special("spoilage"),
+                        Special("crew-grumble"),
+                        Minigame(outcome: "bail"),
+                    ],
+                ))),
+            (name: "Cairo",       slug: "cairo",       milepost: 980.0,  base_ranks: [3, 15, 6, 11, 8,  10, 19], moneylender: false,
+                // The mouth of the Ohio: the two currents collide into "boils" —
+                // irregular water that can swamp a boat (the bail arm 6 up to
+                // 11%). The Cave-in-Rock relay-pilot set-piece carries the piracy
+                // here, so the pirate arm stays modest.
+                hazards: Some((
+                    thresholds: [12.0, 22.0, 28.0, 36.0, 44.0, 55.0],
+                    grouped_thins: [3],
+                    arms: [
+                        Clean(message: Some("Where the Ohio pours into the Mississippi the waters fight and throw up boils — patches of river that heave and turn without warning.")),
+                        Minigame(outcome: "sandbar", message: Some("A bar builds where the two rivers meet, shifting with every rise. You feel her touch it.")),
+                        Minigame(outcome: "patch"),
+                        Minigame(outcome: "pirates", message: Some("River pirates pull alongside!"), cover: Some("pirates")),
+                        Special("spoilage"),
+                        Special("crew-grumble"),
+                        Minigame(outcome: "bail", message: Some("A boil takes her broadside and the river comes over the gunwale — bail, before she fills!")),
+                    ],
+                ))),
+            (name: "Grand Tower", slug: "grand-tower", milepost: 1010.0, base_ranks: [3, 16, 6, 11, 9,  10, 19], moneylender: false,
+                // The Grand Chain of the Mississippi: thirty miles of rock — the
+                // Devil's Bake Oven, the Devil's Anvil and Backbone — where boats
+                // must land and cordelle through, and where the gangs lay in
+                // wait. Pirates (arm 3) widen to 14%, the rock-snag patch to 12%.
+                hazards: Some((
+                    thresholds: [10.0, 22.0, 36.0, 42.0, 48.0, 56.0],
+                    grouped_thins: [3],
+                    arms: [
+                        Clean(message: Some("The river boils against the Devil's Bake Oven and hurls itself at the Grand Tower opposite. You thread the Grand Chain and run clear.")),
+                        Minigame(outcome: "sandbar"),
+                        Minigame(outcome: "patch", message: Some("The current drives you onto the Cornice Rocks — the Devil's Anvil — and a ledge tears at the hull.")),
+                        Minigame(outcome: "pirates", message: Some("Where the rapids force every boat to land and cordelle, men step out of the rocks to rob you — draw!"), cover: Some("pirates")),
+                        Special("spoilage"),
+                        Special("crew-grumble"),
+                        Minigame(outcome: "bail"),
+                    ],
+                ))),
+            (name: "Memphis",     slug: "memphis",     milepost: 1430.0, base_ranks: [3, 16, 6, 11, 9,  11, 19], moneylender: true,
+                // The Chickasaw Bluffs: the Mississippi gathers into great basin
+                // eddies below the bluffs (the sandbar arm carries the whirl).
+                hazards: Some((
+                    thresholds: [15.0, 25.0, 33.0, 41.0, 48.0, 56.0],
+                    grouped_thins: [3],
+                    arms: [
+                        Clean(message: Some("Below the Chickasaw Bluffs the river draws into a slow, basin-shaped eddy and turns the boat lazily round before letting her go.")),
+                        Minigame(outcome: "sandbar", message: Some("A basin eddy off the bluffs catches her and whirls her toward the bar at its rim — hold her off!")),
+                        Minigame(outcome: "patch"),
+                        Minigame(outcome: "pirates", message: Some("River pirates pull alongside!"), cover: Some("pirates")),
+                        Special("spoilage"),
+                        Special("crew-grumble"),
+                        Minigame(outcome: "bail"),
+                    ],
+                ))),
             (name: "Natchez",     slug: "natchez",     milepost: 1830.0, base_ranks: [4, 21, 8, 14, 11, 15, 18], moneylender: false,
                 // The lower river (Cave-in-Rock down toward Natchez) was the
                 // piracy gauntlet. The pirate arm is arms[3], whose band is
@@ -216,12 +312,12 @@ Scenario(
             catastrophe: [ Die("boat-wrecked") ],
             success: [
                 AdjustReputation(5.0),
-                Message(text: "You run the two-mile chute clean as a whistle. Word of it travels downriver ahead of you."),
+                Message(text: "The stream rolls on in a smooth unbroken sheet — she takes the chute, and in a few moments rides out into serene water below. A clean run of the two-mile rapid, and word of it travels downriver ahead of you."),
             ],
             partial: [
                 LoseCargoFraction(base: 0.10, drift_coeff: 0.15),
                 AdjustMorale(-15.0),
-                Message(text: "You scrape the rocks coming through the falls — {cargo_lost} of cargo goes into the river."),
+                Message(text: "You scrape the rocks of the Indian Chute coming through the falls — {cargo_lost} of cargo goes into the river."),
             ],
         ),
         // --- River set-piece: running the shoals below Cave-in-Rock ---
