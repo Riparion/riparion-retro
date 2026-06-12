@@ -5,8 +5,11 @@ scanned pages of:
 
 > **Leland D. Baldwin, *The Keelboat Age on Western Waters*** (University of Pittsburgh Press, 1941).
 > — Chapter 4, "The Boatmen," pp. 85–99
-> — Chapter 3, "Boats and Boatbuilding," p. 53
+> — Chapter 2, "Boats and Boatbuilding," p. 53
 > — frontispiece "Map of Western Rivers"
+
+(Chapter 3, "The Art of Navigation," pp. 56–83, is covered separately in
+[RESEARCH_NAVIGATION.md](RESEARCH_NAVIGATION.md).)
 
 This is period detail to ground Kaintuck's economy, hazards, and crew flavor in something real. Where
 the book quotes other observers (Schultz, Collot, Michaux, Melish, Brackenridge, Schoolcraft, Flint,

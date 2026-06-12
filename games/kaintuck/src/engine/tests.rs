@@ -791,8 +791,15 @@ fn golden_trace_is_stable() {
     // deferred-items pass: the Cave-in-Rock relay-pilot set-piece (a new mandatory
     // landing at Cairo — a real behavior change, with its cargo-value trap into the
     // pirate quick-draw), plus Mason through-line beats and Colbert's-ferry copy.
+    // Re-pinned for the navigation ingest (RESEARCH_NAVIGATION.md): six river legs
+    // (Wheeling, Marietta, Shawneetown, Cairo, Grand Tower, Memphis) get their own
+    // per-leg hazard tables — retuned band widths per the real danger of each reach
+    // (upper-Ohio riffles/bars, lower-Ohio snags, confluence boils, the Grand Chain
+    // ambush, the Chickasaw-bluff eddies) plus folk-named flavor messages. Retuned
+    // thresholds shift which arm fires, so river outcomes/scores move (the win/loss
+    // pattern across seeds is unchanged). Falls success/partial prose enriched too.
     // Behavior must not drift; if this trips, run `print_golden_trace` to diff.
-    const EXPECTED: u64 = 0x20a7_2e77_fe3c_fede;
+    const EXPECTED: u64 = 0x617f_b5bc_5588_aa65;
     assert_eq!(
         got, EXPECTED,
         "golden trace drifted: got {:#018x} over {} bytes",
