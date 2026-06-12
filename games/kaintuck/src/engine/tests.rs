@@ -137,6 +137,7 @@ fn scripted_full_playthrough_smoke() {
                 Mode::Pittsburgh | Mode::Town => g.depart(),
                 Mode::Falls => g.falls_pilot(8.0),
                 Mode::GrandTower => g.grand_tower_duck(),
+                Mode::CaveInRock => g.cave_hire(5.0),
                 Mode::Natchez | Mode::GameOver => break,
                 other => panic!("seed {seed}: unexpected river mode {other:?}"),
             }
@@ -238,6 +239,27 @@ fn a_fast_final_day_on_foot_still_faces_the_duck_river_ferry() {
         Some(Interaction::FerryToll { .. })
     ));
     assert!(g.outcome.is_none(), "must not win before the river is crossed");
+}
+
+#[test]
+fn pushing_hard_to_colberts_ferry_loses_a_day() {
+    let mut g = at_divide_having_vaulted_the_river(7, false);
+    g.state.pace = super::state::Pace::Hard;
+    g.state.cash = 50.0;
+    g.leave_stand(); // surfaces the ferry prompt
+    assert!(matches!(g.pending.front(), Some(Interaction::FerryToll { .. })));
+    g.resolve(Response::Yes); // pay Colbert's toll
+    assert_eq!(g.state.extra_days, 1, "a hard push arrives after dark — a day lost");
+}
+
+#[test]
+fn a_steady_pace_to_colberts_ferry_loses_no_day() {
+    let mut g = at_divide_having_vaulted_the_river(7, false);
+    g.state.pace = super::state::Pace::Steady;
+    g.state.cash = 50.0;
+    g.leave_stand();
+    g.resolve(Response::Yes);
+    assert_eq!(g.state.extra_days, 0, "an early arrival crosses without waiting");
 }
 
 #[test]
@@ -344,6 +366,108 @@ fn pirates_boarding_costs_reputation_and_cargo() {
     assert!(!g.state.robbed, "river pirates don't set the Trace-robbed flag");
 }
 
+#[test]
+fn river_convoy_halves_the_pirates_take() {
+    // Same seed, same boarding — sailing in company should cost less cargo,
+    // because `grouped()` is true and the pirates' loss halves under it.
+    let run = |convoy: bool| {
+        let mut g = started(1);
+        g.build(BoatKind::Flatboat, 3).unwrap();
+        g.buy(0, g.max_buy(0));
+        let before = g.state.hold[0];
+        g.state.grouped = false;
+        g.state.river_convoy = convoy;
+        g.begin_quick(super::tasks::QuickTask::Pirates);
+        g.resolve_quick(2.0, false); // boarded
+        before - g.state.hold[0]
+    };
+    let solo = run(false);
+    let convoyed = run(true);
+    assert!(convoyed > 0, "the pirates still take something in company");
+    assert!(
+        convoyed < solo,
+        "a convoy thins the pirates' take ({convoyed} < {solo})"
+    );
+}
+
+#[test]
+fn sailing_in_company_costs_a_day() {
+    let mut g = started(1);
+    g.build(BoatKind::Flatboat, 3).unwrap();
+    g.set_river_convoy(true);
+    assert_eq!(g.state.extra_days, 0);
+    g.depart();
+    assert_eq!(g.state.extra_days, 1, "a convoy leg burns a day forming up");
+}
+
+#[test]
+fn the_river_convoy_does_not_leak_into_the_trace() {
+    // Sail the last leg in company, then walk alone — the convoy's robbery
+    // relief must not follow you onto the Trace (grouped() reads both flags).
+    let mut g = started(1);
+    g.state.town = super::state::NATCHEZ;
+    g.mode = Mode::Natchez;
+    g.state.river_convoy = true;
+    g.set_out_on_trace();
+    assert!(!g.state.river_convoy, "entering the Trace clears the river convoy");
+    g.state.grouped = false;
+    assert!(!g.grouped(), "walking alone on the Trace is truly alone");
+}
+
+#[test]
+fn lost_days_count_toward_the_reckoning() {
+    let mut g = started(1);
+    let d0 = g.days_elapsed();
+    g.lose_days(2);
+    assert_eq!(g.days_elapsed(), d0 + 2, "extra_days folds into days elapsed");
+}
+
+#[test]
+fn the_counterfeit_con_skims_the_purse() {
+    let mut g = started(1);
+    g.state.cash = 100.0;
+    g.do_counterfeit();
+    assert!(
+        g.state.cash < 100.0 && g.state.cash >= 60.0,
+        "8–15% skimmed, capped at $40 (cash now {})",
+        g.state.cash
+    );
+    assert!(g.state.reputation < 0.0, "being cheated dents reputation");
+    assert!(g.state.morale < 100.0, "and morale");
+}
+
+#[test]
+fn the_counterfeit_con_is_a_no_op_on_an_empty_purse() {
+    let mut g = started(1);
+    g.state.cash = 3.0;
+    g.do_counterfeit();
+    assert_eq!(g.state.cash, 3.0, "nothing worth skimming, no loss");
+    assert_eq!(g.state.reputation, 0.0, "and no reputation hit");
+}
+
+#[test]
+fn cave_in_rock_offer_traps_a_rich_boat_and_spares_a_poor_one() {
+    // A fat hold is worth grounding for — the stranger's offer is a trap.
+    let mut g = started(1);
+    g.build(BoatKind::Flatboat, 3).unwrap();
+    g.buy(0, g.max_buy(0)); // load up on corn
+    g.mode = Mode::CaveInRock;
+    assert!(g.state.cargo_value() > 60.0);
+    g.cave_take();
+    assert_eq!(g.mode, Mode::Quick, "a rich boat is led into the pirates' ambush");
+    assert!(g.state.crossed_mason, "tangling with Mason's gang marks him for the Trace");
+
+    // A near-empty hold isn't worth the betrayal — you pass clean (no quick-draw),
+    // and with no confrontation Mason leaves no mark.
+    let mut g = started(1);
+    g.build(BoatKind::Flatboat, 3).unwrap();
+    g.mode = Mode::CaveInRock;
+    assert!(g.state.cargo_value() <= 60.0);
+    g.cave_take();
+    assert_ne!(g.mode, Mode::Quick, "a poor boat is waved through");
+    assert!(!g.state.crossed_mason, "no confrontation, no mark");
+}
+
 // ===== Declarative catastrophe selection =====
 //
 // `resolve_tier` is the single seam that associates any minigame outcome with a
@@ -398,8 +522,8 @@ fn minigame_inverse_map_round_trips() {
     // inverses; a drift between them would silently break a hazard (panic) or an
     // empty minigame screen. Pin them in agreement for every hazard minigame.
     for id in [
-        "sandbar", "falls-run", "swamp", "duck-ford", "pirates", "mason", "harpe", "side-trail",
-        "dose", "patch", "bail",
+        "sandbar", "falls-run", "cave-run", "swamp", "duck-ford", "pirates", "mason", "harpe",
+        "side-trail", "dose", "patch", "bail",
     ] {
         let mut g = Game::new(0);
         g.begin_minigame_for(id);
@@ -582,6 +706,11 @@ fn golden_run(seed: u64, log: &mut String) {
                     g.grand_tower_duck()
                 }
             }
+            Mode::CaveInRock => match feed.next() % 3 {
+                0 => g.cave_take(),
+                1 => g.cave_hire(5.0),
+                _ => g.cave_run(),
+            },
             Mode::Natchez => {
                 if natchez_first {
                     natchez_first = false;
@@ -654,9 +783,16 @@ fn golden_trace_is_stable() {
     // only), then a boatmen flavor pass (more banter + folk hazard names), and
     // now four new river landings (Marietta, Maysville, Shawneetown, Grand Tower)
     // with the Grand Tower initiation set-piece — a real behavior change: more
-    // legs means a longer RNG stream and more markets. Behavior must not drift;
-    // if this trips, run `print_golden_trace` (below) before and after to diff.
-    const EXPECTED: u64 = 0x9a47_4593_7bcc_0023;
+    // legs means a longer RNG stream and more markets. Re-pinned again for the
+    // river-pirates ingest (RESEARCH_PIRATES.md): six new ambient banter beats
+    // (narrative), the "sail in company" river convoy (default off, so it adds no
+    // draw on this trace), and the counterfeit-con Special on the lower-river leg
+    // into Natchez (a new (60,64] hazard band). Re-pinned once more for the
+    // deferred-items pass: the Cave-in-Rock relay-pilot set-piece (a new mandatory
+    // landing at Cairo — a real behavior change, with its cargo-value trap into the
+    // pirate quick-draw), plus Mason through-line beats and Colbert's-ferry copy.
+    // Behavior must not drift; if this trips, run `print_golden_trace` to diff.
+    const EXPECTED: u64 = 0x20a7_2e77_fe3c_fede;
     assert_eq!(
         got, EXPECTED,
         "golden trace drifted: got {:#018x} over {} bytes",
@@ -844,8 +980,8 @@ fn scenario_is_self_consistent() {
         assert_eq!(e.won, should_win, "ending {c:?} won-flag");
     }
     for id in [
-        "sandbar", "falls-run", "swamp", "duck-ford", "pirates", "mason", "harpe", "side-trail",
-        "dose", "patch", "bail",
+        "sandbar", "falls-run", "cave-run", "swamp", "duck-ford", "pirates", "mason", "harpe",
+        "side-trail", "dose", "patch", "bail",
     ] {
         assert!(sc.outcome(id).is_some(), "missing outcome {id}");
     }
@@ -927,12 +1063,13 @@ fn scenario_is_self_consistent() {
     // Every set-piece menu option names a known action, and the costs the menu
     // shows match the economy the engine actually charges.
     let known = [
-        "falls-pilot", "falls-run", "falls-wait", "gt-treat", "gt-duck", "sell-cargo", "sell-boat",
-        "gamble", "buy-horse", "set-out", "rest", "leave",
+        "falls-pilot", "falls-run", "falls-wait", "gt-treat", "gt-duck", "cave-take", "cave-hire",
+        "cave-run", "sell-cargo", "sell-boat", "gamble", "buy-horse", "set-out", "rest", "leave",
     ];
     for menu in [
         &sc.menus.falls,
         &sc.menus.grandtower,
+        &sc.menus.caveinrock,
         &sc.menus.natchez,
         &sc.menus.stand,
     ] {
@@ -947,6 +1084,7 @@ fn scenario_is_self_consistent() {
     };
     assert_eq!(cost_of(&sc.menus.falls, "falls-pilot"), 8.0);
     assert_eq!(cost_of(&sc.menus.grandtower, "gt-treat"), 2.0);
+    assert_eq!(cost_of(&sc.menus.caveinrock, "cave-hire"), 5.0);
     assert_eq!(cost_of(&sc.menus.natchez, "buy-horse"), 12.0);
     assert_eq!(cost_of(&sc.menus.stand, "rest"), 8.0);
     assert_eq!(cost_of(&sc.menus.stand, "buy-horse"), 14.0);

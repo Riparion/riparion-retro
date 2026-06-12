@@ -47,12 +47,14 @@ Scenario(
                 // piracy gauntlet. The pirate arm is arms[3], whose band is
                 // (thresholds[1], thresholds[2]]: this override widens it from
                 // (20,30] = 10% to (14,44] = 30%, trimming the other minor arms.
-                // The top threshold stays 60, so the clean residual above it is
-                // unchanged at 40% — this leg is no more eventful overall, its
-                // events are just three times as likely to be river pirates.
+                // A new top band (60,64] adds the counterfeit con (arm 7) at 4%,
+                // the trade of the Stack Island gangs on this lower water; the
+                // clean residual above it is 36%. The pirate arm stays arms[3].
                 hazards: Some((
-                    thresholds: [8.0, 14.0, 44.0, 50.0, 55.0, 60.0],
-                    grouped_thins: [],
+                    thresholds: [8.0, 14.0, 44.0, 50.0, 55.0, 60.0, 64.0],
+                    // Sailing in company draws off the pirates (arm 3) on the
+                    // lower river — half the time it converts to a clean leg.
+                    grouped_thins: [3],
                     arms: [
                         Clean(message: Some("The current carries you on, but every snag on the bank looks like a hidden skiff.")),
                         Minigame(outcome: "sandbar", message: Some("The river bends hard at the Devil's Elbow and a bar reaches out from the point.")),
@@ -61,13 +63,15 @@ Scenario(
                         Special("spoilage"),
                         Special("crew-grumble"),
                         Minigame(outcome: "bail"),
+                        Special("counterfeit"),
                     ],
                 ))),
         ],
         // arms[0] is a clean leg; arms[1..] line up with the thresholds above.
         hazards: (
             thresholds: [10.0, 20.0, 30.0, 42.0, 52.0, 60.0],
-            grouped_thins: [],
+            // A convoy thins river pirates (arm 3), as on the lower-river table.
+            grouped_thins: [3],
             arms: [
                 Clean(message: Some("The current carries you on. A quiet stretch of river.")),
                 Minigame(outcome: "sandbar"),
@@ -142,8 +146,10 @@ Scenario(
         rest_provisions: 30.0,
         rest_health: 10.0,
         falls_pilot_msg: "A falls pilot takes the steering oar and threads you down the two-mile chute, clean.",
-        ferry_cross_msg: "The ferryman poles you across the Duck River, dry and whole.",
+        ferry_cross_msg: "Colbert's hands pole you across, dry and whole. A dollar a head, and he clears a fortune on this crossing alone.",
         duck_horse_msg: "You reach the Duck River. Astride your horse you pick a line through the current and cross without much trouble.",
+        ferry_late_days: 1,
+        ferry_late_msg: "You reach Colbert's ferry after the hands have bedded down. They're a contrary lot and won't pole you over till daylight — a day lost on the bank.",
     ),
 
     // The buttons each set-piece screen shows. Gates hide an option until its
@@ -158,6 +164,11 @@ Scenario(
         grandtower: (options: [
             (label: "Stand a treat — {cost}", hint: "Buy the round and pass the Grand Tower with your dignity — and the crew's good humor.", cost: 2.0, action: "gt-treat"),
             (label: "Refuse — take the ducking", hint: "Let them shave and duck the greenhorn. It costs nothing but pride.", primary: true, action: "gt-duck"),
+        ]),
+        caveinrock: (options: [
+            (label: "Take the stranger's pilot offer", hint: "He hails you from the bank, free of charge. A bargain — or a trap, depending on what you're carrying.", action: "cave-take"),
+            (label: "Hire your own pilot — {cost}", hint: "The honest hand the Navigator names. Safe passage past the cave for a fee.", cost: 5.0, action: "cave-hire"),
+            (label: "Run the shoals yourself", hint: "Free — but the channel below the cave is a serpentine of bars and rock. Hold your line.", primary: true, action: "cave-run"),
         ]),
         natchez: (options: [
             (label: "Sell cargo",                   hint: "Top prices on the river — sell it all.", gate: [HasCargo], action: "sell-cargo"),
@@ -211,6 +222,21 @@ Scenario(
                 LoseCargoFraction(base: 0.10, drift_coeff: 0.15),
                 AdjustMorale(-15.0),
                 Message(text: "You scrape the rocks coming through the falls — {cargo_lost} of cargo goes into the river."),
+            ],
+        ),
+        // --- River set-piece: running the shoals below Cave-in-Rock ---
+        (
+            id: "cave-run",
+            catastrophe_below: Some(0.15),
+            catastrophe: [ Die("boat-wrecked") ],
+            success: [
+                AdjustReputation(4.0),
+                Message(text: "You thread the serpentine channel below the cave on your own judgment, past Tower Rock and Hurricane Island, and out clean. The pirates on the bank watch you go."),
+            ],
+            partial: [
+                LoseCargoFraction(base: 0.10, drift_coeff: 0.15),
+                AdjustMorale(-15.0),
+                Message(text: "You strike a bar below the cave and hang there working free — {cargo_lost} of cargo washes off into the channel."),
             ],
         ),
         // --- Trace steady-hand: a swamp crossing ---
@@ -352,6 +378,7 @@ Scenario(
     minigames: [
         (id: "sandbar",    params: Steady(prompt: "Sandbar ahead — hold her off the bar with the steering oar.",              tolerance: 0.13, duration_ms: 6000, drift_speed: 1.2)),
         (id: "falls-run",  params: Steady(prompt: "The Falls of the Ohio! Run the chute — hold your line through the rapids.", tolerance: 0.10, duration_ms: 7000, drift_speed: 1.6)),
+        (id: "cave-run",   params: Steady(prompt: "Below Cave-in-Rock — thread the bars and rock of the serpentine channel.", tolerance: 0.11, duration_ms: 6800, drift_speed: 1.5)),
         (id: "swamp",      params: Steady(prompt: "A flooded swamp crossing — keep your footing on the firm ground.",         tolerance: 0.13, duration_ms: 6000, drift_speed: 1.3)),
         (id: "duck-ford",  params: Steady(prompt: "Fording the Duck River on foot — hold against the current.",              tolerance: 0.11, duration_ms: 6500, drift_speed: 1.5)),
         (id: "pirates",    params: Quick(prompt: "River pirates pull alongside — draw!",        words: ["FIRE", "DRAW", "BANG", "CRACK"])),
@@ -428,6 +455,20 @@ Scenario(
                     ],
                 ),
                 (
+                    key: "the-wreckers",
+                    lines: [
+                        (voice: "A man on the bank waves a pole and hollers an offer to pilot you past the shoals:", text: "\"Channel's wicked through here, captain! Take me on — dollar or two and I'll thread you clean!\""),
+                        (voice: "The old riverman doesn't slow:", text: "Wreckers. Their whole trade — talk their way to your steering oar, then ground you on a bar where their friends are waiting. Refuse 'em and they'll bawl false directions to wreck you anyhow. Best pilot's the one who don't have to chase your boat down."),
+                    ],
+                ),
+                (
+                    key: "colonel-plug",
+                    lines: [
+                        (voice: "The old riverman nods at a half-sunk hulk rotting on a bar:", text: "Boat-wrecker's work, that. The famousest of 'em was a New Hampshire man — Colonel Plug, his wife they called Pluggy. He'd slip aboard a tied-up boat and dig the caulkin' out the bottom so she'd sink slow, then 'rescue' the cargo for hisself."),
+                        (voice: "He spits over the side:", text: "Got his comeuppance, though. Down in a boat's belly diggin' out the oakum when a squall snapped her line and run her into the river — sank her with the Colonel still aboard. The river keeps a fair set of books."),
+                    ],
+                ),
+                (
                     key: "the-hail",
                     lines: [
                         (voice: "A boat sweeps past and a man cups his hands across the water:", text: "\"Where you from? What's your lading? Who's your captain? Where you bound?\""),
@@ -489,6 +530,20 @@ Scenario(
                     ],
                 ),
                 (
+                    key: "stack-island",
+                    lines: [
+                        (voice: "The farmhand eyes a low willow island sliding past:", text: "Looks a lonesome place to tie up."),
+                        (voice: "The old riverman keeps to the channel:", text: "That's Stack Island water — Crow's Nest, the pirates called it. Counterfeiters and cutthroats laired there for years, paid honest crews in bad coin and robbed the rest. Then the big earthquake of 'eleven come and swallowed island, robbers, and all. Some debts the river settles itself."),
+                    ],
+                ),
+                (
+                    key: "mason-river",
+                    lines: [
+                        (voice: "The farmhand lowers his voice:", text: "That Cave-in-Rock — whose lair was it, truly?"),
+                        (voice: "The old riverman:", text: "Sam Mason's, more years than not. Fine-looking man, soft-spoke, a captain in the war once — and the worst river pirate that ever cut a throat for a cargo. When the cave got too hot he didn't quit the trade. He carried it overland, onto the Natchez Trace. Same road you'll walk home, boy."),
+                    ],
+                ),
+                (
                     key: "night-camp",
                     lines: [
                         (voice: "You tie up at dusk and the boy slaps at the air:", text: "These skeeters mean to carry me clean off."),
@@ -528,6 +583,20 @@ Scenario(
                         (voice: "The old trace-walker:", text: "These inns — the stands — most are kept by Chickasaw and Choctaw on their own land. A meal, a roof, and you're safe while you're under it. Mind your manners. We're guests the whole way north."),
                     ],
                 ),
+                (
+                    key: "grindstone-ford",
+                    lines: [
+                        (voice: "Crossing a creek at a stone ford, the old trace-walker stops to fill his canteen:", text: "Grindstone Ford. Mark it well — last roof and last hot meal you'll see this side of Nashville, and that's near five hundred mile of woods off. From here north it's your own two feet, your own rifle, and whatever you sewed into your belt."),
+                    ],
+                ),
+                (
+                    key: "mason-wanted",
+                    gates: [Marked(true)],
+                    lines: [
+                        (voice: "A broadside is nailed to a post where the trail forks — you stop to read it:", text: "ONE THOUSAND DOLLARS REWARD — SAMUEL MASON — dead or alive."),
+                        (voice: "The old trace-walker spits:", text: "Your boat's the one his men jumped at the cave. They don't forget a face, and a thousand dollars buys a lot of forgetting from anyone who has. Walk in the middle of the party from here, and keep that money out of sight."),
+                    ],
+                ),
             ],
         ),
         // ----- Past the divide: Harpe country -----
@@ -539,6 +608,27 @@ Scenario(
                     lines: [
                         (voice: "The boy:", text: "You've gone quiet since that last ridge."),
                         (voice: "The old trace-walker keeps his voice low:", text: "Past the divide now. The Harpes worked this stretch — meanest cutthroats the Trace ever bred. They're dead and gone. Their kind never quite is. Walk close, and don't straggle once it's dark."),
+                    ],
+                ),
+                (
+                    key: "mason-end",
+                    gates: [Marked(true)],
+                    lines: [
+                        (voice: "Riders pass southbound and call out news from the settlements:", text: "Mason's dead! His own men took his head for the reward — and one of 'em turned out to be Little Harpe himself, hanged for it at Greenville."),
+                        (voice: "The old trace-walker grunts, almost a laugh:", text: "So the cave-pirate you crossed is finished, betrayed by his own and undone by a Harpe. There's a kind of justice on this road, even if it keeps strange company. Don't let it make you careless — his trade outlived him."),
+                    ],
+                ),
+                (
+                    key: "colberts-ferry",
+                    lines: [
+                        (voice: "The trail drops toward a wide, deep river with a rope ferry working the far bank:", text: "Too deep and too swift to ford — you pay to cross here. Colbert's ferry, a dollar a head, and his Chickasaw hands are a contrary lot. Come up after they've bedded down and you'll wait on daylight whether you like it or no. Man clears two thousand a year off this crossing alone."),
+                    ],
+                ),
+                (
+                    key: "hell-holes",
+                    lines: [
+                        (voice: "The boy goes in to his shins in black muck and swears:", text: "There's no bottom to this!"),
+                        (voice: "The old trace-walker hauls him out by the pack strap:", text: "Hell holes, they call these — soupy mud, dense cane, and skeeters thick enough to bridle. Worst seventy-five mile on the whole Trace, between the rivers here. Keep moving. Stand still too long and the country eats you."),
                     ],
                 ),
             ],

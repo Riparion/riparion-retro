@@ -102,6 +102,9 @@ pub enum BanterGate {
     MoraleAbove(f64),
     /// Whether the party is travelling grouped.
     Grouped(bool),
+    /// Whether a named antagonist has been marked as encountered (host-defined).
+    /// Kaintuck uses it for Mason: set at Cave-in-Rock, read on the Trace.
+    Marked(bool),
 }
 
 /// The set-piece numbers and single-line prose that are NOT already a menu
@@ -122,6 +125,13 @@ pub struct SetPieces {
     pub ferry_cross_msg: String,
     /// Narration when you cross the Duck River astride a horse.
     pub duck_horse_msg: String,
+    /// Days lost reaching the ferry too late in the day to be set over (the host
+    /// decides when "too late" applies). Defaults to 0 — no late penalty.
+    #[serde(default)]
+    pub ferry_late_days: u32,
+    /// Narration when you reach the ferry after dark and wait for daylight.
+    #[serde(default)]
+    pub ferry_late_msg: String,
 }
 
 /// One tradeable good.

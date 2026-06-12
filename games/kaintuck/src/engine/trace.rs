@@ -100,18 +100,8 @@ impl Game {
     /// binding comes from the scenario.
     fn do_trace_hazard(&mut self) -> Flow {
         let hazards = &scenario().trace.hazards;
-        let r1 = self.rng.uniform() * 100.0;
-        let mut idx = 0usize;
-        for (i, t) in hazards.thresholds.iter().enumerate() {
-            if r1 <= *t {
-                idx = i + 1;
-                break;
-            }
-        }
         // Company on the road draws off some ambushes.
-        if self.state.grouped && hazards.grouped_thins.contains(&idx) && self.rng.one_in(2.0) {
-            idx = 0;
-        }
+        let idx = self.pick_arm_idx(hazards, self.state.grouped);
         self.run_hazard_arm(&hazards.arms[idx])
     }
 

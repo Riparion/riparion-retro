@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 use interaction::{Interaction, Response};
 use rng::GameRng;
 use scenario_data::scenario;
-use state::{Boat, EndGame, GameOverCause, GameState, Mode, Phase, NUM_GOODS};
+use state::{Boat, EndGame, GameOverCause, GameState, Mode, Pace, Phase, NUM_GOODS};
 use tasks::{MiniTask, SteadyTask};
 
 pub use river::Voyage;
@@ -53,6 +53,7 @@ pub enum Resume {
     Town,
     Falls,
     GrandTower,
+    CaveInRock,
     Natchez,
     TraceHub,
     Leg,
@@ -225,6 +226,17 @@ impl Game {
             Interaction::FerryToll { toll } => {
                 if response == Response::Yes {
                     self.spend(toll.min(self.state.cash));
+                    // Push hard and you reach Colbert's crossing after dark — his
+                    // contrary hands won't set you over until daylight, a day lost.
+                    // (The penalty amount and copy are scenario data; the "arrived
+                    // late" trigger is pace-conditional, so it stays in code.)
+                    if self.state.pace == Pace::Hard {
+                        let sp = &scenario().setpieces;
+                        if sp.ferry_late_days > 0 {
+                            self.lose_days(sp.ferry_late_days);
+                            self.message(sp.ferry_late_msg.clone());
+                        }
+                    }
                     self.message(scenario().setpieces.ferry_cross_msg.clone());
                     // crossing done; fall through to advance
                 } else {
@@ -278,6 +290,7 @@ impl Game {
                     match self.resume {
                         Resume::Falls => self.mode = Mode::Falls,
                         Resume::GrandTower => self.mode = Mode::GrandTower,
+                        Resume::CaveInRock => self.mode = Mode::CaveInRock,
                         Resume::Natchez => self.mode = Mode::Natchez,
                         _ => self.mode = Mode::Town,
                     }
@@ -298,6 +311,26 @@ impl Game {
     }
 
     // ----- Hazard arm dispatch (data-driven) -----
+
+    /// Roll an arm index off a hazard table: a percentile draw selects the first
+    /// band it falls under (else arm 0, a clean leg), and when travelling in
+    /// company (a convoy on the water, a party on the road) the thinnable
+    /// ambushes get a coin-flip chance to be drawn off. Shared by both phases'
+    /// hazard rolls so the river and Trace selection logic can't drift apart.
+    pub(crate) fn pick_arm_idx(&mut self, hazards: &trail_kit::scenario::HazardTable, in_company: bool) -> usize {
+        let r1 = self.rng.uniform() * 100.0;
+        let mut idx = 0usize;
+        for (i, t) in hazards.thresholds.iter().enumerate() {
+            if r1 <= *t {
+                idx = i + 1;
+                break;
+            }
+        }
+        if in_company && hazards.grouped_thins.contains(&idx) && self.rng.one_in(2.0) {
+            idx = 0;
+        }
+        idx
+    }
 
     /// Carry out a selected hazard arm. Both phases roll an index off their
     /// `HazardTable` and hand the chosen [`HazardArm`] here, so which minigame a
@@ -385,6 +418,8 @@ impl Game {
             BanterGate::MoraleBelow(t) => self.state.morale < *t,
             BanterGate::MoraleAbove(t) => self.state.morale >= *t,
             BanterGate::Grouped(b) => self.state.grouped == *b,
+            // Kaintuck's single "marked" antagonist is Mason (Cave-in-Rock).
+            BanterGate::Marked(b) => self.state.crossed_mason == *b,
         })
     }
 
@@ -397,6 +432,10 @@ impl Game {
             }
             "crew-grumble" => {
                 self.do_crew_grumble();
+                Flow::Continue
+            }
+            "counterfeit" => {
+                self.do_counterfeit();
                 Flow::Continue
             }
             other => panic!("unknown hazard special {other}"),
@@ -416,6 +455,9 @@ impl Game {
             "falls-wait" => self.falls_wait(),
             "gt-treat" => self.grand_tower_treat(cost),
             "gt-duck" => self.grand_tower_duck(),
+            "cave-take" => self.cave_take(),
+            "cave-hire" => self.cave_hire(cost),
+            "cave-run" => self.cave_run(),
             "sell-boat" => self.sell_boat(),
             "buy-horse" => self.buy_horse(cost),
             "set-out" => self.set_out_on_trace(),
@@ -476,6 +518,12 @@ impl Game {
         self.state.morale = (self.state.morale - d).max(0.0);
     }
 
+    /// Burn `n` days to deliberate delay (a convoy wait, a late ferry). These
+    /// count against the speed score the same as any other day.
+    pub(crate) fn lose_days(&mut self, n: u32) {
+        self.state.extra_days = self.state.extra_days.saturating_add(n);
+    }
+
     pub(crate) fn adjust_reputation(&mut self, d: f64) {
         self.state.reputation = (self.state.reputation + d).clamp(-50.0, 50.0);
     }
@@ -534,9 +582,10 @@ impl Game {
 
     /// Days elapsed for the reckoning — the river run plus the Trace days.
     fn days_elapsed(&self) -> i64 {
-        // ~1 day per 90 river miles reached, plus the counted Trace days.
+        // ~1 day per 90 river miles reached, plus the counted Trace days, plus
+        // any days deliberately lost to convoy waits or a late ferry crossing.
         let river_days = (self.state.river_mile() / 90.0).round() as i64;
-        river_days + self.state.day as i64
+        river_days + self.state.day as i64 + self.state.extra_days as i64
     }
 }
 

@@ -8,10 +8,11 @@ use super::interaction::Interaction;
 use super::prices;
 use super::scenario_data::scenario;
 use super::state::{
-    Mode, Phase, CINCINNATI, GRAND_TOWER, LOUISVILLE, MEMPHIS, NATCHEZ, NUM_GOODS, NUM_RIVER_TOWNS,
+    Mode, Phase, CAIRO, CINCINNATI, GRAND_TOWER, LOUISVILLE, MEMPHIS, NATCHEZ, NUM_GOODS,
+    NUM_RIVER_TOWNS,
     TOWN_SLUGS,
 };
-use super::tasks::SteadyTask;
+use super::tasks::{QuickTask, SteadyTask};
 use super::{Flow, Game, Resume};
 
 /// Where a downstream leg is in its little chain.
@@ -42,6 +43,11 @@ impl Game {
         let to = self.state.town + 1;
         if to >= NUM_RIVER_TOWNS {
             return;
+        }
+        // Running in company means forming up and keeping the convoy's pace —
+        // safer from pirates, but it costs a day on the water.
+        if self.state.river_convoy {
+            self.lose_days(1);
         }
         self.voyage = Some(Voyage {
             to_town: to,
@@ -84,21 +90,24 @@ impl Game {
     /// first one `r1` falls under selects the arm (else `arms[0]`, a clean run).
     /// The arm itself — which minigame, which special — comes from the scenario.
     fn do_river_hazard(&mut self) -> Flow {
-        let r1 = self.rng.uniform() * 100.0;
         let river = &scenario().river;
         // A leg's odds come from its destination town's override when present,
         // else the phase-wide table. `to_town` is set while the voyage is in its
         // Hazard stage; fall back to the next landing if a stray call lacks one.
         let to = self.voyage.map_or(self.state.town, |v| v.to_town);
         let hazards = river.towns[to].hazards.as_ref().unwrap_or(&river.hazards);
-        let mut idx = 0usize;
-        for (i, t) in hazards.thresholds.iter().enumerate() {
-            if r1 <= *t {
-                idx = i + 1;
-                break;
-            }
-        }
+        // Sailing in company draws off some pirates (the river side of the
+        // grouped thinning; only costs an RNG draw when convoyed).
+        let idx = self.pick_arm_idx(hazards, self.state.river_convoy);
         self.run_hazard_arm(&hazards.arms[idx])
+    }
+
+    /// Set whether the next leg is run in company (a convoy). Settable only at a
+    /// river landing, before casting off — the river-side mirror of `set_grouped`.
+    pub fn set_river_convoy(&mut self, convoy: bool) {
+        if self.mode == Mode::Town || self.mode == Mode::Pittsburgh {
+            self.state.river_convoy = convoy;
+        }
     }
 
     /// Special arm: the perishables turn in the heat (pork, livestock, flour).
@@ -115,6 +124,28 @@ impl Game {
         if lost {
             self.message_keyed("Heat and damp spoil some of the perishable cargo.", "spoilage");
             self.dent_morale(5.0);
+        }
+    }
+
+    /// Special arm: a river sharper passes counterfeit coin (the trade of the
+    /// Stack Island and Arkansas gangs). A slice of the purse turns out bad.
+    pub(crate) fn do_counterfeit(&mut self) {
+        // 8–15% of the purse, capped so it stings without gutting a fat run.
+        let frac = (self.rng.ri(8) + 8) as f64 / 100.0;
+        let loss = (self.state.cash * frac).min(40.0);
+        if loss >= 1.0 {
+            self.state.cash -= loss;
+            self.adjust_reputation(-4.0);
+            self.dent_morale(5.0);
+            self.message_keyed(
+                "A sharp-dressed trader buys a parcel at the landing and pays in good silver — or so it looks. Days on, the coin rings false on the scales: you took counterfeit, and you're out the money.",
+                "counterfeit",
+            );
+        } else {
+            self.message_keyed(
+                "A sharp-dressed trader tries to pass you counterfeit coin at the landing. With little in your purse to tempt him, you wave him off.",
+                "counterfeit",
+            );
         }
     }
 
@@ -154,6 +185,10 @@ impl Game {
             Resume::Falls
         } else if to == GRAND_TOWER {
             Resume::GrandTower
+        } else if to == CAIRO {
+            // Cave-in-Rock sits just above Cairo — the relay-pilot con greets you
+            // on the approach, then the normal Cairo landing follows.
+            Resume::CaveInRock
         } else {
             Resume::Town
         };
@@ -171,34 +206,43 @@ impl Game {
         }
     }
 
+    /// Shared preamble for a river set-piece option: bail unless we're actually
+    /// on that set-piece's screen, and queue the return to the town hub once the
+    /// option resolves. Returns whether the caller should proceed. Every set-piece
+    /// option (Falls, Grand Tower, Cave-in-Rock) opens with this.
+    fn enter_setpiece(&mut self, mode: Mode) -> bool {
+        if self.mode != mode {
+            return false;
+        }
+        self.resume = Resume::Town;
+        true
+    }
+
     // ----- The Falls of the Ohio -----
 
     /// Hire a falls pilot: a sure thing for a fee.
     pub fn falls_pilot(&mut self, fee: f64) {
-        if self.mode != Mode::Falls {
+        if !self.enter_setpiece(Mode::Falls) {
             return;
         }
         self.spend(fee);
-        self.resume = Resume::Town;
         self.message(scenario().setpieces.falls_pilot_msg.clone());
         self.advance();
     }
 
     /// Run the falls yourself — free, and the steady-hand set-piece.
     pub fn falls_run(&mut self) {
-        if self.mode != Mode::Falls {
+        if !self.enter_setpiece(Mode::Falls) {
             return;
         }
-        self.resume = Resume::Town;
         self.begin_steady(SteadyTask::FallsRun);
     }
 
     /// Wait for high water — costs time and frays the crew, but the run is safe.
     pub fn falls_wait(&mut self) {
-        if self.mode != Mode::Falls {
+        if !self.enter_setpiece(Mode::Falls) {
             return;
         }
-        self.resume = Resume::Town;
         self.dent_morale(12.0);
         if self.state.crew > 1 && self.rng.one_in(3.0) {
             self.state.crew -= 1;
@@ -214,10 +258,9 @@ impl Game {
     /// Stand a treat: buy the round and pass with your dignity. Costs a little
     /// cash, but the crew warms to a captain who knows the custom.
     pub fn grand_tower_treat(&mut self, fee: f64) {
-        if self.mode != Mode::GrandTower {
+        if !self.enter_setpiece(Mode::GrandTower) {
             return;
         }
-        self.resume = Resume::Town;
         self.spend(fee);
         self.state.morale = (self.state.morale + 6.0).min(100.0);
         self.message("You stand the round at the Grand Tower. The rivermen drink your health and wave you past — and your own crew warms to a captain who knows the custom.");
@@ -227,14 +270,54 @@ impl Game {
     /// Refuse the treat and take the ducking: free, and a wry rite of passage —
     /// you come up a true riverman, if a soggy and sore one.
     pub fn grand_tower_duck(&mut self) {
-        if self.mode != Mode::GrandTower {
+        if !self.enter_setpiece(Mode::GrandTower) {
             return;
         }
-        self.resume = Resume::Town;
         self.dent_morale(8.0);
         self.adjust_reputation(2.0);
         self.message("You won't pay, so they haul you over the side and duck you in the Mississippi to a chorus of laughter. You come up sputtering — a true riverman now, and known for it.");
         self.advance();
+    }
+
+    // ----- Cave-in-Rock: the relay-pilot con -----
+
+    /// Take the stranger's free pilot offer. He's the pirates' man, and whether
+    /// he wrecks you turns on the value of your cargo (just as the wreckers
+    /// judged it): a fat hold is worth grounding for, a poor one isn't.
+    pub fn cave_take(&mut self) {
+        if !self.enter_setpiece(Mode::CaveInRock) {
+            return;
+        }
+        // The threshold roughly matches a half-laden flatboat — enough plunder
+        // to be worth the betrayal.
+        if self.state.cargo_value() > 60.0 {
+            // You've tangled with Mason's river gang at his own lair — it follows
+            // you onto the Trace as the wanted-poster payoff.
+            self.state.crossed_mason = true;
+            self.message("The stranger takes your steering oar — and runs you straight onto the bar below the cave, where his friends are already pushing off in skiffs.");
+            self.begin_quick(QuickTask::Pirates);
+        } else {
+            self.message("The stranger looks over your thin cargo, sees little worth the trouble, and pilots you through honestly enough. Luck, more than judgment.");
+            self.advance();
+        }
+    }
+
+    /// Hire your own pilot — the honest hand the *Navigator* names — for a fee.
+    pub fn cave_hire(&mut self, fee: f64) {
+        if !self.enter_setpiece(Mode::CaveInRock) {
+            return;
+        }
+        self.spend(fee);
+        self.message("You wave off the stranger and hire the pilot the Navigator names. He threads the serpentine channel below the cave and sets you clear of the shoals.");
+        self.advance();
+    }
+
+    /// Run the shoals below the cave yourself — free, and a steady-hand chute.
+    pub fn cave_run(&mut self) {
+        if !self.enter_setpiece(Mode::CaveInRock) {
+            return;
+        }
+        self.begin_steady(SteadyTask::CaveRun);
     }
 
     // ----- Natchez: sell everything, then the Trace -----
@@ -308,6 +391,9 @@ impl Game {
         self.state.health = 100.0;
         self.state.provisions = scenario().start.provisions;
         self.state.stand_idx = 0;
+        // The river convoy is a water-only concept; clear it so it can't leak
+        // into the Trace's `grouped()` and silently halve bandit losses on foot.
+        self.state.river_convoy = false;
         self.voyage = None;
         self.leg = None;
         self.resume = Resume::TraceHub;

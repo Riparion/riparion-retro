@@ -23,6 +23,11 @@ pub struct Menus {
     /// never reach it can omit it.
     #[serde(default)]
     pub grandtower: SetPiece<Gate>,
+    /// Cave-in-Rock, on the lower Ohio: the relay-pilot con — take the
+    /// stranger's offer, hire your own pilot, or run the shoals. Defaults to
+    /// empty so other scenarios that never reach it can omit it.
+    #[serde(default)]
+    pub caveinrock: SetPiece<Gate>,
     pub natchez: SetPiece<Gate>,
     pub stand: SetPiece<Gate>,
 }

@@ -1,3 +1,4 @@
+pub mod cave_in_rock;
 pub mod falls;
 pub mod game_over;
 pub mod grand_tower;
