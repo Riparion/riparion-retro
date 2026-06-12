@@ -4,6 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::scenario_data::scenario;
+
 /// Score a finished journey. Arriving home is worth a great deal; arriving with
 /// cash, a surviving crew, a good name, and no robbery behind you is worth more.
 /// A journey cut short still earns partial credit for the miles covered.
@@ -16,26 +18,25 @@ pub fn score(
     reputation: f64,
     robbed: bool,
 ) -> i64 {
+    let p = &scenario().scoring;
     if won {
-        let crew_bonus = crew_survived as f64 * 75.0;
-        let rep_bonus = (reputation * 4.0).max(-100.0);
-        let robbed_pen = if robbed { -300.0 } else { 0.0 };
-        let speed = (35 - days).max(0) as f64 * 20.0;
-        (1500.0 + leftover + crew_bonus + rep_bonus + robbed_pen + speed).floor() as i64
+        let crew_bonus = crew_survived as f64 * p.crew_bonus;
+        let rep_bonus = (reputation * p.rep_mult).max(p.rep_floor);
+        let robbed_pen = if robbed { p.robbed_penalty } else { 0.0 };
+        let speed = (p.speed_par_days - days).max(0) as f64 * p.speed_per_day;
+        (p.base_win + leftover + crew_bonus + rep_bonus + robbed_pen + speed).floor() as i64
     } else {
-        (miles_total / 4.0 + leftover / 4.0).floor() as i64
+        (miles_total / p.loss_miles_div + leftover / p.loss_leftover_div).floor() as i64
     }
 }
 
 pub fn rank(score: i64) -> &'static str {
-    match score {
-        s if s >= 5000 => "River King",
-        s if s >= 3500 => "Master Kaintuck",
-        s if s >= 2000 => "Trader",
-        s if s >= 900 => "Boatman",
-        s if s >= 1 => "Greenhorn",
-        _ => "Drowned Rat",
-    }
+    let p = &scenario().scoring;
+    p.ranks
+        .iter()
+        .find(|t| score >= t.min)
+        .map(|t| t.name.as_str())
+        .unwrap_or(p.floor_rank.as_str())
 }
 
 /// One line in the hall of fame.

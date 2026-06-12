@@ -6,6 +6,9 @@
 
 use serde::{Deserialize, Serialize};
 
+use trail_kit::effect::{apply_effects, EffectCtx, EffectTarget, Outcome, Tier};
+
+use super::scenario_data::scenario;
 use super::state::{fmt_money, GameOverCause, Mode};
 use super::Game;
 
@@ -89,6 +92,26 @@ impl MiniTask {
             MiniTask::Brigade(_) => Mode::Brigade,
         }
     }
+
+    /// The scenario id of this task's outcome and minigame params. The single
+    /// task→id map: the resolves, `active_mini_params`, and (inverted)
+    /// `begin_minigame_for` all agree through this.
+    pub fn outcome_id(self) -> &'static str {
+        match self {
+            MiniTask::Steady(SteadyTask::Sandbar) => "sandbar",
+            MiniTask::Steady(SteadyTask::FallsRun) => "falls-run",
+            MiniTask::Steady(SteadyTask::Swamp) => "swamp",
+            MiniTask::Steady(SteadyTask::DuckFord) => "duck-ford",
+            MiniTask::Quick(QuickTask::Pirates) => "pirates",
+            MiniTask::Quick(QuickTask::Mason) => "mason",
+            MiniTask::Quick(QuickTask::Harpe) => "harpe",
+            MiniTask::Crowd(CrowdTask::SideTrail) => "side-trail",
+            MiniTask::Timing(TimingTask::Dose) => "dose",
+            MiniTask::Timing(TimingTask::Gamble) => "gamble",
+            MiniTask::Sequence(SequenceTask::Patch) => "patch",
+            MiniTask::Brigade(BrigadeTask::Bail) => "bail",
+        }
+    }
 }
 
 impl Game {
@@ -117,6 +140,34 @@ impl Game {
     }
     pub(crate) fn begin_brigade(&mut self, task: BrigadeTask) {
         self.begin_task(MiniTask::Brigade(task));
+    }
+
+    /// Begin the minigame whose result selects `outcome` — the bridge from a
+    /// data-driven hazard arm (which names an [`Outcome`] id) to the concrete
+    /// minigame task. The inverse of [`MiniTask::outcome_id`]; the
+    /// `minigame_inverse_map_round_trips` test pins the two in agreement.
+    pub(crate) fn begin_minigame_for(&mut self, outcome: &str) {
+        match outcome {
+            "sandbar" => self.begin_steady(SteadyTask::Sandbar),
+            "falls-run" => self.begin_steady(SteadyTask::FallsRun),
+            "swamp" => self.begin_steady(SteadyTask::Swamp),
+            "duck-ford" => self.begin_steady(SteadyTask::DuckFord),
+            "pirates" => self.begin_quick(QuickTask::Pirates),
+            "mason" => self.begin_quick(QuickTask::Mason),
+            "harpe" => self.begin_quick(QuickTask::Harpe),
+            "side-trail" => self.begin_crowd(CrowdTask::SideTrail),
+            "dose" => self.begin_timing(TimingTask::Dose),
+            "patch" => self.begin_sequence(SequenceTask::Patch),
+            "bail" => self.begin_brigade(BrigadeTask::Bail),
+            other => panic!("unknown minigame outcome {other}"),
+        }
+    }
+
+    /// The launch parameters for the minigame currently on screen — the UI reads
+    /// these from the scenario instead of hardcoding them per task. Maps the live
+    /// `pending_task` to its outcome id, then looks the params up.
+    pub fn active_mini_params(&self) -> Option<&'static trail_kit::MiniParams> {
+        scenario().minigame_params(self.pending_task?.outcome_id())
     }
 
     // ----- task accessors (the UI reads the live task to label its screen) -----
@@ -152,70 +203,20 @@ impl Game {
             return;
         };
         self.pending_task = None;
+        let id = MiniTask::Steady(task).outcome_id();
+        let o = scenario().outcome(id).expect("missing steady outcome");
+        // Quality is the accuracy; holding steady is the success, slipping the
+        // partial. A declared catastrophe band can override either.
+        let base = if steady { Tier::Success } else { Tier::Partial };
+        let tier = resolve_tier(o, base, accuracy);
         let drift = (1.0 - accuracy).clamp(0.0, 1.0);
-        match task {
-            SteadyTask::Sandbar => {
-                if steady {
-                    self.message("You feel her touch the bar and ease her off without losing a thing.");
-                } else {
-                    // A deeper-drafted boat sits harder on the bar and sheds more.
-                    let draft = self.state.boat.map(|b| b.draft()).unwrap_or(1.0);
-                    let lost = self.lose_cargo_fraction((0.05 + 0.08 * drift) * draft);
-                    self.dent_morale(8.0);
-                    self.message(format!(
-                        "She grinds onto a sandbar — you work her free, but {} of cargo is lost overboard.",
-                        fmt_money(lost)
-                    ));
-                }
-            }
-            SteadyTask::FallsRun => {
-                if accuracy < 0.15 {
-                    self.die(GameOverCause::BoatWrecked);
-                } else if steady {
-                    self.adjust_reputation(5.0);
-                    self.message("You run the two-mile chute clean as a whistle. Word of it travels downriver ahead of you.");
-                } else {
-                    let lost = self.lose_cargo_fraction(0.10 + 0.15 * drift);
-                    self.dent_morale(15.0);
-                    self.message(format!(
-                        "You scrape the rocks coming through the falls — {} of cargo goes into the river.",
-                        fmt_money(lost)
-                    ));
-                }
-            }
-            SteadyTask::Swamp => {
-                if steady {
-                    self.message("You pick a firm line through the swamp and come out the far side dry.");
-                } else {
-                    self.state.health -= 10.0;
-                    self.state.provisions = (self.state.provisions - 5.0).max(0.0);
-                    self.state.miles -= 5.0;
-                    self.message("The swamp nearly swallows you — you lose ground, provisions, and strength.");
-                    if self.state.health <= 0.0 {
-                        self.die(GameOverCause::Disease);
-                    }
-                }
-            }
-            SteadyTask::DuckFord => {
-                if !steady && accuracy < 0.2 {
-                    self.die(GameOverCause::Drowned);
-                } else if steady {
-                    self.message("You wade the Duck River, holding your footing against the current — wet, but whole.");
-                } else {
-                    self.state.health -= 10.0;
-                    self.state.provisions = (self.state.provisions - 5.0).max(0.0);
-                    self.message("The current nearly takes you crossing the Duck River. You crawl out the far bank half-drowned.");
-                    if self.state.health <= 0.0 {
-                        self.die(GameOverCause::Disease);
-                    }
-                }
-            }
-        }
+        self.apply_outcome(id, tier, drift);
         self.advance();
     }
 
     /// Quick-draw. `reaction_secs` is how long the draw took; `hit` whether the
-    /// right target was struck.
+    /// right target was struck. A clean fast hit is the success; a slow hit is the
+    /// partial; a miss is the fail.
     pub fn resolve_quick(&mut self, reaction_secs: f64, hit: bool) {
         if self.mode != Mode::Quick {
             return;
@@ -224,68 +225,26 @@ impl Game {
             return;
         };
         self.pending_task = None;
-        let good = hit && reaction_secs <= 1.0;
-        let slow = hit && reaction_secs > 1.0;
-        match task {
-            QuickTask::Pirates => {
-                if good {
-                    self.adjust_reputation(3.0);
-                    self.message("Quick on the trigger — the pirates think better of it and sheer off.");
-                } else {
-                    let mut frac = if slow { 0.15 } else { 0.30 };
-                    if self.state.grouped {
-                        frac /= 2.0;
-                    }
-                    let lost = self.lose_cargo_fraction(frac);
-                    self.adjust_reputation(-10.0);
-                    self.dent_morale(10.0);
-                    self.message(format!(
-                        "The pirates board you and make off with {} of cargo before you beat them back.",
-                        fmt_money(lost)
-                    ));
-                }
-            }
-            QuickTask::Mason => {
-                if good {
-                    self.adjust_reputation(5.0);
-                    self.message("You outdraw Mason's man and they melt back into the brush. Few can say as much.");
-                } else {
-                    self.state.robbed = true;
-                    let frac = if self.state.grouped { 0.2 } else { 0.4 };
-                    let loss = (self.state.cash * frac).floor();
-                    self.state.cash -= loss;
-                    self.state.health -= if slow { 10.0 } else { 15.0 };
-                    if self.state.health <= 0.0 {
-                        self.die(GameOverCause::BanditMurder);
-                    } else {
-                        self.message(format!(
-                            "Sam Mason's gang robs you of {} and leaves you bleeding on the Trace.",
-                            fmt_money(loss)
-                        ));
-                    }
-                }
-            }
-            QuickTask::Harpe => {
-                if good {
-                    self.adjust_reputation(6.0);
-                    self.message("You break away from the Harpes — a thing most men don't live to tell.");
-                } else {
-                    self.state.robbed = true;
-                    let frac = if self.state.grouped { 0.3 } else { 0.6 };
-                    let loss = (self.state.cash * frac).floor();
-                    self.state.cash -= loss;
-                    self.state.health -= if slow { 15.0 } else { 20.0 };
-                    if self.state.health <= 0.0 {
-                        self.die(GameOverCause::BanditMurder);
-                    } else {
-                        self.message(format!(
-                            "The Harpe brothers fall on you, take {}, and leave you for dead.",
-                            fmt_money(loss)
-                        ));
-                    }
-                }
-            }
-        }
+        let id = MiniTask::Quick(task).outcome_id();
+        let o = scenario().outcome(id).expect("missing quick outcome");
+        let base = if hit && reaction_secs <= 1.0 {
+            Tier::Success
+        } else if hit {
+            Tier::Partial
+        } else {
+            Tier::Fail
+        };
+        // Quality: a clean fast hit is 1, a slow hit 0.5, a miss 0 — so a
+        // catastrophe band can make, say, a fumbled draw fatal.
+        let quality = if !hit {
+            0.0
+        } else if reaction_secs <= 1.0 {
+            1.0
+        } else {
+            0.5
+        };
+        let tier = resolve_tier(o, base, quality);
+        self.apply_outcome(id, tier, 0.0);
         self.advance();
     }
 
@@ -299,15 +258,11 @@ impl Game {
             return;
         }
         self.pending_task = None;
-        if cleared {
-            self.adjust_reputation(1.0);
-            self.message("You keep the Trace clear in your mind and make good time through the tangle of side trails.");
-        } else {
-            let drift = (1.0 - accuracy).clamp(0.0, 1.0);
-            self.state.miles -= 8.0 + 20.0 * drift;
-            self.state.provisions = (self.state.provisions - 6.0).max(0.0);
-            self.message("You lose the Trace on a side trail and waste a day doubling back.");
-        }
+        let o = scenario().outcome("side-trail").expect("missing side-trail outcome");
+        let base = if cleared { Tier::Success } else { Tier::Fail };
+        let drift = (1.0 - accuracy).clamp(0.0, 1.0);
+        let tier = resolve_tier(o, base, accuracy);
+        self.apply_outcome("side-trail", tier, drift);
         self.advance();
     }
 
@@ -321,6 +276,9 @@ impl Game {
         };
         self.pending_task = None;
         match task {
+            // The Under-the-Hill gamble stays a hand-coded set-piece (its escrow
+            // and cutpurse turn on the live purse); it moves to data with the rest
+            // of the Natchez set-piece.
             TimingTask::Gamble => {
                 // The stake was escrowed out of cash when the bet was laid
                 // (see `gamble`). A win returns it plus equal winnings; a loss
@@ -350,15 +308,10 @@ impl Game {
                 self.state.cash = self.state.cash.max(0.0);
             }
             TimingTask::Dose => {
-                if hit {
-                    self.message("You measure the dose right and sweat the fever out by morning.");
-                } else {
-                    self.state.health -= 10.0;
-                    self.message("The fever burns through you — you can barely keep your feet.");
-                    if self.state.health <= 0.0 {
-                        self.die(GameOverCause::Disease);
-                    }
-                }
+                let o = scenario().outcome("dose").expect("missing dose outcome");
+                let base = if hit { Tier::Success } else { Tier::Fail };
+                let tier = resolve_tier(o, base, accuracy);
+                self.apply_outcome("dose", tier, 0.0);
             }
         }
         self.advance();
@@ -373,21 +326,15 @@ impl Game {
             return;
         }
         self.pending_task = None;
+        let o = scenario().outcome("patch").expect("missing patch outcome");
         let miss = if length == 0 {
             0.0
         } else {
             (1.0 - correct_prefix as f64 / length as f64).clamp(0.0, 1.0)
         };
-        if perfect {
-            self.message("Wedge, oakum, plank — you patch the hole in good order before much water gets in.");
-        } else {
-            let lost = self.lose_cargo_fraction(0.05 + 0.15 * miss);
-            self.dent_morale(8.0);
-            self.message(format!(
-                "You fumble the patch and she ships water — {} of cargo is ruined before you stop the leak.",
-                fmt_money(lost)
-            ));
-        }
+        let base = if perfect { Tier::Success } else { Tier::Partial };
+        let tier = resolve_tier(o, base, 1.0 - miss);
+        self.apply_outcome("patch", tier, miss);
         self.advance();
     }
 
@@ -400,25 +347,105 @@ impl Game {
             return;
         }
         self.pending_task = None;
+        let o = scenario().outcome("bail").expect("missing bail outcome");
         let sev = if capacity > 0 {
             (leaked as f64 / capacity as f64).clamp(0.0, 1.0)
         } else {
             0.0
         };
-        if contained {
-            let lost = self.lose_cargo_fraction(0.03);
-            self.message(format!(
-                "You bail her out ahead of the rising water — only {} of cargo lost.",
-                fmt_money(lost)
-            ));
-        } else {
-            let lost = self.lose_cargo_fraction(0.08 + 0.25 * sev);
-            self.dent_morale(10.0);
-            self.message(format!(
-                "The flood gets ahead of you — {} of cargo is soaked and lost over the side.",
-                fmt_money(lost)
-            ));
-        }
+        let base = if contained { Tier::Success } else { Tier::Fail };
+        let tier = resolve_tier(o, base, 1.0 - sev);
+        self.apply_outcome("bail", tier, sev);
         self.advance();
+    }
+
+    /// Look up an outcome by id and apply its tier's effect list. The single seam
+    /// through which every ported minigame result reaches the world.
+    fn apply_outcome(&mut self, id: &str, tier: Tier, drift: f64) {
+        let effects = scenario()
+            .outcome(id)
+            .unwrap_or_else(|| panic!("missing outcome {id}"))
+            .tier(tier);
+        let mut ctx = EffectCtx::new(drift);
+        apply_effects(self, effects, &mut ctx);
+    }
+}
+
+// ----- outcome lookup glue -----
+
+/// Select the result tier for any minigame. `base` is the kind's ordinary tier
+/// (success / partial / fail); `quality` is a normalized 0..1 success metric
+/// (higher is better) the host derived from that kind's result. If the outcome
+/// declares a `catastrophe_below` band and `quality` falls under it, the
+/// catastrophe tier overrides the base — this is how a hazard's minigame is
+/// *declaratively* associated with a catastrophe, for every kind, not just the
+/// steady-hand set-pieces. A `catastrophe_needs_unsteady` band spares a run that
+/// was good enough to land the success tier (the Duck River ford drowns a
+/// flounder, not a sure-footed crossing; the Falls wreck any low run) — defined
+/// uniformly via `base == Success`, so the refinement works for every kind.
+pub(crate) fn resolve_tier(o: &Outcome, base: Tier, quality: f64) -> Tier {
+    if let Some(cb) = o.catastrophe_below {
+        let clean = base == Tier::Success;
+        if quality < cb && (!o.catastrophe_needs_unsteady || !clean) {
+            return Tier::Catastrophe;
+        }
+    }
+    base
+}
+
+// ----- the host seam the effect interpreter mutates through -----
+
+impl EffectTarget for Game {
+    fn lose_cargo(&mut self, frac: f64) -> f64 {
+        self.lose_cargo_fraction(frac)
+    }
+    fn take_cash(&mut self, frac: f64, robbed: bool) -> f64 {
+        let loss = (self.state.cash * frac).floor();
+        self.state.cash -= loss;
+        if robbed {
+            self.state.robbed = true;
+        }
+        loss
+    }
+    fn morale(&mut self, d: f64) {
+        self.state.morale = (self.state.morale + d).max(0.0);
+    }
+    fn health(&mut self, d: f64) {
+        self.state.health += d;
+    }
+    fn provisions(&mut self, d: f64) {
+        self.state.provisions = (self.state.provisions + d).max(0.0);
+    }
+    fn miles(&mut self, d: f64) {
+        self.state.miles += d;
+    }
+    fn reputation(&mut self, d: f64) {
+        self.adjust_reputation(d);
+    }
+    fn draft(&self) -> f64 {
+        self.state.boat.map(|b| b.draft()).unwrap_or(1.0)
+    }
+    fn grouped(&self) -> bool {
+        self.state.grouped
+    }
+    fn health_now(&self) -> f64 {
+        self.state.health
+    }
+    fn kill(&mut self, cause_key: &str) {
+        let cause = GameOverCause::from_key(cause_key)
+            .unwrap_or_else(|| panic!("unknown game-over cause {cause_key}"));
+        self.die(cause);
+    }
+    fn is_dead(&self) -> bool {
+        self.outcome.is_some()
+    }
+    fn narrate(&mut self, text: String, cover: Option<String>) {
+        match cover {
+            Some(c) => self.message_keyed(text, c),
+            None => self.message(text),
+        }
+    }
+    fn money(&self, v: f64) -> String {
+        fmt_money(v)
     }
 }

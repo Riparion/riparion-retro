@@ -13,6 +13,9 @@ license = "MIT OR Apache-2.0"
 retro-kit = { path = "crates/retro-kit" }
 # Game-agnostic forgiving-input inference for limited-vocabulary text parsers.
 parser-kit = { path = "crates/parser-kit" }
+# Data-driven trail-game scenario engine: content + flow as an embedded RON file.
+trail-kit = { path = "crates/trail-kit" }
+ron = "0.8"
 # default-features off here so each member crate opts into only the minigames it
 # uses (via `features = [...]`); pass `features = ["all"]` to take everything.
 minigames-kit = { path = "crates/minigames-kit", default-features = false }

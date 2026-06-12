@@ -2,7 +2,8 @@
 
 use dioxus::prelude::*;
 
-use crate::engine::state::{Pace, Stand, TRACE_MILES};
+use crate::engine::scenario_data::scenario;
+use crate::engine::state::{Pace, Stand};
 use crate::engine::Game;
 use retro_kit::components::menu_button::MenuButton;
 use retro_kit::components::seg_button::SegButton;
@@ -16,7 +17,7 @@ pub fn TraceHub() -> Element {
     let pace = g.state.pace;
     let grouped = g.state.grouped;
     let here = Stand::current(miles);
-    let progress = (miles / TRACE_MILES * 100.0).min(100.0) as i64;
+    let progress = (miles / scenario().trace.total_miles * 100.0).min(100.0) as i64;
     drop(g);
 
     rsx! {

@@ -3,12 +3,13 @@
 //! goods 1×/2×/3× of the rank-mean from visit to visit.
 
 use super::rng::GameRng;
+use super::scenario_data::scenario;
 use super::state::GameState;
 
 /// Regenerate every good's price for the current town:
 /// `price[i] = base_ranks[town][i] / 2 * (R(3)+1)`.
 pub fn generate_prices(state: &mut GameState, rng: &mut GameRng) {
-    let ranks = state.base_ranks[state.town];
+    let ranks = &scenario().river.towns[state.town].base_ranks;
     for (i, price) in state.prices.iter_mut().enumerate() {
         *price = ranks[i] as f64 / 2.0 * (rng.ri(3) + 1) as f64;
     }
@@ -28,7 +29,7 @@ mod tests {
             for _ in 0..200 {
                 generate_prices(&mut state, &mut rng);
                 for i in 0..NUM_GOODS {
-                    let base = state.base_ranks[town][i] as f64 / 2.0;
+                    let base = scenario().river.towns[town].base_ranks[i] as f64 / 2.0;
                     let p = state.prices[i];
                     assert!(
                         (p - base).abs() < 1e-9
