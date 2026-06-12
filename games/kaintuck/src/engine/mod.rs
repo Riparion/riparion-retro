@@ -38,7 +38,7 @@ use tasks::{MiniTask, SteadyTask};
 pub use river::Voyage;
 pub use trace::Leg;
 
-use trail_kit::{EffectTarget, HazardArm};
+use trail_kit::{BanterGate, BanterPhase, EffectTarget, HazardArm};
 
 /// Whether a hazard handler paused for a minigame/decision or ran straight through.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,6 +52,7 @@ pub(crate) enum Flow {
 pub enum Resume {
     Town,
     Falls,
+    GrandTower,
     Natchez,
     TraceHub,
     Leg,
@@ -276,6 +277,7 @@ impl Game {
                 } else {
                     match self.resume {
                         Resume::Falls => self.mode = Mode::Falls,
+                        Resume::GrandTower => self.mode = Mode::GrandTower,
                         Resume::Natchez => self.mode = Mode::Natchez,
                         _ => self.mode = Mode::Town,
                     }
@@ -304,7 +306,12 @@ impl Game {
     pub(crate) fn run_hazard_arm(&mut self, arm: &HazardArm) -> Flow {
         match arm {
             HazardArm::Clean { message, cover } => {
-                self.narrate_opt(message, cover);
+                // A quiet leg is a chance for ambient crew banter about the
+                // country you're passing through; only if none is left to hear
+                // do we fall back to the flat clean line.
+                if !self.queue_banter() {
+                    self.narrate_opt(message, cover);
+                }
                 Flow::Continue
             }
             HazardArm::Minigame {
@@ -339,6 +346,48 @@ impl Game {
         }
     }
 
+    /// On a quiet leg, play an ambient crew-banter beat for the current region
+    /// if one is left unheard. Selection is deterministic — the first eligible
+    /// beat in authored order — and never touches `self.rng`, so it can't shift
+    /// the hazard sequence. Returns whether a beat was queued, so the caller can
+    /// skip the flat clean line when banter took its place.
+    fn queue_banter(&mut self) -> bool {
+        // Region is keyed by position: river miles at the leg's origin landing
+        // (still `state.town` mid-voyage), or Trace miles walked.
+        let (phase, pos) = match self.phase {
+            Phase::River => (
+                BanterPhase::River,
+                scenario().river.towns[self.state.town].milepost,
+            ),
+            Phase::Trace => (BanterPhase::Trace, self.state.miles),
+        };
+        let beat = scenario().banter.iter().find_map(|pool| {
+            if pool.phase != phase || pos < pool.from_mile || pos >= pool.to_mile {
+                return None;
+            }
+            pool.beats.iter().find(|b| {
+                !self.state.heard_banter.contains(&b.key) && self.banter_gates_pass(&b.gates)
+            })
+        });
+        let Some(beat) = beat else {
+            return false;
+        };
+        for line in &beat.lines {
+            self.message(format!("{} {}", line.voice, line.text));
+        }
+        self.state.heard_banter.insert(beat.key.clone());
+        true
+    }
+
+    /// Whether every gate on a banter beat passes against current state.
+    fn banter_gates_pass(&self, gates: &[BanterGate]) -> bool {
+        gates.iter().all(|g| match g {
+            BanterGate::MoraleBelow(t) => self.state.morale < *t,
+            BanterGate::MoraleAbove(t) => self.state.morale >= *t,
+            BanterGate::Grouped(b) => self.state.grouped == *b,
+        })
+    }
+
     /// Dispatch a built-in special arm whose RNG-driven internals stay in Rust.
     fn run_special(&mut self, name: &str) -> Flow {
         match name {
@@ -365,6 +414,8 @@ impl Game {
             "falls-pilot" => self.falls_pilot(cost),
             "falls-run" => self.falls_run(),
             "falls-wait" => self.falls_wait(),
+            "gt-treat" => self.grand_tower_treat(cost),
+            "gt-duck" => self.grand_tower_duck(),
             "sell-boat" => self.sell_boat(),
             "buy-horse" => self.buy_horse(cost),
             "set-out" => self.set_out_on_trace(),

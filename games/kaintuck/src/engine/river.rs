@@ -8,7 +8,8 @@ use super::interaction::Interaction;
 use super::prices;
 use super::scenario_data::scenario;
 use super::state::{
-    Mode, Phase, CINCINNATI, LOUISVILLE, MEMPHIS, NATCHEZ, NUM_GOODS, NUM_RIVER_TOWNS, TOWN_SLUGS,
+    Mode, Phase, CINCINNATI, GRAND_TOWER, LOUISVILLE, MEMPHIS, NATCHEZ, NUM_GOODS, NUM_RIVER_TOWNS,
+    TOWN_SLUGS,
 };
 use super::tasks::SteadyTask;
 use super::{Flow, Game, Resume};
@@ -84,7 +85,12 @@ impl Game {
     /// The arm itself — which minigame, which special — comes from the scenario.
     fn do_river_hazard(&mut self) -> Flow {
         let r1 = self.rng.uniform() * 100.0;
-        let hazards = &scenario().river.hazards;
+        let river = &scenario().river;
+        // A leg's odds come from its destination town's override when present,
+        // else the phase-wide table. `to_town` is set while the voyage is in its
+        // Hazard stage; fall back to the next landing if a stray call lacks one.
+        let to = self.voyage.map_or(self.state.town, |v| v.to_town);
+        let hazards = river.towns[to].hazards.as_ref().unwrap_or(&river.hazards);
         let mut idx = 0usize;
         for (i, t) in hazards.thresholds.iter().enumerate() {
             if r1 <= *t {
@@ -146,6 +152,8 @@ impl Game {
             Resume::Natchez
         } else if to == LOUISVILLE {
             Resume::Falls
+        } else if to == GRAND_TOWER {
+            Resume::GrandTower
         } else {
             Resume::Town
         };
@@ -198,6 +206,34 @@ impl Game {
         } else {
             self.message("You wait for high water. The crew grumbles at the lost days, but the swollen river carries you over the falls with ease.");
         }
+        self.advance();
+    }
+
+    // ----- Grand Tower: the rivermen's initiation -----
+
+    /// Stand a treat: buy the round and pass with your dignity. Costs a little
+    /// cash, but the crew warms to a captain who knows the custom.
+    pub fn grand_tower_treat(&mut self, fee: f64) {
+        if self.mode != Mode::GrandTower {
+            return;
+        }
+        self.resume = Resume::Town;
+        self.spend(fee);
+        self.state.morale = (self.state.morale + 6.0).min(100.0);
+        self.message("You stand the round at the Grand Tower. The rivermen drink your health and wave you past — and your own crew warms to a captain who knows the custom.");
+        self.advance();
+    }
+
+    /// Refuse the treat and take the ducking: free, and a wry rite of passage —
+    /// you come up a true riverman, if a soggy and sore one.
+    pub fn grand_tower_duck(&mut self) {
+        if self.mode != Mode::GrandTower {
+            return;
+        }
+        self.resume = Resume::Town;
+        self.dent_morale(8.0);
+        self.adjust_reputation(2.0);
+        self.message("You won't pay, so they haul you over the side and duck you in the Mississippi to a chorus of laughter. You come up sputtering — a true riverman now, and known for it.");
         self.advance();
     }
 

@@ -32,13 +32,37 @@ Scenario(
     river: (
         river_miles: 1830.0,
         towns: [
-            (name: "Pittsburgh", slug: "pittsburgh", milepost: 0.0,    base_ranks: [2, 8,  4, 6,  5,  7,  12], moneylender: false),
-            (name: "Wheeling",   slug: "wheeling",   milepost: 90.0,   base_ranks: [2, 10, 4, 7,  6,  7,  11], moneylender: false),
-            (name: "Cincinnati", slug: "cincinnati", milepost: 470.0,  base_ranks: [3, 13, 6, 9,  7,  8,  17], moneylender: true),
-            (name: "Louisville", slug: "louisville", milepost: 600.0,  base_ranks: [3, 14, 6, 10, 8,  9,  18], moneylender: false),
-            (name: "Cairo",      slug: "cairo",      milepost: 980.0,  base_ranks: [3, 15, 6, 11, 8,  10, 19], moneylender: false),
-            (name: "Memphis",    slug: "memphis",    milepost: 1430.0, base_ranks: [3, 16, 6, 11, 9,  11, 19], moneylender: true),
-            (name: "Natchez",    slug: "natchez",    milepost: 1830.0, base_ranks: [4, 21, 8, 14, 11, 15, 18], moneylender: false),
+            (name: "Pittsburgh",  slug: "pittsburgh",  milepost: 0.0,    base_ranks: [2, 8,  4, 6,  5,  7,  12], moneylender: false),
+            (name: "Wheeling",    slug: "wheeling",    milepost: 90.0,   base_ranks: [2, 10, 4, 7,  6,  7,  11], moneylender: false),
+            (name: "Marietta",    slug: "marietta",    milepost: 170.0,  base_ranks: [2, 11, 5, 8,  6,  7,  13], moneylender: false),
+            (name: "Maysville",   slug: "maysville",   milepost: 410.0,  base_ranks: [3, 12, 5, 8,  7,  8,  15], moneylender: false),
+            (name: "Cincinnati",  slug: "cincinnati",  milepost: 470.0,  base_ranks: [3, 13, 6, 9,  7,  8,  17], moneylender: true),
+            (name: "Louisville",  slug: "louisville",  milepost: 600.0,  base_ranks: [3, 14, 6, 10, 8,  9,  18], moneylender: false),
+            (name: "Shawneetown", slug: "shawneetown", milepost: 850.0,  base_ranks: [3, 14, 6, 11, 8,  9,  18], moneylender: false),
+            (name: "Cairo",       slug: "cairo",       milepost: 980.0,  base_ranks: [3, 15, 6, 11, 8,  10, 19], moneylender: false),
+            (name: "Grand Tower", slug: "grand-tower", milepost: 1010.0, base_ranks: [3, 16, 6, 11, 9,  10, 19], moneylender: false),
+            (name: "Memphis",     slug: "memphis",     milepost: 1430.0, base_ranks: [3, 16, 6, 11, 9,  11, 19], moneylender: true),
+            (name: "Natchez",     slug: "natchez",     milepost: 1830.0, base_ranks: [4, 21, 8, 14, 11, 15, 18], moneylender: false,
+                // The lower river (Cave-in-Rock down toward Natchez) was the
+                // piracy gauntlet. The pirate arm is arms[3], whose band is
+                // (thresholds[1], thresholds[2]]: this override widens it from
+                // (20,30] = 10% to (14,44] = 30%, trimming the other minor arms.
+                // The top threshold stays 60, so the clean residual above it is
+                // unchanged at 40% — this leg is no more eventful overall, its
+                // events are just three times as likely to be river pirates.
+                hazards: Some((
+                    thresholds: [8.0, 14.0, 44.0, 50.0, 55.0, 60.0],
+                    grouped_thins: [],
+                    arms: [
+                        Clean(message: Some("The current carries you on, but every snag on the bank looks like a hidden skiff.")),
+                        Minigame(outcome: "sandbar", message: Some("The river bends hard at the Devil's Elbow and a bar reaches out from the point.")),
+                        Minigame(outcome: "patch"),
+                        Minigame(outcome: "pirates", message: Some("River pirates pull alongside!"), cover: Some("pirates")),
+                        Special("spoilage"),
+                        Special("crew-grumble"),
+                        Minigame(outcome: "bail"),
+                    ],
+                ))),
         ],
         // arms[0] is a clean leg; arms[1..] line up with the thresholds above.
         hazards: (
@@ -130,6 +154,10 @@ Scenario(
             (label: "Hire a falls pilot — {cost}", hint: "A local takes the oar and threads you down. A sure thing.", cost: 8.0, action: "falls-pilot"),
             (label: "Run the falls yourself",       hint: "Free — but the current is violent. Hold your line.", primary: true, action: "falls-run"),
             (label: "Wait for high water",          hint: "Safe passage, but it costs days and frays the crew.", action: "falls-wait"),
+        ]),
+        grandtower: (options: [
+            (label: "Stand a treat — {cost}", hint: "Buy the round and pass the Grand Tower with your dignity — and the crew's good humor.", cost: 2.0, action: "gt-treat"),
+            (label: "Refuse — take the ducking", hint: "Let them shave and duck the greenhorn. It costs nothing but pride.", primary: true, action: "gt-duck"),
         ]),
         natchez: (options: [
             (label: "Sell cargo",                   hint: "Top prices on the river — sell it all.", gate: [HasCargo], action: "sell-cargo"),
@@ -334,5 +362,186 @@ Scenario(
         (id: "gamble",     params: Timing(prompt: "Under-the-Hill — lay your stake and call it as the wheel comes round.",    action: "CALL IT", tolerance: 0.10, period_ms: 1300)),
         (id: "patch",      params: Sequence(prompt: "A snag punches a hole in the hull — patch it in order before she fills.", symbols: ["🪵", "🧵", "🔨", "🪣"], length: 4)),
         (id: "bail",       params: Brigade(prompt: "High water floods the boat — bail her out faster than she fills!", threat_icon: "💧", cols: 5, rows: 5, initial_active: 3, spread_ms: 750, duration_ms: 8000)),
+    ],
+
+    // Ambient crew banter, played on quiet (clean) legs instead of the flat
+    // "quiet stretch" line. Pools are keyed by region (phase + milepost band);
+    // river position is the leg's origin landing, Trace position is miles walked.
+    // Each beat plays at most once. Authoring: lead with the questioner/expert
+    // device — a green hand asks, an old hand explains — keep beats to 2-4 short
+    // lines, and keep the history period-true (early-1800s flatboat trade and the
+    // Natchez Trace walk home). Voices are free text that prefixes the line.
+    banter: [
+        // ----- Upper Ohio: Pittsburgh and Wheeling, settling into the run -----
+        (
+            phase: River, from_mile: 0.0, to_mile: 470.0,
+            beats: [
+                (
+                    key: "upper-ohio-current",
+                    lines: [
+                        (voice: "The farmhand squints downriver:", text: "We just ride it the whole way down?"),
+                        (voice: "The old riverman spits over the side:", text: "The Ohio does the work clear to its mouth. Easy water — bars and snags, mostly. Save your worry for the Mississippi."),
+                    ],
+                ),
+                (
+                    key: "upper-ohio-trade",
+                    lines: [
+                        (voice: "The boatwright thumps the gunwale:", text: "Whiskey, flour, salt pork — worth three times at Natchez what it fetched in Pittsburgh. Float it down, sell it high, break the boat up for lumber. That's the whole game."),
+                    ],
+                ),
+                (
+                    key: "the-fiddler",
+                    lines: [
+                        (voice: "The farmhand nods at the old man sawing a fiddle at the bow:", text: "Does he pull an oar like the rest of us, or just play?"),
+                        (voice: "The old riverman grins:", text: "Pappy? First man in the water when she grounds on a bar, and he fiddles the whole night watch besides. Brought nothing aboard but his violin and Katy and his plunder. Worth two hands for the singing alone."),
+                    ],
+                ),
+                (
+                    key: "rowing-song",
+                    lines: [
+                        (voice: "The crew settles into a stroke, and a song goes up to keep the time:", text: "\"Some rows up, but we rows down — all the way to Shawnee town — pull away, pull away!\""),
+                    ],
+                ),
+                (
+                    key: "marietta-yard",
+                    lines: [
+                        (voice: "The boatwright jerks a thumb at a riverside town of saw-pits and ways:", text: "Marietta yonder builds seagoing ships — rigged brigs at fifty dollar a ton — and floats 'em clear down to the ocean. Our flatboat won't ever see salt water. She's a pile of lumber the day we tie up at Natchez."),
+                    ],
+                ),
+            ],
+        ),
+        // ----- Lower Ohio: the Falls, and the wreckers' cave -----
+        (
+            phase: River, from_mile: 470.0, to_mile: 980.0,
+            beats: [
+                (
+                    key: "the-falls",
+                    lines: [
+                        (voice: "The boatwright nods downstream:", text: "Below Louisville the river drops over the Falls of the Ohio — two mile of bare rock. Hire a pilot or wait on high water. The ones who run it blind feed the catfish."),
+                    ],
+                ),
+                (
+                    key: "cave-in-rock",
+                    lines: [
+                        (voice: "The farmhand points at a black gash in the bluffs:", text: "What's that cave yonder?"),
+                        (voice: "The old riverman doesn't look up:", text: "Cave-in-Rock. River pirates laired there — hung out a sign for liquor to lure boats ashore, then took the cargo and sank the rest. Keep to the channel. Don't put in, no matter who waves you down."),
+                    ],
+                ),
+                (
+                    key: "the-hail",
+                    lines: [
+                        (voice: "A boat sweeps past and a man cups his hands across the water:", text: "\"Where you from? What's your lading? Who's your captain? Where you bound?\""),
+                        (voice: "The old riverman bawls back without missing a beat:", text: "\"Redstone! Millstones! Whetstone! — Limestone!\" Same four hollers, every boat on the river. Quick with the answer or you're the joke of the reach."),
+                    ],
+                ),
+                (
+                    key: "blackguarding",
+                    lines: [
+                        (voice: "Two boats drift in earshot and the crews start trading insults across the gap:", text: "Whooping, hollering, every man straining to outdo the last."),
+                        (voice: "The old riverman, cheerful:", text: "Blackguardin', we call it. Whoever leaves the other fellow with nothing left to say is the hero of the day. The one who runs dry is his crew's joke for a week. It's all wind — mostly."),
+                    ],
+                ),
+                (
+                    key: "the-horn",
+                    lines: [
+                        (voice: "The farmhand startles at a low, mournful note rolling over the water:", text: "What in creation was that?"),
+                        (voice: "The old riverman:", text: "Boat horn. Sound it in fog so the next fellow don't run you down — and they say it scares off the devil and brings fair luck besides. Can't hurt. Wind it again, boy."),
+                    ],
+                ),
+                (
+                    key: "shore-dance",
+                    lines: [
+                        (voice: "Tied up by a settler's cabin, a fiddle strikes up and the men stamp out the time:", text: "\"Dance, boatman, dance — dance all night till broad daylight — and go home with the gals in the morning!\""),
+                    ],
+                ),
+            ],
+        ),
+        // ----- The Mississippi: Cairo down to Natchez, the dangerous water -----
+        (
+            phase: River, from_mile: 980.0, to_mile: 1830.0,
+            beats: [
+                // Surly-crew variant first: only fires when morale has worn thin,
+                // else it's skipped and the next beat plays.
+                (
+                    key: "mississippi-grumble",
+                    gates: [MoraleBelow(50.0)],
+                    lines: [
+                        (voice: "A hand mutters at his oar:", text: "Triple pay at Natchez, he keeps saying. If we live to count it."),
+                    ],
+                ),
+                (
+                    key: "big-muddy",
+                    lines: [
+                        (voice: "The farmhand:", text: "Lord — the river's near a mile across now."),
+                        (voice: "The old riverman:", text: "That's the Mississippi. Swallowed the Ohio back at Cairo. Runs faster, hides more — and the men who work these banks ain't all honest."),
+                    ],
+                ),
+                (
+                    key: "natchez-under-the-hill",
+                    lines: [
+                        (voice: "The old riverman lowers his voice:", text: "Natchez sits proud on the bluff, but the landing under it — Natchez-under-the-Hill — is all grog, cards, and cut throats. Sell your cargo up top. Men have lost the whole trip down below."),
+                    ],
+                ),
+                (
+                    key: "river-names",
+                    lines: [
+                        (voice: "The old riverman reads the water like a page, naming every snarl as it slides past:", text: "Yonder's the Devil's Elbow — worst bend on the river. That cluster of islands is Paddy's Hen and Chickens. That long bar's General Hull's Left Leg. Every reach has its name, and knowing 'em is half of staying afloat."),
+                    ],
+                ),
+                (
+                    key: "night-camp",
+                    lines: [
+                        (voice: "You tie up at dusk and the boy slaps at the air:", text: "These skeeters mean to carry me clean off."),
+                        (voice: "The old riverman heaps green wood on a smudge fire:", text: "Smudge'll hold 'em back. Eat your ration, then it's cards or a coon hunt or a yarn till the fire dies down. Sleep on the bank — or atop the cargo if it comes on to rain. We're off again at first light."),
+                    ],
+                ),
+                (
+                    key: "boatman-song",
+                    gates: [MoraleAbove(60.0)],
+                    lines: [
+                        (voice: "Late, with the jug going round the deck, the old song starts up of its own accord:", text: "\"The boatman is a lucky man, no one can do as the boatman can... Hi-O, away we go, floating down the river on the O-hi-o!\""),
+                    ],
+                ),
+                (
+                    key: "french-song",
+                    lines: [
+                        (voice: "A barge of Creole boatmen sweeps past, the steersman calling a line and the crew answering it back:", text: "\"L'on, ton, laridon, danée... L'on, ton, laridon, dai!\""),
+                        (voice: "The old riverman listens a moment:", text: "French rivermen. Better singers than us by a country mile — sing the whole day to keep their minds off the work and the wild country. Half don't know what the words mean. Don't seem to matter."),
+                    ],
+                ),
+            ],
+        ),
+        // ----- The Trace, before the divide: why you walk, and whose land it is -----
+        (
+            phase: Trace, from_mile: 0.0, to_mile: 423.9,
+            beats: [
+                (
+                    key: "why-walk",
+                    lines: [
+                        (voice: "The boy shifts his pack:", text: "Why walk? We had a good boat."),
+                        (voice: "The old trace-walker:", text: "Can't pole a flatboat back up two thousand mile of current, son. Everybody walks the Trace home — five hundred mile of woods, Natchez to Nashville."),
+                    ],
+                ),
+                (
+                    key: "the-stands",
+                    lines: [
+                        (voice: "The old trace-walker:", text: "These inns — the stands — most are kept by Chickasaw and Choctaw on their own land. A meal, a roof, and you're safe while you're under it. Mind your manners. We're guests the whole way north."),
+                    ],
+                ),
+            ],
+        ),
+        // ----- Past the divide: Harpe country -----
+        (
+            phase: Trace, from_mile: 423.9, to_mile: 1000.0,
+            beats: [
+                (
+                    key: "harpe-country",
+                    lines: [
+                        (voice: "The boy:", text: "You've gone quiet since that last ridge."),
+                        (voice: "The old trace-walker keeps his voice low:", text: "Past the divide now. The Harpes worked this stretch — meanest cutthroats the Trace ever bred. They're dead and gone. Their kind never quite is. Walk close, and don't straggle once it's dark."),
+                    ],
+                ),
+            ],
+        ),
     ],
 )

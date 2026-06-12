@@ -136,6 +136,7 @@ fn scripted_full_playthrough_smoke() {
             match g.mode {
                 Mode::Pittsburgh | Mode::Town => g.depart(),
                 Mode::Falls => g.falls_pilot(8.0),
+                Mode::GrandTower => g.grand_tower_duck(),
                 Mode::Natchez | Mode::GameOver => break,
                 other => panic!("seed {seed}: unexpected river mode {other:?}"),
             }
@@ -574,6 +575,13 @@ fn golden_run(seed: u64, log: &mut String) {
                 1 => g.falls_run(),
                 _ => g.falls_wait(),
             },
+            Mode::GrandTower => {
+                if feed.next() % 2 == 0 {
+                    g.grand_tower_treat(2.0)
+                } else {
+                    g.grand_tower_duck()
+                }
+            }
             Mode::Natchez => {
                 if natchez_first {
                     natchez_first = false;
@@ -640,9 +648,15 @@ fn fnv1a(s: &str) -> u64 {
 fn golden_trace_is_stable() {
     let trace = golden_trace();
     let got = fnv1a(&trace);
-    // Baseline captured before the data-driven refactor. Behavior must not drift;
+    // Baseline captured before the data-driven refactor, re-pinned for: the
+    // lower-river leg into Natchez getting its own hazard table (heavier piracy),
+    // then ambient crew banter replacing the flat clean-leg lines (narrative
+    // only), then a boatmen flavor pass (more banter + folk hazard names), and
+    // now four new river landings (Marietta, Maysville, Shawneetown, Grand Tower)
+    // with the Grand Tower initiation set-piece — a real behavior change: more
+    // legs means a longer RNG stream and more markets. Behavior must not drift;
     // if this trips, run `print_golden_trace` (below) before and after to diff.
-    const EXPECTED: u64 = 0xfc5e_6ce0_af78_1cb9;
+    const EXPECTED: u64 = 0x9a47_4593_7bcc_0023;
     assert_eq!(
         got, EXPECTED,
         "golden trace drifted: got {:#018x} over {} bytes",
@@ -655,6 +669,110 @@ fn golden_trace_is_stable() {
 #[ignore = "diagnostic: dumps the full golden trace for diffing"]
 fn print_golden_trace() {
     print!("{}", golden_trace());
+}
+
+/// Dev tool: summarize every leg's hazard distribution straight from the
+/// scenario data — which hazards can occur on a leg and at what odds. Reads the
+/// embedded `Scenario` only (no engine state, no RNG), so the percentages are
+/// the band widths the selection loops in `river.rs` / `trace.rs` actually use.
+/// Handy for eyeballing a per-leg override (the lower-river piracy weighting) and
+/// for catching the `arms[i] <-> thresholds[i-1]` off-by-one in a fresh table.
+#[test]
+#[ignore = "diagnostic: prints each leg's hazard distribution from the scenario"]
+fn print_leg_hazards() {
+    use super::scenario_data::scenario;
+    use super::state::NUM_RIVER_TOWNS;
+    use trail_kit::scenario::HazardTable;
+
+    // Per-arm probabilities from cumulative thresholds, indexed exactly as the
+    // engine selects: `arms[0]` is the fall-through (clean) slice above the top
+    // threshold; `arms[i+1]` owns `(thresholds[i-1], thresholds[i]]`.
+    fn band_pcts(t: &HazardTable) -> Vec<f64> {
+        let mut pcts = vec![0.0; t.arms.len()];
+        pcts[0] = 100.0 - t.thresholds.last().copied().unwrap_or(0.0);
+        let mut prev = 0.0;
+        for (i, &th) in t.thresholds.iter().enumerate() {
+            pcts[i + 1] = th - prev;
+            prev = th;
+        }
+        pcts
+    }
+
+    // A Branch resolves to one side by position; everything else stands alone.
+    fn resolve(arm: &HazardArm, past_divide: bool) -> &HazardArm {
+        match arm {
+            HazardArm::Branch {
+                before,
+                past_divide: pd,
+            } => {
+                if past_divide {
+                    pd
+                } else {
+                    before
+                }
+            }
+            other => other,
+        }
+    }
+
+    fn label(arm: &HazardArm) -> String {
+        match arm {
+            HazardArm::Clean { .. } => "clean".into(),
+            HazardArm::Minigame { outcome, .. } => outcome.clone(),
+            HazardArm::Special(s) => format!("{s} (special)"),
+            HazardArm::Branch {
+                before,
+                past_divide,
+            } => format!("{} / {}", label(before), label(past_divide)),
+        }
+    }
+
+    // Print arms as a distribution, descending by odds, resolving any branch.
+    fn print_table(t: &HazardTable, past_divide: bool) {
+        let pcts = band_pcts(t);
+        let mut rows: Vec<(String, f64)> = t
+            .arms
+            .iter()
+            .zip(&pcts)
+            .map(|(a, &p)| (label(resolve(a, past_divide)), p))
+            .collect();
+        rows.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        for (name, p) in rows {
+            println!("    {name:<22}{p:>3.0}%");
+        }
+    }
+
+    let sc = scenario();
+
+    println!("\nRIVER LEGS  (one hazard roll per leg)");
+    for to in 1..NUM_RIVER_TOWNS {
+        let from = &sc.river.towns[to - 1].name;
+        let town = &sc.river.towns[to];
+        let (table, tag) = match town.hazards.as_ref() {
+            Some(h) => (h, "[OVERRIDE]"),
+            None => (&sc.river.hazards, "[phase-wide]"),
+        };
+        println!("  {from} -> {} {tag}", town.name);
+        print_table(table, false);
+    }
+
+    println!("\nTRACE PHASE  (one roll per day; bandits branch at the divide)");
+    let trace = &sc.trace.hazards;
+    println!("  -- before the divide --");
+    print_table(trace, false);
+    println!("  -- past the divide (mile >= {}) --", sc.trace.divide_at);
+    print_table(trace, true);
+    if !trace.grouped_thins.is_empty() {
+        let thinned: Vec<String> = trace
+            .grouped_thins
+            .iter()
+            .map(|&i| label(&trace.arms[i]))
+            .collect();
+        println!(
+            "  note: travelling grouped clears {} to a clean day ~50% of the time",
+            thinned.join(", ")
+        );
+    }
 }
 
 // ===== Scenario / legacy-const parity =====
@@ -809,10 +927,15 @@ fn scenario_is_self_consistent() {
     // Every set-piece menu option names a known action, and the costs the menu
     // shows match the economy the engine actually charges.
     let known = [
-        "falls-pilot", "falls-run", "falls-wait", "sell-cargo", "sell-boat", "gamble",
-        "buy-horse", "set-out", "rest", "leave",
+        "falls-pilot", "falls-run", "falls-wait", "gt-treat", "gt-duck", "sell-cargo", "sell-boat",
+        "gamble", "buy-horse", "set-out", "rest", "leave",
     ];
-    for menu in [&sc.menus.falls, &sc.menus.natchez, &sc.menus.stand] {
+    for menu in [
+        &sc.menus.falls,
+        &sc.menus.grandtower,
+        &sc.menus.natchez,
+        &sc.menus.stand,
+    ] {
         for opt in &menu.options {
             assert!(known.contains(&opt.action.as_str()), "unknown action {}", opt.action);
         }
@@ -823,6 +946,7 @@ fn scenario_is_self_consistent() {
         menu.options.iter().find(|o| o.action == action).unwrap().cost
     };
     assert_eq!(cost_of(&sc.menus.falls, "falls-pilot"), 8.0);
+    assert_eq!(cost_of(&sc.menus.grandtower, "gt-treat"), 2.0);
     assert_eq!(cost_of(&sc.menus.natchez, "buy-horse"), 12.0);
     assert_eq!(cost_of(&sc.menus.stand, "rest"), 8.0);
     assert_eq!(cost_of(&sc.menus.stand, "buy-horse"), 14.0);

@@ -38,6 +38,70 @@ pub struct Scenario {
     pub outcomes: Vec<Outcome>,
     /// The launch parameters of each minigame, keyed by the same id.
     pub minigames: Vec<MinigameSpec<MiniParams>>,
+    /// Ambient crew-banter pools, keyed by region. Optional: a scenario with no
+    /// `banter:` block parses fine and quiet legs fall back to their flat line.
+    #[serde(default)]
+    pub banter: Vec<BanterPool>,
+}
+
+/// A region's worth of ambient crew banter. On a quiet (clean) leg whose
+/// position falls in `[from_mile, to_mile)` of the matching `phase`, the engine
+/// plays the first not-yet-heard [`BanterBeat`] whose gates pass — turning empty
+/// travel into voiced world-building (geography, history, the people of the
+/// country you're passing through). Selection is deterministic (never consumes
+/// RNG), so it can't perturb hazard rolls.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BanterPool {
+    /// Which phase this region belongs to.
+    pub phase: BanterPhase,
+    /// Inclusive lower milepost bound (river miles, or Trace miles).
+    pub from_mile: f64,
+    /// Exclusive upper milepost bound.
+    pub to_mile: f64,
+    /// The beats for this region, tried in order; the first unheard, ungated one
+    /// plays. Author most-specific or most-wanted first.
+    pub beats: Vec<BanterBeat>,
+}
+
+/// Which travel phase a [`BanterPool`] applies to. Mirrors the engine's `Phase`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BanterPhase {
+    River,
+    Trace,
+}
+
+/// One overheard exchange. Plays at most once per game (tracked by `key`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BanterBeat {
+    /// Unique id; recorded in the run's heard-set so the beat never repeats.
+    pub key: String,
+    /// Optional state predicates; the beat is skipped unless all pass.
+    #[serde(default)]
+    pub gates: Vec<BanterGate>,
+    /// The ordered lines of the exchange, surfaced one tap at a time.
+    pub lines: Vec<BanterLine>,
+}
+
+/// A single spoken line: a speaker tag and what they say. The voice is free
+/// text that prefixes the line (e.g. `"The old riverman spits:"`), so no UI
+/// change or speaker registry is needed.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BanterLine {
+    pub voice: String,
+    pub text: String,
+}
+
+/// A state predicate gating a [`BanterBeat`], so tone can react to the journey
+/// (a surly low-morale crew, company on the road). Evaluated against game state
+/// by the host; no RNG.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum BanterGate {
+    /// Morale strictly below this (0..100).
+    MoraleBelow(f64),
+    /// Morale at or above this (0..100).
+    MoraleAbove(f64),
+    /// Whether the party is travelling grouped.
+    Grouped(bool),
 }
 
 /// The set-piece numbers and single-line prose that are NOT already a menu
@@ -160,6 +224,14 @@ pub struct Town {
     pub base_ranks: Vec<i64>,
     /// Whether a generous moneylender here raises the credit cap.
     pub moneylender: bool,
+    /// Hazard table for the leg *arriving at* this town, overriding the
+    /// phase-wide [`RiverPhase::hazards`]. Keyed on the destination, so this is
+    /// the override for Pittsburgh→here, not here→next; Pittsburgh's own entry
+    /// is therefore never consulted (you never arrive at the start). Absent for
+    /// most towns — only set where a leg's odds should differ historically (e.g.
+    /// heavier piracy on the lower river toward Natchez).
+    #[serde(default)]
+    pub hazards: Option<HazardTable>,
 }
 
 /// Phase 2 — Natchez to Nashville.
