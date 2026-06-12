@@ -86,7 +86,7 @@ fn GameRoot() -> Element {
                         Mode::NewGame => rsx! { screens::new_game::NewGame {} },
                         Mode::Pittsburgh => rsx! { screens::pittsburgh::Pittsburgh {} },
                         Mode::Town => rsx! { screens::town::Town {} },
-                        Mode::Trade { buying } => rsx! { screens::trade::Trade { buying } },
+                        Mode::Trade { can_buy, can_sell } => rsx! { screens::trade::Trade { can_buy, can_sell } },
                         Mode::Moneylender => rsx! { screens::moneylender::Moneylender {} },
                         Mode::Falls => rsx! { screens::falls::Falls {} },
                         Mode::GrandTower => rsx! { screens::grand_tower::GrandTower {} },

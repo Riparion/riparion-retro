@@ -394,8 +394,10 @@ pub enum Mode {
     Pittsburgh,
     /// A river-town hub: trade, see the moneylender, cast off.
     Town,
-    /// Buy (true) or sell (false) cargo.
-    Trade { buying: bool },
+    /// The market: an actionable table where you buy and/or sell cargo in place.
+    /// `can_buy`/`can_sell` gate the columns and actions per hub (Pittsburgh buys
+    /// only, Natchez sells only, river towns do both).
+    Trade { can_buy: bool, can_sell: bool },
     /// Borrow against the boat or repay the boatyard.
     Moneylender,
     /// The Falls of the Ohio — portage, pilot, or run them.
