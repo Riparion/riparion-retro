@@ -16,7 +16,9 @@ pub mod setpiece;
 
 pub use effect::{apply_effects, Effect, EffectCtx, EffectTarget, Outcome, Tier};
 pub use minigame::{MiniParams, MinigameSpec};
-pub use scenario::{HazardArm, Scenario};
+pub use scenario::{
+    BanterBeat, BanterGate, BanterLine, BanterPhase, BanterPool, HazardArm, Scenario,
+};
 pub use setpiece::{Gate, Menus, SetPiece, SetPieceOption};
 
 /// Parse a scenario from its RON source. Returns a spanned error on malformed

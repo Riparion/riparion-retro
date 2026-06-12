@@ -234,6 +234,10 @@ pub struct GameState {
     pub reputation: f64,
     pub robbed: bool,
     pub crew_at_natchez: i64,
+    /// Keys of ambient banter beats already heard this run, so each plays once.
+    /// `serde(default)` keeps pre-banter saves loading (they resume with none).
+    #[serde(default)]
+    pub heard_banter: std::collections::HashSet<String>,
 }
 
 /// The flatboat. Only the `kind` is stored; the derived numbers are methods that
@@ -283,6 +287,7 @@ impl GameState {
             reputation: 0.0,
             robbed: false,
             crew_at_natchez: 0,
+            heard_banter: std::collections::HashSet::new(),
         }
     }
 

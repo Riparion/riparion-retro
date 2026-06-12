@@ -355,4 +355,112 @@ Scenario(
         (id: "patch",      params: Sequence(prompt: "A snag punches a hole in the hull — patch it in order before she fills.", symbols: ["🪵", "🧵", "🔨", "🪣"], length: 4)),
         (id: "bail",       params: Brigade(prompt: "High water floods the boat — bail her out faster than she fills!", threat_icon: "💧", cols: 5, rows: 5, initial_active: 3, spread_ms: 750, duration_ms: 8000)),
     ],
+
+    // Ambient crew banter, played on quiet (clean) legs instead of the flat
+    // "quiet stretch" line. Pools are keyed by region (phase + milepost band);
+    // river position is the leg's origin landing, Trace position is miles walked.
+    // Each beat plays at most once. Authoring: lead with the questioner/expert
+    // device — a green hand asks, an old hand explains — keep beats to 2-4 short
+    // lines, and keep the history period-true (early-1800s flatboat trade and the
+    // Natchez Trace walk home). Voices are free text that prefixes the line.
+    banter: [
+        // ----- Upper Ohio: Pittsburgh and Wheeling, settling into the run -----
+        (
+            phase: River, from_mile: 0.0, to_mile: 470.0,
+            beats: [
+                (
+                    key: "upper-ohio-current",
+                    lines: [
+                        (voice: "The farmhand squints downriver:", text: "We just ride it the whole way down?"),
+                        (voice: "The old riverman spits over the side:", text: "The Ohio does the work clear to its mouth. Easy water — bars and snags, mostly. Save your worry for the Mississippi."),
+                    ],
+                ),
+                (
+                    key: "upper-ohio-trade",
+                    lines: [
+                        (voice: "The boatwright thumps the gunwale:", text: "Whiskey, flour, salt pork — worth three times at Natchez what it fetched in Pittsburgh. Float it down, sell it high, break the boat up for lumber. That's the whole game."),
+                    ],
+                ),
+            ],
+        ),
+        // ----- Lower Ohio: the Falls, and the wreckers' cave -----
+        (
+            phase: River, from_mile: 470.0, to_mile: 980.0,
+            beats: [
+                (
+                    key: "the-falls",
+                    lines: [
+                        (voice: "The boatwright nods downstream:", text: "Below Louisville the river drops over the Falls of the Ohio — two mile of bare rock. Hire a pilot or wait on high water. The ones who run it blind feed the catfish."),
+                    ],
+                ),
+                (
+                    key: "cave-in-rock",
+                    lines: [
+                        (voice: "The farmhand points at a black gash in the bluffs:", text: "What's that cave yonder?"),
+                        (voice: "The old riverman doesn't look up:", text: "Cave-in-Rock. River pirates laired there — hung out a sign for liquor to lure boats ashore, then took the cargo and sank the rest. Keep to the channel. Don't put in, no matter who waves you down."),
+                    ],
+                ),
+            ],
+        ),
+        // ----- The Mississippi: Cairo down to Natchez, the dangerous water -----
+        (
+            phase: River, from_mile: 980.0, to_mile: 1830.0,
+            beats: [
+                // Surly-crew variant first: only fires when morale has worn thin,
+                // else it's skipped and the next beat plays.
+                (
+                    key: "mississippi-grumble",
+                    gates: [MoraleBelow(50.0)],
+                    lines: [
+                        (voice: "A hand mutters at his oar:", text: "Triple pay at Natchez, he keeps saying. If we live to count it."),
+                    ],
+                ),
+                (
+                    key: "big-muddy",
+                    lines: [
+                        (voice: "The farmhand:", text: "Lord — the river's near a mile across now."),
+                        (voice: "The old riverman:", text: "That's the Mississippi. Swallowed the Ohio back at Cairo. Runs faster, hides more — and the men who work these banks ain't all honest."),
+                    ],
+                ),
+                (
+                    key: "natchez-under-the-hill",
+                    lines: [
+                        (voice: "The old riverman lowers his voice:", text: "Natchez sits proud on the bluff, but the landing under it — Natchez-under-the-Hill — is all grog, cards, and cut throats. Sell your cargo up top. Men have lost the whole trip down below."),
+                    ],
+                ),
+            ],
+        ),
+        // ----- The Trace, before the divide: why you walk, and whose land it is -----
+        (
+            phase: Trace, from_mile: 0.0, to_mile: 423.9,
+            beats: [
+                (
+                    key: "why-walk",
+                    lines: [
+                        (voice: "The boy shifts his pack:", text: "Why walk? We had a good boat."),
+                        (voice: "The old trace-walker:", text: "Can't pole a flatboat back up two thousand mile of current, son. Everybody walks the Trace home — five hundred mile of woods, Natchez to Nashville."),
+                    ],
+                ),
+                (
+                    key: "the-stands",
+                    lines: [
+                        (voice: "The old trace-walker:", text: "These inns — the stands — most are kept by Chickasaw and Choctaw on their own land. A meal, a roof, and you're safe while you're under it. Mind your manners. We're guests the whole way north."),
+                    ],
+                ),
+            ],
+        ),
+        // ----- Past the divide: Harpe country -----
+        (
+            phase: Trace, from_mile: 423.9, to_mile: 1000.0,
+            beats: [
+                (
+                    key: "harpe-country",
+                    lines: [
+                        (voice: "The boy:", text: "You've gone quiet since that last ridge."),
+                        (voice: "The old trace-walker keeps his voice low:", text: "Past the divide now. The Harpes worked this stretch — meanest cutthroats the Trace ever bred. They're dead and gone. Their kind never quite is. Walk close, and don't straggle once it's dark."),
+                    ],
+                ),
+            ],
+        ),
+    ],
 )
