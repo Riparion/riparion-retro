@@ -15,8 +15,10 @@ pub fn Town() -> Element {
     let town = s.town;
     let has_moneylender = town == 2 || town == 5;
     let convoy = s.river_convoy;
-    let rows: Vec<(usize, String, i64)> = (0..GOOD_NAMES.len())
-        .map(|i| (i, fmt_money(s.prices[i]), s.hold[i]))
+    // Quote the prices the player actually transacts at: the ask to buy, the bid
+    // to sell (spread folded in), not the bare mid in `state.prices`.
+    let rows: Vec<(usize, String, String, i64)> = (0..GOOD_NAMES.len())
+        .map(|i| (i, fmt_money(g.buy_price(i)), fmt_money(g.sell_price(i)), s.hold[i]))
         .collect();
     drop(g);
 
@@ -29,15 +31,17 @@ pub fn Town() -> Element {
                         thead {
                             tr { class: "chip-label text-left",
                                 th { "CARGO" }
-                                th { class: "text-right", "PRICE" }
+                                th { class: "text-right", "BUY" }
+                                th { class: "text-right", "SELL" }
                                 th { class: "text-right", "ABOARD" }
                             }
                         }
                         tbody {
-                            for (i, price, aboard) in rows {
+                            for (i, buy, sell, aboard) in rows {
                                 tr { key: "{i}",
                                     td { "{GOOD_NAMES[i]}" }
-                                    td { class: "text-right", "{price}" }
+                                    td { class: "text-right", "{buy}" }
+                                    td { class: "text-right", "{sell}" }
                                     td { class: "text-right", "{aboard}" }
                                 }
                             }

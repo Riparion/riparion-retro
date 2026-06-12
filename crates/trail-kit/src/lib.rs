@@ -17,7 +17,7 @@ pub mod setpiece;
 pub use effect::{apply_effects, Effect, EffectCtx, EffectTarget, Outcome, Tier};
 pub use minigame::{MiniParams, MinigameSpec};
 pub use scenario::{
-    BanterBeat, BanterGate, BanterLine, BanterPhase, BanterPool, HazardArm, Scenario,
+    BanterBeat, BanterGate, BanterLine, BanterPhase, BanterPool, HazardArm, MarketBias, Scenario,
 };
 pub use setpiece::{Gate, Menus, SetPiece, SetPieceOption};
 

@@ -26,7 +26,9 @@ pub fn Trade(buying: bool) -> Element {
 
     if let Some(i) = good() {
         let g = game.read();
-        let price = g.state.prices[i];
+        // The price you actually transact at: the ask when buying, the bid when
+        // selling (spread + reputation folded in), not the hub's mid reference.
+        let price = if buying { g.buy_price(i) } else { g.sell_price(i) };
         let max = if buying { g.max_buy(i) } else { g.state.hold[i] };
         let verb = if buying { "load" } else { "sell" };
         let mut prompt = format!(
@@ -70,7 +72,8 @@ pub fn Trade(buying: bool) -> Element {
             } else {
                 format!("{} aboard", g.state.hold[i])
             };
-            (i, fmt_money(g.state.prices[i]), extra)
+            let price = if buying { g.buy_price(i) } else { g.sell_price(i) };
+            (i, fmt_money(price), extra)
         })
         .collect();
     drop(g);

@@ -153,11 +153,36 @@ impl Game {
 
     // ----- Trading (engine re-clamps; UI input is advisory) -----
 
+    /// The ask (what you pay to buy one unit of `good` here): the mid quote in
+    /// `state.prices` lifted half a bid/ask spread. The market always costs more
+    /// to enter than it returns — see [`Game::sell_price`].
+    pub fn buy_price(&self, good: usize) -> f64 {
+        self.state.prices[good] * (1.0 + prices::spread(self.state.town, good) / 2.0)
+    }
+
+    /// The bid (what you net selling one unit of `good` here): the mid dropped
+    /// half a spread, then nudged ±25% by reputation. The reputation edge applies
+    /// to selling only, as before.
+    pub fn sell_price(&self, good: usize) -> f64 {
+        let bid = self.state.prices[good] * (1.0 - prices::spread(self.state.town, good) / 2.0);
+        (bid * (1.0 + self.state.reputation / 200.0)).max(0.0)
+    }
+
+    /// What the whole hold would actually fetch if sold here right now — every
+    /// good at its current bid (spread and reputation folded in). This is the
+    /// realizable figure the Natchez cash-out shows, as opposed to the notional
+    /// mid-quote [`GameState::cargo_value`](state::GameState::cargo_value).
+    pub fn cargo_sale_value(&self) -> f64 {
+        (0..state::NUM_GOODS)
+            .map(|i| self.state.hold[i] as f64 * self.sell_price(i))
+            .sum()
+    }
+
     /// Max units of `good` the player can fund (cash plus boatyard credit) and
     /// fit aboard. Cargo bought past your cash is carried on credit — the whole
     /// trade is to buy cheap on credit upstream and sell high downstream.
     pub fn max_buy(&self, good: usize) -> i64 {
-        let price = self.state.prices[good];
+        let price = self.buy_price(good);
         if price <= 0.0 {
             return 0;
         }
@@ -169,15 +194,14 @@ impl Game {
 
     pub fn buy(&mut self, good: usize, qty: i64) {
         let qty = qty.clamp(0, self.max_buy(good));
-        self.spend(qty as f64 * self.state.prices[good]);
+        self.spend(qty as f64 * self.buy_price(good));
         self.state.hold[good] += qty;
     }
 
-    /// Sell `qty` of `good`. Reputation nudges the realized price ±25%.
+    /// Sell `qty` of `good` at the current bid (see [`Game::sell_price`]).
     pub fn sell(&mut self, good: usize, qty: i64) {
         let qty = qty.clamp(0, self.state.hold[good]);
-        let price = self.state.prices[good] * (1.0 + self.state.reputation / 200.0);
-        self.state.cash += qty as f64 * price.max(0.0);
+        self.state.cash += qty as f64 * self.sell_price(good);
         self.state.hold[good] -= qty;
     }
 

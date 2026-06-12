@@ -177,6 +177,7 @@ impl Game {
         prices::generate_prices(&mut self.state, &mut self.rng);
 
         self.message_keyed(format!("You make {}.", self.state.town_name()), town_cover(to));
+        self.queue_market_reality(to);
         self.river_desertion();
 
         self.resume = if to == NATCHEZ {
@@ -193,6 +194,23 @@ impl Game {
             Resume::Town
         };
         self.advance();
+    }
+
+    /// One-time *reality* line at a landing: the dock's actually-cheap and
+    /// actually-dear goods, composed straight from the town's market bias so the
+    /// spoken truth can never drift from the prices the player is about to see.
+    /// The *rumor* heard on the leg in may have exaggerated or missed it; the
+    /// wharf factor sets it straight. Plays at most once per town (recorded in the
+    /// same `heard_banter` set as ambient beats), and never consumes RNG.
+    fn queue_market_reality(&mut self, town: usize) {
+        let key = format!("market-reality:{}", scenario().river.towns[town].slug);
+        if self.state.heard_banter.contains(&key) {
+            return;
+        }
+        if let Some(line) = market_reality_line(town) {
+            self.message(line);
+            self.state.heard_banter.insert(key);
+        }
     }
 
     /// At the dock, a low-morale crew may lose a hand who wants paying off.
@@ -404,4 +422,40 @@ impl Game {
 // Cover-art slug for a landing, off the shared TOWN_SLUGS table.
 fn town_cover(to: usize) -> String {
     format!("town-{}", TOWN_SLUGS[to.min(NUM_RIVER_TOWNS - 1)])
+}
+
+/// Compose the dock's *reality* line for `town` from its market bias — the
+/// strongest-discounted good (cheap) and the strongest-premium good (dear), in
+/// the wharf factor's voice. `None` when the town carries no bias (e.g. Natchez,
+/// whose premium lives in the distance gradient, not a local craving). Pure and
+/// RNG-free, so it can be asserted directly against the schema in tests.
+pub(crate) fn market_reality_line(town: usize) -> Option<String> {
+    let market = &scenario().river.towns[town].market;
+    let cheapest = market
+        .iter()
+        .filter(|b| b.supply > 0.0)
+        .max_by(|a, b| a.supply.total_cmp(&b.supply));
+    let dearest = market
+        .iter()
+        .filter(|b| b.demand > 0.0)
+        .max_by(|a, b| a.demand.total_cmp(&b.demand));
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(b) = cheapest {
+        let good = b.good.to_lowercase();
+        parts.push(match &b.note {
+            Some(note) => format!("Cheap {good} here — {note}."),
+            None => format!("Cheap {good} here; they make it by the boatload."),
+        });
+    }
+    if let Some(b) = dearest {
+        let good = b.good.to_lowercase();
+        parts.push(match &b.note {
+            Some(note) => format!("Scarce {good} — {note}; they'll pay dear for it."),
+            None => format!("Scarce {good} here; they'll pay dear for it."),
+        });
+    }
+    if parts.is_empty() {
+        return None;
+    }
+    Some(format!("A wharf factor talks shop: {}", parts.join(" ")))
 }

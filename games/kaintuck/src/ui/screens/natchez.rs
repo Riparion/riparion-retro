@@ -20,7 +20,9 @@ pub fn Natchez() -> Element {
     let g = game.read();
     let s = &g.state;
     let cash = s.cash;
-    let cargo_value = s.cargo_value();
+    // The realizable sale value (every good at its bid), not the mid-quote — this
+    // is the money the player actually walks away with when they sell up.
+    let cargo_value = g.cargo_sale_value();
     let boat_lumber = s.boat.map(|b| b.lumber_value()).unwrap_or(0.0);
     drop(g);
 
