@@ -115,8 +115,13 @@ pub fn Minigame() -> Element {
                 },
             }
         },
+        // The timing games (setting a bone, measuring a dose) share one render;
+        // the live `mode` only picks which resolver the strike feeds. Each
+        // resolver guards on its own mode, so a mis-routed strike is a no-op (and
+        // would visibly fail to advance) rather than silently applying the wrong
+        // toll.
         (
-            Mode::Splint,
+            mode,
             MinigameParams::Timing {
                 prompt,
                 action,
@@ -131,32 +136,20 @@ pub fn Minigame() -> Element {
                 period_ms: *period_ms,
                 seed,
                 on_strike: move |res: TimingResult| {
-                    game.write().resolve_splint(res.hit, res.accuracy);
+                    let mut g = game.write();
+                    match mode {
+                        Mode::Splint => g.resolve_splint(res.hit, res.accuracy),
+                        Mode::Dose => g.resolve_dose(res.hit, res.accuracy),
+                        _ => g.skip_unrenderable_minigame(),
+                    }
                 },
             }
         },
+        // The route-memory games (the fog trace, the escape through the breaks,
+        // the rugged climb) likewise share one render and differ only in which
+        // resolver the result feeds.
         (
-            Mode::Dose,
-            MinigameParams::Timing {
-                prompt,
-                action,
-                tolerance,
-                period_ms,
-            },
-        ) => rsx! {
-            TimingBar {
-                prompt: prompt.clone(),
-                action: action.clone(),
-                tolerance: *tolerance,
-                period_ms: *period_ms,
-                seed,
-                on_strike: move |res: TimingResult| {
-                    game.write().resolve_dose(res.hit, res.accuracy);
-                },
-            }
-        },
-        (
-            Mode::Fog,
+            mode,
             MinigameParams::Crowd {
                 prompt,
                 crowd_size,
@@ -173,51 +166,13 @@ pub fn Minigame() -> Element {
                 exit_icon: exit_icon.clone(),
                 seed,
                 on_complete: move |res: CrowdThreadingResult| {
-                    game.write().resolve_fog(res.cleared, res.accuracy);
-                },
-            }
-        },
-        (
-            Mode::Flee,
-            MinigameParams::Crowd {
-                prompt,
-                crowd_size,
-                member_icon,
-                player_icon,
-                exit_icon,
-            },
-        ) => rsx! {
-            CrowdThreading {
-                prompt: prompt.clone(),
-                crowd_size: *crowd_size,
-                member_icon: member_icon.clone(),
-                player_icon: player_icon.clone(),
-                exit_icon: exit_icon.clone(),
-                seed,
-                on_complete: move |res: CrowdThreadingResult| {
-                    game.write().resolve_flee(res.cleared, res.accuracy);
-                },
-            }
-        },
-        (
-            Mode::Climb,
-            MinigameParams::Crowd {
-                prompt,
-                crowd_size,
-                member_icon,
-                player_icon,
-                exit_icon,
-            },
-        ) => rsx! {
-            CrowdThreading {
-                prompt: prompt.clone(),
-                crowd_size: *crowd_size,
-                member_icon: member_icon.clone(),
-                player_icon: player_icon.clone(),
-                exit_icon: exit_icon.clone(),
-                seed,
-                on_complete: move |res: CrowdThreadingResult| {
-                    game.write().resolve_climb(res.cleared, res.accuracy);
+                    let mut g = game.write();
+                    match mode {
+                        Mode::Fog => g.resolve_fog(res.cleared, res.accuracy),
+                        Mode::Flee => g.resolve_flee(res.cleared, res.accuracy),
+                        Mode::Climb => g.resolve_climb(res.cleared, res.accuracy),
+                        _ => g.skip_unrenderable_minigame(),
+                    }
                 },
             }
         },
