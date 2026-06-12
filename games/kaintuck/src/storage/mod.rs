@@ -11,7 +11,10 @@ const SCORES_KEY: &str = "kaintuck.highscores";
 // Bumped to 2: the `Boat` struct dropped its cached fields and the six
 // `pending_*` minigame slots became one `pending_task`, so v1 blobs no longer
 // deserialize — an old save falls back to a fresh game rather than mis-loading.
-const SAVE_VERSION: u32 = 2;
+// Bumped to 3: the data-driven refactor dropped the `base_ranks` field from the
+// saved `GameState` (it now reads from the embedded scenario), so v2 blobs no
+// longer deserialize — an old save falls back to a fresh game.
+const SAVE_VERSION: u32 = 3;
 const MAX_SCORES: usize = 10;
 
 /// Resume a saved journey, or start at the title screen.

@@ -92,12 +92,12 @@ fn GameRoot() -> Element {
                         Mode::Natchez => rsx! { screens::natchez::Natchez {} },
                         Mode::TraceHub => rsx! { screens::trace_hub::TraceHub {} },
                         Mode::Stand => rsx! { screens::stand::Stand {} },
-                        Mode::Steady => rsx! { screens::steady::Steady {} },
-                        Mode::Quick => rsx! { screens::quickdraw::Quick {} },
-                        Mode::Crowd => rsx! { screens::crowd::Crowd {} },
-                        Mode::Timing => rsx! { screens::timing::Timing {} },
-                        Mode::Sequence => rsx! { screens::sequence::Sequence {} },
-                        Mode::Brigade => rsx! { screens::brigade::Brigade {} },
+                        Mode::Steady
+                        | Mode::Quick
+                        | Mode::Crowd
+                        | Mode::Timing
+                        | Mode::Sequence
+                        | Mode::Brigade => rsx! { screens::minigame::Minigame {} },
                         Mode::Interaction => rsx! { screens::interaction_host::InteractionHost {} },
                         Mode::GameOver => rsx! { screens::game_over::GameOver {} },
                     }}

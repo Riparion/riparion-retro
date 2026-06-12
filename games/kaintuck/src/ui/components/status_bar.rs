@@ -3,7 +3,8 @@
 
 use dioxus::prelude::*;
 
-use crate::engine::state::{Phase, RIVER_MILES, TRACE_MILES};
+use crate::engine::scenario_data::scenario;
+use crate::engine::state::Phase;
 use crate::engine::Game;
 use retro_kit::components::chip::Chip;
 use retro_kit::format::{fmt_dollars_compact, fmt_num, group_thousands};
@@ -27,7 +28,7 @@ pub fn StatusBar() -> Element {
                         span { class: "opacity-80", "⚓ {s.town_name()}" }
                     }
                     div { class: "px-3 pb-1 text-xs opacity-70",
-                        "{group_thousands(s.river_mile() as i64)} / {RIVER_MILES as i64} river miles to Natchez"
+                        "{group_thousands(s.river_mile() as i64)} / {scenario().river.river_miles as i64} river miles to Natchez"
                     }
                     div { class: "grid grid-cols-4 gap-px text-center pb-1 px-1",
                         Chip { label: "CASH", value: fmt_dollars_compact(s.cash.max(0.0)) }
@@ -40,7 +41,7 @@ pub fn StatusBar() -> Element {
         }
         Phase::Trace => {
             let miles = s.miles.max(0.0);
-            let remaining = (TRACE_MILES - miles).max(0.0);
+            let remaining = (scenario().trace.total_miles - miles).max(0.0);
             let low_food = s.provisions < 12.0;
             let unwell = s.health < 45.0;
             rsx! {

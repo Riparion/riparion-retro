@@ -5,10 +5,8 @@
 use serde::{Deserialize, Serialize};
 
 use super::interaction::Interaction;
-use super::state::{
-    GameOverCause, Mode, Pace, Phase, Stand, DIVIDE_AT, MAX_DAYS, TRACE_MILES,
-};
-use super::tasks::{CrowdTask, QuickTask, SteadyTask, TimingTask};
+use super::scenario_data::scenario;
+use super::state::{GameOverCause, Mode, Pace, Phase, Stand};
 use super::{Flow, Game, Resume};
 
 /// Where a Trace day is in its little chain.
@@ -97,50 +95,24 @@ impl Game {
         }
     }
 
-    /// Deal one trail hazard. Bandits are likelier north of the divide; traveling
-    /// grouped thins the ambushes.
+    /// Deal one trail hazard. Bandits are likelier north of the divide (an arm
+    /// `Branch`); traveling grouped thins the ambushes. The arm-to-minigame
+    /// binding comes from the scenario.
     fn do_trace_hazard(&mut self) -> Flow {
-        let past_divide = self.state.miles >= DIVIDE_AT;
+        let hazards = &scenario().trace.hazards;
         let r1 = self.rng.uniform() * 100.0;
-        const THRESH: [f64; 5] = [8.0, 16.0, 26.0, 34.0, 50.0];
         let mut idx = 0usize;
-        for (i, t) in THRESH.iter().enumerate() {
+        for (i, t) in hazards.thresholds.iter().enumerate() {
             if r1 <= *t {
                 idx = i + 1;
                 break;
             }
         }
         // Company on the road draws off some ambushes.
-        if self.state.grouped && matches!(idx, 1 | 2) && self.rng.one_in(2.0) {
+        if self.state.grouped && hazards.grouped_thins.contains(&idx) && self.rng.one_in(2.0) {
             idx = 0;
         }
-        match idx {
-            1 => {
-                self.begin_quick(QuickTask::Mason);
-                Flow::Pause
-            }
-            2 => {
-                if past_divide {
-                    self.begin_quick(QuickTask::Harpe);
-                } else {
-                    self.begin_timing(TimingTask::Dose);
-                }
-                Flow::Pause
-            }
-            3 => {
-                self.begin_timing(TimingTask::Dose);
-                Flow::Pause
-            }
-            4 => {
-                self.begin_crowd(CrowdTask::SideTrail);
-                Flow::Pause
-            }
-            5 => {
-                self.begin_steady(SteadyTask::Swamp);
-                Flow::Pause
-            }
-            _ => Flow::Continue,
-        }
+        self.run_hazard_arm(&hazards.arms[idx])
     }
 
     /// Settle the day: reach every stand whose milepost the day's travel passed.
@@ -149,7 +121,7 @@ impl Game {
     /// stops can't silently drop the second — in particular the river crossing
     /// can't be skipped by a fast final day on the way into Nashville.
     fn settle_day(&mut self) -> Flow {
-        let posts = Stand::POSTS;
+        let posts = Stand::posts();
         loop {
             if self.state.stand_idx >= posts.len() {
                 return Flow::Continue;
@@ -163,14 +135,16 @@ impl Game {
                 Stand::DuckRiver => {
                     if self.state.has_horse {
                         self.message_keyed(
-                            "You reach the Duck River. Astride your horse you pick a line through the current and cross without much trouble.",
+                            scenario().setpieces.duck_horse_msg.clone(),
                             "trace-duck-river",
                         );
                         // Crossing handled; carry on settling any further stand.
                     } else {
                         // A ferryman waits — pay the toll or ford it. The prompt
                         // must resolve before the day can end.
-                        self.pending.push_back(Interaction::FerryToll { toll: 6.0 });
+                        self.pending.push_back(Interaction::FerryToll {
+                            toll: scenario().setpieces.ferry_toll,
+                        });
                         return Flow::Continue;
                     }
                 }
@@ -184,11 +158,11 @@ impl Game {
 
     /// Check arrival/limit at the end of a day, else back to the hub.
     pub(crate) fn next_day(&mut self) {
-        if self.state.miles >= TRACE_MILES {
+        if self.state.miles >= scenario().trace.total_miles {
             self.finish_win();
             return;
         }
-        if self.state.day >= MAX_DAYS {
+        if self.state.day >= scenario().trace.max_days {
             self.die(GameOverCause::LostInWoods);
             return;
         }
@@ -203,28 +177,21 @@ impl Game {
             return None;
         }
         let i = self.state.stand_idx;
-        if i == 0 || i > Stand::POSTS.len() {
+        if i == 0 || i > Stand::ALL.len() {
             return None;
         }
-        Some(Stand::POSTS[i - 1].0)
+        Some(Stand::ALL[i - 1])
     }
 
     /// Rest and buy a meal and provisions at the stand.
-    pub fn rest_and_resupply(&mut self) {
+    pub fn rest_and_resupply(&mut self, cost: f64) {
         if self.mode != Mode::Stand {
             return;
         }
-        self.spend(8.0);
-        self.state.provisions += 30.0;
-        self.state.health = (self.state.health + 10.0).min(100.0);
-    }
-
-    /// Trade for a horse (Buzzard Roost).
-    pub fn stand_buy_horse(&mut self, price: f64) {
-        if self.mode != Mode::Stand {
-            return;
-        }
-        self.buy_horse(price);
+        let sp = &scenario().setpieces;
+        self.spend(cost);
+        self.state.provisions += sp.rest_provisions;
+        self.state.health = (self.state.health + sp.rest_health).min(100.0);
     }
 
     /// Leave the stand and carry on. First settle any further crossing the day's

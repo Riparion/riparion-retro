@@ -17,6 +17,7 @@
 pub mod interaction;
 pub mod prices;
 pub use retro_kit::rng;
+pub mod scenario_data;
 pub mod scoring;
 pub mod state;
 pub mod tasks;
@@ -30,11 +31,14 @@ use serde::{Deserialize, Serialize};
 
 use interaction::{Interaction, Response};
 use rng::GameRng;
+use scenario_data::scenario;
 use state::{Boat, EndGame, GameOverCause, GameState, Mode, Phase, NUM_GOODS};
 use tasks::{MiniTask, SteadyTask};
 
 pub use river::Voyage;
 pub use trace::Leg;
+
+use trail_kit::{EffectTarget, HazardArm};
 
 /// Whether a hazard handler paused for a minigame/decision or ran straight through.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -118,7 +122,7 @@ impl Game {
             return Ok(());
         }
         let crew = crew.clamp(1, 5);
-        let cost = kind.cost() + crew as f64 * state::CREW_WAGE;
+        let cost = kind.cost() + crew as f64 * scenario().start.crew_wage;
         let available = self.state.cash + (self.state.credit_cap - self.state.debt).max(0.0);
         if cost > available {
             return Err(format!(
@@ -220,7 +224,7 @@ impl Game {
             Interaction::FerryToll { toll } => {
                 if response == Response::Yes {
                     self.spend(toll.min(self.state.cash));
-                    self.message("The ferryman poles you across the Duck River, dry and whole.");
+                    self.message(scenario().setpieces.ferry_cross_msg.clone());
                     // crossing done; fall through to advance
                 } else {
                     // Ford it yourself — the steady-hand crossing.
@@ -291,6 +295,90 @@ impl Game {
         }
     }
 
+    // ----- Hazard arm dispatch (data-driven) -----
+
+    /// Carry out a selected hazard arm. Both phases roll an index off their
+    /// `HazardTable` and hand the chosen [`HazardArm`] here, so which minigame a
+    /// hazard fires (and which clean/special leg it is) lives in the scenario, not
+    /// in code.
+    pub(crate) fn run_hazard_arm(&mut self, arm: &HazardArm) -> Flow {
+        match arm {
+            HazardArm::Clean { message, cover } => {
+                self.narrate_opt(message, cover);
+                Flow::Continue
+            }
+            HazardArm::Minigame {
+                outcome,
+                message,
+                cover,
+            } => {
+                self.narrate_opt(message, cover);
+                self.begin_minigame_for(outcome);
+                Flow::Pause
+            }
+            HazardArm::Special(name) => self.run_special(name),
+            HazardArm::Branch {
+                past_divide,
+                before,
+            } => {
+                let arm = if self.state.miles >= scenario().trace.divide_at {
+                    past_divide
+                } else {
+                    before
+                };
+                self.run_hazard_arm(arm)
+            }
+        }
+    }
+
+    /// Narrate an optional arm line, reusing the effect-interpreter's narration
+    /// seam so the keyed-vs-plain decision lives in exactly one place.
+    fn narrate_opt(&mut self, message: &Option<String>, cover: &Option<String>) {
+        if let Some(m) = message {
+            EffectTarget::narrate(self, m.clone(), cover.clone());
+        }
+    }
+
+    /// Dispatch a built-in special arm whose RNG-driven internals stay in Rust.
+    fn run_special(&mut self, name: &str) -> Flow {
+        match name {
+            "spoilage" => {
+                self.do_spoilage();
+                Flow::Continue
+            }
+            "crew-grumble" => {
+                self.do_crew_grumble();
+                Flow::Continue
+            }
+            other => panic!("unknown hazard special {other}"),
+        }
+    }
+
+    // ----- Set-piece menu dispatch (data-driven) -----
+
+    /// Carry out a set-piece option by its action tag. The menu *structure* lives
+    /// in the scenario; this maps each tag to the existing, tested engine op (so
+    /// behaviour is unchanged from when the buttons were hand-wired). Pure UI-nav
+    /// actions (`sell-cargo`, `gamble`) are handled by the screen, not here.
+    pub fn run_set_piece(&mut self, action: &str, cost: f64) {
+        match action {
+            "falls-pilot" => self.falls_pilot(cost),
+            "falls-run" => self.falls_run(),
+            "falls-wait" => self.falls_wait(),
+            "sell-boat" => self.sell_boat(),
+            "buy-horse" => self.buy_horse(cost),
+            "set-out" => self.set_out_on_trace(),
+            "rest" => self.rest_and_resupply(cost),
+            "leave" => self.leave_stand(),
+            // `sell-cargo` (→ Trade screen) and `gamble` (→ stake entry) are
+            // screen navigation, dispatched by the UI — an explicit no-op here.
+            "sell-cargo" | "gamble" => {}
+            // Anything else is a scenario/code mismatch; fail loudly like the
+            // sibling dispatchers (begin_minigame_for, run_special).
+            other => panic!("unknown set-piece action {other}"),
+        }
+    }
+
     // ----- Shared helpers -----
 
     /// A per-encounter PRNG seed derived from current progress — varies between
@@ -345,7 +433,10 @@ impl Game {
 
     fn build_end(&self, cause: GameOverCause, days: i64) -> EndGame {
         let s = &self.state;
-        let won = cause.won();
+        let ending = scenario()
+            .ending(cause.key())
+            .expect("missing ending for cause");
+        let won = ending.won;
         let leftover = s.cash - s.debt;
         let miles_total = s.total_miles(self.phase);
         let crew = s.crew_at_natchez.max(s.crew);
@@ -360,7 +451,7 @@ impl Game {
         );
         EndGame {
             won,
-            cause: cause.message().to_string(),
+            cause: ending.message.clone(),
             cause_kind: cause,
             score,
             rank: scoring::rank(score).to_string(),
@@ -385,7 +476,7 @@ impl Game {
     /// You walked into Nashville.
     pub(crate) fn finish_win(&mut self) {
         let days = self.days_elapsed();
-        self.state.miles = state::TRACE_MILES;
+        self.state.miles = scenario().trace.total_miles;
         self.outcome = Some(self.build_end(GameOverCause::Victory, days));
         self.mode = Mode::GameOver;
     }

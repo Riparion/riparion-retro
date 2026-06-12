@@ -156,25 +156,6 @@ game logic worth reusing across the trail-style games:
 - `game_flow` — the `Persisted` trait + `use_persistence` helper (see
   Persistence above).
 
-**The oregon-trail and fort-nash engines stay separate — on purpose.** They
-look ~99% identical by line count, and it is tempting to merge them into one
-parametrized "trail engine." Don't. A close diff shows the overlap is the
-*probability/formula skeleton*, while the divergence is dominated by inline
-narrative voice — ~200 flavor strings and image-key slugs woven through nearly
-every function (`"An ox wanders off" / "ox-wanders-off"` →
-`"A pack animal wanders off" / "livestock-strays"`). Pulling those into a
-profile/trait would replace readable inline prose with a string lookup table —
-a maintainability regression — and each game would lose the local voice that
-makes it its own game. On top of that there are real behavioral forks, not just
-text: fort-nash's `SteadyTask::Ice` has different balance and an extra death
-path (`IceBroke`) vs oregon's `Ford`; fort-nash has a third one-time crossing
-(the scripted Cumberland River ice minigame); the same random-event slot is a
-Ford *minigame* in oregon but a plain toll ("swollen creek") in fort-nash; and
-the period differs (fortnights `turn*14` vs weeks `turn*7`). Net: a full engine
-merge is high-churn, high-risk, and a likely readability regression. Share the
-small game-agnostic mechanics via retro-kit (above); let each trail engine keep
-its own events, terrain, causes, and voice. (Evaluated 2026-06-11.)
-
 ## Dioxus 0.7 pitfalls (each of these bit once)
 
 - **Never hold a signal borrow across `.await`** — root `clippy.toml` makes
@@ -210,6 +191,7 @@ its own events, terrain, causes, and voice. (Evaluated 2026-06-11.)
   `retro_kit::playback::play_paced` (await it inside the spawned task; the
   finish logic stays game-side). If you find yourself copying a component
   from another game, generalize it **into retro-kit** instead.
+- Game box cover for title Santa Paravia. The theme is: Rule a 15th-century Italian city-state. Trade grain, feed your people, tax wisely, and build — rise from Sir to King before your years run out. Aesthetic is golden-hour light. Muted earth tones: ochre, slate grey, deep green. Slightly desaturated for text overlay. Painterly illustration style, detailed but not cluttered. Square 1:1 format. 
 
 ## Porting a classic? Spec first
 
@@ -305,3 +287,5 @@ apps origin and the app's display name. So the CMS is the right owner of the
 per-slug manifest (`name`, `start_url`/`scope` = `/apps/<slug>/run/`, shared
 `theme_color`/`background_color`) and the `<head>` links (`manifest`,
 `apple-touch-icon`, `theme-color`); this repo only provides the art.
+
+

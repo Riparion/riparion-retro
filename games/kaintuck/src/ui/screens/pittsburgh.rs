@@ -2,6 +2,7 @@
 
 use dioxus::prelude::*;
 
+use crate::engine::scenario_data::scenario;
 use crate::engine::state::{BoatKind, Mode, GOOD_NAMES};
 use crate::engine::Game;
 use retro_kit::components::error_banner::ErrorBanner;
@@ -26,7 +27,7 @@ pub fn Pittsburgh() -> Element {
     let funds = g.state.cash + (g.state.credit_cap - g.state.debt).max(0.0);
     drop(g);
 
-    let cost = kind().cost() + crew() as f64 * crate::engine::state::CREW_WAGE;
+    let cost = kind().cost() + crew() as f64 * scenario().start.crew_wage;
 
     let build = move |_| {
         match game.write().build(kind(), crew()) {

@@ -1,12 +1,15 @@
 [package]
 name = "kaintuck"
-version = "0.1.2"
+version = "0.1.3"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 retro-kit = { workspace = true }
+# The data-driven scenario (content + flow) lives in an embedded RON file that
+# trail-kit parses into an immutable Scenario.
+trail-kit = { workspace = true }
 # SteadyHands drives the sandbar/swamp/Falls run/Duck River fords; QuickDraw
 # drives the river-pirate and Mason/Harpe ambushes; CrowdThreading drives
 # getting lost on side trails; TimingBar drives the Under-the-Hill gamble and
