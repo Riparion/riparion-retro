@@ -1,18 +1,14 @@
 //! A war party ahead — choose your tactics. They may not be what they appear.
+//! The four tactics come from the scenario's `riders` menu, rendered through the
+//! generic `SetPieceMenu`.
 
 use dioxus::prelude::*;
 
 use crate::engine::interaction::Tactic;
+use crate::engine::scenario_data::scenario;
 use crate::engine::Game;
-use retro_kit::components::menu_button::MenuButton;
+use crate::ui::components::set_piece_menu::SetPieceMenu;
 use retro_kit::theme::SCREEN_CENTERED;
-
-const TACTICS: [(Tactic, &str, &str); 4] = [
-    (Tactic::Run, "Run for it", "thread the breaks to shake them"),
-    (Tactic::Attack, "Attack", "raise your rifle and fight"),
-    (Tactic::Continue, "Keep going", "hold your course and hope"),
-    (Tactic::CircleWagons, "Fort up", "dig in and defend"),
-];
 
 #[component]
 pub fn Riders() -> Element {
@@ -34,13 +30,18 @@ pub fn Riders() -> Element {
                 }
             }
             h2 { class: "text-center", "What are your tactics?" }
-            for (tactic, label, hint) in TACTICS {
-                MenuButton {
-                    key: "{label}",
-                    title: label.to_string(),
-                    hint: hint.to_string(),
-                    onclick: move |_| game.write().resolve_tactic(tactic),
-                }
+            SetPieceMenu {
+                options: scenario().menus.riders.options.as_slice(),
+                onselect: move |action: String| {
+                    let tactic = match action.as_str() {
+                        "run" => Tactic::Run,
+                        "attack" => Tactic::Attack,
+                        "keep-going" => Tactic::Continue,
+                        "fort-up" => Tactic::CircleWagons,
+                        _ => return,
+                    };
+                    game.write().resolve_tactic(tactic);
+                },
             }
         }
     }

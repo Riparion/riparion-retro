@@ -3,11 +3,35 @@
 //! The probability structure and RNG draw order are inherited from the Oregon
 //! Trail engine, so seeded play stays reproducible.
 
+use trail_kit::fortnash::{apply_effects, EffectCtx, HazardArm};
+
 use super::interaction::{ShotPurpose, Tactic};
-use super::state::{
-    EatLevel, GameOverCause, CUMBERLAND_GAP_AT, CUMBERLAND_RIVER_AT, MOUNTAINS_AT,
-};
+use super::scenario_data::scenario;
+use super::state::{EatLevel, GameOverCause};
 use super::{BrigadeTask, Flow, Game, Illness, RiderEncounter, SequenceTask};
+
+/// The outcome ids [`Game::begin_event_minigame`] can launch. A `Minigame { outcome }`
+/// arm in the scenario's event table may only name one of these; `scenario_is_self_consistent`
+/// asserts it, so a typo in the data fails a test instead of panicking mid-game.
+/// Keep this in lockstep with the match in `begin_event_minigame`.
+#[cfg(test)]
+pub(crate) fn is_event_minigame(outcome: &str) -> bool {
+    matches!(
+        outcome,
+        "wheel" | "ox-leg" | "frostbite" | "splint" | "fire" | "rains" | "fog"
+    )
+}
+
+/// The handler names [`Game::run_special`] knows. A `Special(name)` arm in the
+/// event table may only name one of these; `scenario_is_self_consistent` asserts
+/// it. Keep this in lockstep with the match in `run_special`.
+#[cfg(test)]
+pub(crate) fn is_special_handler(name: &str) -> bool {
+    matches!(
+        name,
+        "bad-water" | "outlaws" | "creek" | "wolves" | "sleet" | "illness-roll" | "cold-weather"
+    )
+}
 
 impl Game {
     // ===== Riders =====
@@ -123,99 +147,83 @@ impl Game {
 
     // ===== The random-event table =====
 
-    /// Deal one random trail event. Thresholds are cumulative percentages from
-    /// the BASIC `DATA` list; the first one `r1` falls under selects the event.
+    /// Deal one random trail event. A percentile roll selects an arm from the
+    /// scenario's event table (`thresholds` are the cumulative percentages from
+    /// the BASIC `DATA` list); the arm says, declaratively, which minigame fires,
+    /// which constant-toll effects apply, or which RNG-bespoke host handler runs.
     pub(crate) fn do_event(&mut self) -> Flow {
         let r1 = self.rng.uniform() * 100.0;
-        const THRESH: [f64; 15] = [
-            6.0, 11.0, 13.0, 15.0, 17.0, 22.0, 32.0, 35.0, 37.0, 42.0, 44.0, 54.0, 64.0, 69.0, 95.0,
-        ];
-        let mut idx = 16usize; // r1 > 95 → helpful Indians
-        for (i, t) in THRESH.iter().enumerate() {
-            if r1 <= *t {
-                idx = i + 1;
-                break;
+        let arm = scenario().events.select(r1);
+        self.run_hazard_arm(arm)
+    }
+
+    /// Carry out a selected event arm.
+    pub(crate) fn run_hazard_arm(&mut self, arm: &HazardArm) -> Flow {
+        match arm {
+            // A constant-toll event (strays, lost child, helpful long-hunters):
+            // apply the effect list at zero drift and carry on.
+            HazardArm::Effects(effects) => {
+                let ctx = EffectCtx::new(0.0);
+                apply_effects(self, effects, &ctx);
+                Flow::Continue
+            }
+            // Launch the minigame bound to this outcome; its resolver applies the
+            // tier when the player finishes.
+            HazardArm::Minigame { outcome } => self.begin_event_minigame(outcome),
+            // An RNG-bespoke event keeps its exact draws in a host handler.
+            HazardArm::Special(name) => self.run_special(name),
+            // Past the mountains, heavy rains become a killing cold snap.
+            HazardArm::Branch {
+                past_mountains,
+                before,
+            } => {
+                let arm = if self.state.miles > scenario().trail.mountains_at {
+                    past_mountains
+                } else {
+                    before
+                };
+                self.run_hazard_arm(arm)
             }
         }
-        match idx {
-            1 => {
-                // Re-seating the wheel in the right order (jack → block → bolt →
-                // seat) is its own minigame; `resolve_sequence` tallies how botched
-                // the order was (the prompt announces the breakdown).
-                self.begin_sequence(SequenceTask::Wheel);
-                return Flow::Pause;
-            }
-            2 => {
-                // Dressing the hurt leg in sequence (wrap → pad → bind) is its own
-                // minigame; `resolve_sequence` tallies how botched the order was.
-                self.begin_sequence(SequenceTask::OxLeg);
-                return Flow::Pause;
-            }
-            3 => {
-                // Setting the bone cleanly is its own minigame; `resolve_splint`
-                // tallies how steady the hand was.
-                self.begin_splint();
-                return Flow::Pause;
-            }
-            4 => {
-                self.message_keyed(
-                    "A pack animal wanders off in the night. You spend time rounding it up.",
-                    "livestock-strays",
-                );
-                self.state.miles -= 17.0;
-            }
-            5 => {
-                self.message_keyed(
-                    "A child strays from the column. You hunt for them and lose time.",
-                    "child-lost",
-                );
-                self.state.miles -= 10.0;
-            }
-            6 => {
+    }
+
+    /// Begin the signature minigame an event arm fires, pausing the leg.
+    fn begin_event_minigame(&mut self, outcome: &str) -> Flow {
+        match outcome {
+            "wheel" => self.begin_sequence(SequenceTask::Wheel),
+            "ox-leg" => self.begin_sequence(SequenceTask::OxLeg),
+            "frostbite" => self.begin_sequence(SequenceTask::Frostbite),
+            "splint" => self.begin_splint(),
+            "fire" => self.begin_brigade(BrigadeTask::Fire),
+            "rains" => self.begin_brigade(BrigadeTask::Rains),
+            "fog" => self.begin_fog(),
+            // Unreachable for a valid scenario (see `is_event_minigame`, asserted
+            // by `scenario_is_self_consistent`); loud in dev if the lists drift.
+            other => panic!("unknown event minigame {other}"),
+        }
+        Flow::Pause
+    }
+
+    /// The RNG-bespoke event handlers, kept in the host so their `self.rng` draw
+    /// order is exactly the hand-written engine's. The narration is the same, but
+    /// the random tolls (and the two gunfight launches, and the illness / cold
+    /// rolls) can't be coefficients in the data without perturbing the stream.
+    fn run_special(&mut self, name: &str) -> Flow {
+        match name {
+            "bad-water" => {
                 self.message_keyed(
                     "Bad water — you lose time looking for a clean spring.",
                     "unsafe-water",
                 );
                 self.state.miles -= 10.0 * self.rng.uniform() + 2.0;
+                Flow::Continue
             }
-            7 => {
-                if self.state.miles > MOUNTAINS_AT {
-                    // Falling ill from the cold pauses for the dosing game.
-                    return self.cold_weather();
-                }
-                // Bailing and covering the load as the leaks spread is its own
-                // minigame (the prompt announces the downpour); `resolve_brigade`
-                // tallies how much of the load got soaked.
-                self.begin_brigade(BrigadeTask::Rains);
-                return Flow::Pause;
-            }
-            8 => {
+            "outlaws" => {
                 self.message_keyed("Outlaws block the trace ahead!", "outlaws-attack");
                 self.begin_shot(ShotPurpose::Bandits);
-                return Flow::Pause;
+                Flow::Pause
             }
-            9 => {
-                // Stamping out the flames before they reach the supplies is its
-                // own minigame (the prompt announces the fire); `resolve_brigade`
-                // tallies what still burned when the smoke cleared.
-                self.begin_brigade(BrigadeTask::Fire);
-                return Flow::Pause;
-            }
-            10 => {
-                // Heavy fog — finding the trail through it is its own minigame;
-                // `resolve_fog` tallies whether you kept your bearings.
-                self.begin_fog();
-                return Flow::Pause;
-            }
-            11 => {
-                // Working the frostbite first-aid steps in order (warm → wrap →
-                // bind) is its own minigame (the prompt announces it);
-                // `resolve_sequence` tallies how much medicine a botched order
-                // wasted — and whether enough was left to survive.
-                self.begin_sequence(SequenceTask::Frostbite);
-                return Flow::Pause;
-            }
-            12 => {
+            "creek" => {
                 // A swollen creek crossing — no signature minigame here (that is
                 // saved for the scripted Cumberland ice crossing); just a plain
                 // toll of time and a soaking of supplies.
@@ -225,13 +233,14 @@ impl Game {
                 );
                 self.state.miles -= 6.0 + self.rng.uniform() * 8.0;
                 self.state.misc -= 3.0 + self.rng.uniform() * 4.0;
+                Flow::Continue
             }
-            13 => {
+            "wolves" => {
                 self.message_keyed("Wolves come out of the timber!", "wolves-attack");
                 self.begin_shot(ShotPurpose::WildAnimals);
-                return Flow::Pause;
+                Flow::Pause
             }
-            14 => {
+            "sleet" => {
                 self.message_keyed(
                     "A sleet storm batters the column — supplies lost.",
                     "sleet-storm",
@@ -239,8 +248,9 @@ impl Game {
                 self.state.miles -= 5.0 + self.rng.uniform() * 10.0;
                 self.state.bullets -= 200.0;
                 self.state.misc -= 4.0 + self.rng.uniform() * 3.0;
+                Flow::Continue
             }
-            15 => {
+            "illness-roll" => {
                 // The common "did the way you ate catch up with you?" roll.
                 let sick = match self.state.eat_level {
                     EatLevel::Poorly => true,
@@ -249,18 +259,16 @@ impl Game {
                 };
                 if sick {
                     // The dosing game runs before the illness is tallied.
-                    return self.illness();
+                    self.illness()
+                } else {
+                    Flow::Continue
                 }
             }
-            _ => {
-                self.message_keyed(
-                    "Long hunters share a cache of game and point you to more.",
-                    "long-hunters",
-                );
-                self.state.food += 14.0;
-            }
+            "cold-weather" => self.cold_weather(),
+            // Unreachable for a valid scenario (see `is_special_handler`, asserted
+            // by `scenario_is_self_consistent`); loud in dev if the lists drift.
+            other => panic!("unknown event handler {other}"),
         }
-        Flow::Continue
     }
 
     /// Cold-weather check (heavy rains in the mountains): too little clothing
@@ -307,7 +315,7 @@ impl Game {
     /// minigame. When that pauses, [`resolve_climb`](crate::engine::Game::resolve_climb)
     /// falls through to [`do_mountain_passes`] so the passes still run.
     pub(crate) fn do_mountains(&mut self) -> Flow {
-        if self.state.miles <= MOUNTAINS_AT {
+        if self.state.miles <= scenario().trail.mountains_at {
             return Flow::Continue;
         }
         // Rough, rugged going — one draw, same as the old quirk's roll, so the
@@ -335,7 +343,7 @@ impl Game {
         }
 
         // Cumberland Gap — once, past the gap mile.
-        if self.state.miles >= CUMBERLAND_GAP_AT && !self.state.cleared_blue_mountains {
+        if self.state.miles >= scenario().trail.cumberland_gap_at && !self.state.cleared_blue_mountains {
             self.state.cleared_blue_mountains = true;
             if self.rng.uniform() < 0.7 {
                 return self.blizzard();
@@ -345,7 +353,7 @@ impl Game {
 
         // The frozen Cumberland River — the scripted Christmas crossing, driven
         // over the ice on the steady-hand trace. Fires once, at the river mile.
-        if self.state.miles >= CUMBERLAND_RIVER_AT && !self.state.cleared_cumberland_river {
+        if self.state.miles >= scenario().trail.cumberland_river_at && !self.state.cleared_cumberland_river {
             self.state.cleared_cumberland_river = true;
             // The Steady screen narrates the frozen crossing; no queued message
             // (which would otherwise drain after the minigame, out of order).

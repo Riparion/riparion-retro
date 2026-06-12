@@ -2,7 +2,7 @@
 
 use dioxus::prelude::*;
 
-use crate::engine::state::BULLETS_PER_DOLLAR;
+use crate::engine::scenario_data::scenario;
 use crate::engine::Game;
 use retro_kit::components::spend_row::SpendRow;
 use retro_kit::theme::{BTN, BTN_PRIMARY, SCREEN};
@@ -14,6 +14,9 @@ pub fn Fort() -> Element {
     let mut game = use_context::<Signal<Game>>();
     let mut spend = use_signal(|| vec![0i64; 4]);
     let cash = game.read().state.cash.max(0.0) as i64;
+    // Frontier prices and ammo conversion, from the scenario (display only).
+    let value = scenario().fort.value_num / scenario().fort.value_den;
+    let bpd = scenario().start.bullets_per_dollar;
 
     let vals = spend.read().clone();
     let total: i64 = vals.iter().sum();
@@ -38,9 +41,9 @@ pub fn Fort() -> Element {
                         key: "{i}",
                         label: label.to_string(),
                         note: Some(if i == 1 {
-                            format!("get {} rounds", (vals[1] as f64 * 2.0 / 3.0 * BULLETS_PER_DOLLAR) as i64)
+                            format!("get {} rounds", (vals[1] as f64 * value * bpd) as i64)
                         } else {
-                            format!("get {} units", (vals[i] as f64 * 2.0 / 3.0) as i64)
+                            format!("get {} units", (vals[i] as f64 * value) as i64)
                         }),
                         value: vals[i],
                         on_input: move |n| {

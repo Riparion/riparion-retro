@@ -13,21 +13,23 @@
 
 pub mod interaction;
 pub use retro_kit::rng;
+pub mod scenario_data;
 pub mod scoring;
 pub mod state;
 
+mod effects;
 mod events;
 
 use std::collections::VecDeque;
 
 use serde::{Deserialize, Serialize};
 
+use trail_kit::fortnash::{MinigameParams, Tier};
+
 use interaction::{Interaction, Response, ShotPurpose, Tactic, SHOT_WORDS};
 use rng::GameRng;
-use state::{
-    EatLevel, EndGame, GameOverCause, GameState, Mode, BULLETS_PER_DOLLAR, MAX_TURNS,
-    STARTING_CASH, TRAIL_MILES,
-};
+use scenario_data::scenario;
+use state::{EatLevel, EndGame, GameOverCause, GameState, Mode};
 
 /// The post-travel chain of trail incidents, run in order each fortnight.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -195,7 +197,8 @@ impl Game {
         if self.mode != Mode::Outfit {
             return Ok(());
         }
-        if !(200.0..=300.0).contains(&oxen) {
+        let start = &scenario().start;
+        if !(start.oxen_min..=start.oxen_max).contains(&oxen) {
             return Err("Spend $200 to $300 on your livestock.".into());
         }
         for v in [food, ammo_dollars, clothing, misc] {
@@ -204,18 +207,18 @@ impl Game {
             }
         }
         let total = oxen + food + ammo_dollars + clothing + misc;
-        if total > STARTING_CASH {
+        if total > start.cash {
             return Err(format!(
                 "That's ${} more than your $700. Spend less.",
-                (total - STARTING_CASH) as i64
+                (total - start.cash) as i64
             ));
         }
         self.state.oxen = oxen;
         self.state.food = food;
-        self.state.bullets = ammo_dollars * BULLETS_PER_DOLLAR;
+        self.state.bullets = ammo_dollars * start.bullets_per_dollar;
         self.state.clothing = clothing;
         self.state.misc = misc;
-        self.state.cash = STARTING_CASH - total;
+        self.state.cash = start.cash - total;
         // First fortnight starts at turn 0 (March 29) — no time advance yet.
         self.begin_fortnight();
         Ok(())
@@ -228,7 +231,7 @@ impl Game {
         if self.mode != Mode::Trail || !self.state.fort_available() {
             return;
         }
-        self.state.miles -= 45.0;
+        self.state.miles -= scenario().fort.detour_miles;
         self.mode = Mode::Fort;
     }
 
@@ -241,10 +244,14 @@ impl Game {
         let spend = [food_s, ammo_s, clothing_s, misc_s].map(|v| v.max(0.0));
         let total: f64 = spend.iter().sum();
         if total <= self.state.cash {
-            self.state.food += 2.0 / 3.0 * spend[0];
-            self.state.bullets += (2.0 / 3.0 * spend[1] * BULLETS_PER_DOLLAR).floor();
-            self.state.clothing += 2.0 / 3.0 * spend[2];
-            self.state.misc += 2.0 / 3.0 * spend[3];
+            let fort = &scenario().fort;
+            // Frontier prices: goods return value_num/value_den of their cost.
+            let value = fort.value_num / fort.value_den;
+            let bpd = scenario().start.bullets_per_dollar;
+            self.state.food += value * spend[0];
+            self.state.bullets += (value * spend[1] * bpd).floor();
+            self.state.clothing += value * spend[2];
+            self.state.misc += value * spend[3];
             self.state.cash -= total;
         }
         self.goto_eat();
@@ -263,10 +270,10 @@ impl Game {
         if self.mode != Mode::Trail {
             return Ok(());
         }
-        if self.state.bullets <= 39.0 {
+        if self.state.bullets <= scenario().fort.hunt_min_bullets {
             return Err("You need more powder & shot (40+ rounds) to go hunting.".into());
         }
-        self.state.miles -= 45.0;
+        self.state.miles -= scenario().fort.detour_miles;
         self.begin_hunt();
         Ok(())
     }
@@ -281,7 +288,7 @@ impl Game {
 
     /// Eat / starve gate, then the eating screen.
     fn goto_eat(&mut self) {
-        if self.state.food < 13.0 {
+        if self.state.food < EatLevel::Poorly.food_cost() {
             self.die(GameOverCause::Starved);
         } else {
             self.mode = Mode::Eat;
@@ -332,7 +339,7 @@ impl Game {
         if self.mode != Mode::Hunt {
             return;
         }
-        self.state.bullets -= shots_fired as f64 * state::BULLETS_PER_SHOT;
+        self.state.bullets -= shots_fired as f64 * scenario().start.bullets_per_shot;
         if hit {
             // Fewer shots → bigger haul.
             let bonus = (4u32.saturating_sub(shots_fired as u32)) as f64 * 4.0;
@@ -366,16 +373,14 @@ impl Game {
         }
         // The sooner you misremember the route, the more you scatter.
         let drop = (1.0 - accuracy).clamp(0.0, 1.0);
-        self.state.misc -= 5.0 + 10.0 * drop;
-        self.state.oxen -= 10.0 + 30.0 * drop;
         if cleared {
-            self.message("You thread the breaks and leave the war party behind — a clean getaway.");
-            self.state.miles += 20.0;
+            self.apply_outcome("flee", Tier::Success, drop);
             self.riders = None;
             self.advance();
         } else {
             // Caught in the open — the gunfight's own prompt ("Riders close
             // in!") narrates the capture, so no message is queued here.
+            self.apply_outcome("flee", Tier::Fail, drop);
             self.begin_shot(ShotPurpose::Riders { circle: false });
         }
     }
@@ -398,12 +403,8 @@ impl Game {
             return;
         }
         let drop = (1.0 - accuracy).clamp(0.0, 1.0);
-        self.state.miles -= 15.0 + 80.0 * drop;
-        if cleared {
-            self.message("You pick a clean line through the rocks and barely lose a step.");
-        } else {
-            self.message("The going turns rough — you backtrack through the rocks and lose ground.");
-        }
+        let tier = if cleared { Tier::Success } else { Tier::Fail };
+        self.apply_outcome("climb", tier, drop);
         // Fall through to the passes, then on along the leg to the next fortnight.
         self.resume_after_mountain_incident();
     }
@@ -434,15 +435,9 @@ impl Game {
         if self.mode != Mode::Fog {
             return;
         }
-        if cleared {
-            self.message(
-                "You keep the trail clear in your mind and come through the fog losing no time.",
-            );
-        } else {
-            let drift = (1.0 - accuracy).clamp(0.0, 1.0);
-            self.state.miles -= 5.0 + 10.0 * drift;
-            self.message("You lose your way in the fog, wandering before you find the trail again.");
-        }
+        let drift = (1.0 - accuracy).clamp(0.0, 1.0);
+        let tier = if cleared { Tier::Success } else { Tier::Fail };
+        self.apply_outcome("fog", tier, drift);
         self.advance();
     }
 
@@ -463,13 +458,8 @@ impl Game {
             return;
         }
         let drop = (1.0 - accuracy).clamp(0.0, 1.0);
-        self.state.miles -= 4.0 + 8.0 * drop;
-        self.state.misc -= 2.0 + 4.0 * drop;
-        if set_clean {
-            self.message("You set the bone cleanly and splint it, losing little time.");
-        } else {
-            self.message("It takes a few tries to set the bone — you lose time and supplies.");
-        }
+        let tier = if set_clean { Tier::Success } else { Tier::Fail };
+        self.apply_outcome("splint", tier, drop);
         self.advance();
     }
 
@@ -506,6 +496,50 @@ impl Game {
         matches!(self.pending_task, Some(MiniTask::Ice))
     }
 
+    /// The scenario id of the minigame currently on screen, mapping the live mode
+    /// and pending task to its entry. `None` for non-minigame modes and for the
+    /// gunfight/hunt, which keep their own screens.
+    pub fn active_minigame_id(&self) -> Option<&'static str> {
+        Some(match self.mode {
+            Mode::Steady => "ice",
+            Mode::Splint => "splint",
+            Mode::Fog => "fog",
+            Mode::Flee => "flee",
+            Mode::Climb => "climb",
+            Mode::Sequence => match self.sequence_task()? {
+                SequenceTask::Wheel => "wheel",
+                SequenceTask::OxLeg => "ox-leg",
+                SequenceTask::Frostbite => "frostbite",
+            },
+            Mode::Brigade => match self.brigade_task()? {
+                BrigadeTask::Fire => "fire",
+                BrigadeTask::Rains => "rains",
+                BrigadeTask::Blizzard => "blizzard",
+            },
+            Mode::Dose => match self.illness_task()? {
+                Illness::Mild => "dose-mild",
+                Illness::Bad => "dose-bad",
+                Illness::Serious => "dose-serious",
+            },
+            _ => return None,
+        })
+    }
+
+    /// The launch parameters of the minigame currently on screen, read from the
+    /// scenario, for the generic minigame host.
+    pub fn active_mini_params(&self) -> Option<&'static MinigameParams> {
+        scenario_data::scenario().minigame_params(self.active_minigame_id()?)
+    }
+
+    /// Escape hatch for the generic minigame host: bail out of a minigame whose
+    /// params can't be rendered (a desynced save, or a scenario the consistency
+    /// test would reject) as a no-cost clean pass, rather than stranding the
+    /// player on a blank, undismissable screen. Applies no toll; just resumes the
+    /// interrupted flow the way a resolved minigame does.
+    pub fn skip_unrenderable_minigame(&mut self) {
+        self.advance();
+    }
+
     /// Put up the timing game: measure out a dose for the illness just rolled.
     fn begin_dose(&mut self, severity: Illness) {
         self.begin_task(MiniTask::Dose(severity));
@@ -525,32 +559,17 @@ impl Game {
             return;
         };
         self.pending_task = None;
-        match severity {
-            Illness::Mild => {
-                self.message("A mild illness — medicine used.");
-                self.state.miles -= 5.0;
-                self.state.misc -= 2.0;
-            }
-            Illness::Bad => {
-                self.message("A bad illness — medicine used.");
-                self.state.miles -= 5.0;
-                self.state.misc -= 5.0;
-            }
-            Illness::Serious => {
-                self.message("A serious illness — you must stop for medical attention.");
-                self.state.misc -= 10.0;
-                self.state.ill = true;
-            }
-        }
-        // A shaky hand spills medicine — extra supplies lost, up to a dose's worth.
+        // The illness's own toll, the spill (graded by how shaky the pour was, the
+        // `drift` channel), and the pneumonia gate if the medicine runs out all live
+        // in the outcome's tiers; a steady pour is Success, a shaky one Fail.
+        let id = match severity {
+            Illness::Mild => "dose-mild",
+            Illness::Bad => "dose-bad",
+            Illness::Serious => "dose-serious",
+        };
         let waste = (1.0 - accuracy).clamp(0.0, 1.0);
-        self.state.misc -= 6.0 * waste;
-        if !on_target {
-            self.message("Your hand shook measuring the dose — you spill some medicine.");
-        }
-        if self.state.misc < 0.0 {
-            self.die(GameOverCause::Pneumonia);
-        }
+        let tier = if on_target { Tier::Success } else { Tier::Fail };
+        self.apply_outcome(id, tier, waste);
         self.advance();
     }
 
@@ -574,32 +593,19 @@ impl Game {
             return;
         }
         self.pending_task = None;
-        // How much the hand drifted: 0 = dead steady, 1 = all over the place.
+        // How much the hand drifted: 0 = dead steady, 1 = all over the place. A
+        // badly shaky crossing is the Catastrophe tier — the ice cracks and takes
+        // the party down (the splinter line drains before GameOver like every
+        // other death-with-narration path).
         let drift = (1.0 - accuracy).clamp(0.0, 1.0);
-        // A badly shaky crossing cracks the ice and takes the party down.
-        if !steady && drift > 0.6 {
-            self.message_keyed(
-                "The ice splinters under the herd in a long, sickening crack.",
-                "ice-broke",
-            );
-            self.die(GameOverCause::IceBroke);
-            // Drain the queue so the splinter line shows before the GameOver
-            // screen, like every other death-with-narration path.
-            self.advance();
-            return;
-        }
-        self.state.food -= 20.0 + 30.0 * drift;
-        self.state.oxen -= 15.0 + 35.0 * drift;
-        self.state.miles -= 5.0 + 20.0 * drift;
-        if steady {
-            self.message(
-                "You read the ice and drive the livestock over in good order — across the frozen Cumberland on Christmas Day.",
-            );
+        let tier = if !steady && drift > 0.6 {
+            Tier::Catastrophe
+        } else if steady {
+            Tier::Success
         } else {
-            self.message(
-                "The livestock balk and slip on the ice — you lose stock and supplies into the dark water, but the party makes the far bank.",
-            );
-        }
+            Tier::Fail
+        };
+        self.apply_outcome("ice", tier, drift);
         self.advance();
     }
 
@@ -625,58 +631,21 @@ impl Game {
         };
         self.pending_task = None;
         // How much of the procedure was botched: 0 = flawless order, 1 = fumbled
-        // from the very first step.
+        // from the very first step. Each task's graded toll (and the frostbite's
+        // death-if-no-medicine gate) lives in its outcome's tiers; a flawless run
+        // is Success, any slip is Fail.
         let miss = if length == 0 {
             0.0
         } else {
             (1.0 - correct_prefix as f64 / length as f64).clamp(0.0, 1.0)
         };
-        match task {
-            SequenceTask::Wheel => {
-                // The original docked −15..−20 miles and −8 misc outright; here a
-                // clean re-seat barely costs a step while a botched order loses the
-                // ground and the spare parts.
-                self.state.miles -= 6.0 + 16.0 * miss;
-                self.state.misc -= 3.0 + 6.0 * miss;
-                if perfect {
-                    self.message(
-                        "Jack, block, bolt, seat — you re-hang the wheel in good order and barely lose a step.",
-                    );
-                } else {
-                    self.message(
-                        "You botch the order and have to start the wheel over — losing time and spare parts.",
-                    );
-                }
-            }
-            SequenceTask::OxLeg => {
-                self.state.oxen -= 20.0;
-                self.state.miles -= 8.0 + 24.0 * miss;
-                if perfect {
-                    self.message(
-                        "Wrap, pad, bind — you dress the lame animal's leg in the right order and it slows you only a little.",
-                    );
-                } else {
-                    self.message("You fumble the dressing and the animal can't settle — you lose ground.");
-                }
-            }
-            SequenceTask::Frostbite => {
-                self.state.bullets -= 10.0;
-                // The right order saves the limb on little medicine; a botched one
-                // wastes the medicine you need to survive — up to a full dose's
-                // worth. Keeps the death-if-no-medicine gate.
-                self.state.misc -= 5.0 + 6.0 * miss;
-                if perfect {
-                    self.message(
-                        "Warm, wrap, bind — you work the frostbite steps in order and save the limb.",
-                    );
-                } else {
-                    self.message("You muddle the frostbite first-aid and waste the medicine.");
-                }
-                if self.state.misc < 0.0 {
-                    self.die(GameOverCause::Frostbite);
-                }
-            }
-        }
+        let id = match task {
+            SequenceTask::Wheel => "wheel",
+            SequenceTask::OxLeg => "ox-leg",
+            SequenceTask::Frostbite => "frostbite",
+        };
+        let tier = if perfect { Tier::Success } else { Tier::Fail };
+        self.apply_outcome(id, tier, miss);
         self.advance();
     }
 
@@ -718,56 +687,24 @@ impl Game {
         };
         self.pending_task = None;
         // How much got away: 0 = beaten back clean, 1 = it spread across the load.
+        // The per-task graded toll and the two outcome lines live in the outcome's
+        // tiers; containing it is Success, letting it run is Fail.
         let sev = if capacity > 0 {
             (leaked as f64 / capacity as f64).clamp(0.0, 1.0)
         } else {
             0.0
         };
+        let tier = if contained { Tier::Success } else { Tier::Fail };
+        let id = match task {
+            BrigadeTask::Fire => "fire",
+            BrigadeTask::Rains => "rains",
+            BrigadeTask::Blizzard => "blizzard",
+        };
+        self.apply_outcome(id, tier, sev);
         match task {
-            // Fire and Rains are the same triage with different numbers: a per-task
-            // (floor, slope) for each resource plus the two outcome lines, applied
-            // and advanced the same way.
-            BrigadeTask::Fire | BrigadeTask::Rains => {
-                // (floor, slope) for food / bullets / misc / miles, then the two
-                // outcome lines.
-                let (food, bullets, misc, miles, ok, lost) = match task {
-                    BrigadeTask::Fire => (
-                        (8.0, 32.0),
-                        (80.0, 320.0),
-                        (2.0, 9.0),
-                        (4.0, 11.0),
-                        "You stamp out the flames before they reach the supplies.",
-                        "The fire races through the camp — food and supplies destroyed!",
-                    ),
-                    _ => (
-                        (2.0, 8.0),
-                        (100.0, 400.0),
-                        (3.0, 12.0),
-                        (3.0, 12.0),
-                        "You cover the packs — the freezing sleet barely reaches them.",
-                        "Freezing sleet soaks the packs — food and supplies lost.",
-                    ),
-                };
-                let grade = |(floor, slope): (f64, f64)| floor + slope * sev;
-                self.state.food -= grade(food);
-                self.state.bullets -= grade(bullets);
-                self.state.misc -= grade(misc);
-                self.state.miles -= grade(miles);
-                self.message(if contained { ok } else { lost });
-                self.advance();
-            }
+            // Fire and Rains are a plain triage — the toll's applied, so carry on.
+            BrigadeTask::Fire | BrigadeTask::Rains => self.advance(),
             BrigadeTask::Blizzard => {
-                self.state.food -= 5.0 + 20.0 * sev;
-                self.state.misc -= 2.0 + 8.0 * sev;
-                self.state.bullets -= 60.0 + 240.0 * sev;
-                self.state.miles -= 6.0 + 64.0 * sev;
-                if contained {
-                    self.message(
-                        "You keep the fire fed against the wind and push on through the blizzard.",
-                    );
-                } else {
-                    self.message("The fire dies in the wind — the blizzard takes its toll.");
-                }
                 // Too little clothing and the cold brings on sickness (the dosing
                 // game), exactly as the original blizzard did.
                 if self.state.clothing < 18.0 + 2.0 * self.rng.uniform() {
@@ -919,12 +856,12 @@ impl Game {
 
     /// Check arrival, advance the calendar, then set up the new fortnight.
     pub(crate) fn next_turn(&mut self) {
-        if self.state.miles >= TRAIL_MILES {
+        if self.state.miles >= scenario().trail.total_miles {
             self.finish_win();
             return;
         }
         self.state.turn += 1;
-        if self.state.turn >= MAX_TURNS {
+        if self.state.turn >= scenario().trail.max_turns {
             self.die(GameOverCause::Winter);
             return;
         }
@@ -945,7 +882,7 @@ impl Game {
             self.state.ill = false;
             self.state.injured = false;
         }
-        if self.state.food < 13.0 {
+        if self.state.food < EatLevel::Poorly.food_cost() {
             self.message("You'd better do some hunting or find food — and soon!");
         }
         self.state.miles_at_turn_start = self.state.miles;
@@ -958,7 +895,7 @@ impl Game {
         let s = &self.state;
         let won = cause.won();
         let leftover = scoring::leftover_value(s);
-        let miles = s.miles.clamp(0.0, TRAIL_MILES);
+        let miles = s.miles.clamp(0.0, scenario().trail.total_miles);
         let score = scoring::score(won, miles, days, leftover);
         EndGame {
             won,
@@ -990,10 +927,11 @@ impl Game {
     pub(crate) fn finish_win(&mut self) {
         let m2 = self.state.miles_at_turn_start;
         let denom = (self.state.miles - m2).max(1.0);
-        let f9 = ((TRAIL_MILES - m2) / denom).clamp(0.0, 1.0);
+        let total_miles = scenario().trail.total_miles;
+        let f9 = ((total_miles - m2) / denom).clamp(0.0, 1.0);
         self.state.food += (1.0 - f9) * self.state.eat_level.food_cost();
         let (arrival, days) = scoring::arrival_date(self.state.turn, f9);
-        self.state.miles = TRAIL_MILES;
+        self.state.miles = total_miles;
         self.outcome = Some(self.build_end(GameOverCause::Victory, Some(arrival), days));
         self.mode = Mode::GameOver;
     }

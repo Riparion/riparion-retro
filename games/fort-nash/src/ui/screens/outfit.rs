@@ -2,7 +2,7 @@
 
 use dioxus::prelude::*;
 
-use crate::engine::state::{BULLETS_PER_DOLLAR, STARTING_CASH};
+use crate::engine::scenario_data::scenario;
 use crate::engine::Game;
 use retro_kit::components::spend_row::SpendRow;
 use retro_kit::theme::{BTN_PRIMARY, SCREEN};
@@ -23,11 +23,12 @@ pub fn Outfit() -> Element {
     let mut amounts = use_signal(|| ROWS.map(|r| r.2 as i64).to_vec());
     let mut error = use_signal(String::new);
 
+    let start = &scenario().start;
     let vals = amounts.read().clone();
     let oxen = vals[0] as f64;
     let total: i64 = vals.iter().sum();
-    let remaining = STARTING_CASH as i64 - total;
-    let oxen_ok = (200..=300).contains(&vals[0]);
+    let remaining = start.cash as i64 - total;
+    let oxen_ok = (start.oxen_min as i64..=start.oxen_max as i64).contains(&vals[0]);
     let ready = oxen_ok && remaining >= 0;
 
     let hit_trail = move |_| {
@@ -57,7 +58,7 @@ pub fn Outfit() -> Element {
                         label: label.to_string(),
                         hint: hint.to_string(),
                         note: (i == 2)
-                            .then(|| format!("= {} rounds", (vals[2] as f64 * BULLETS_PER_DOLLAR) as i64)),
+                            .then(|| format!("= {} rounds", (vals[2] as f64 * start.bullets_per_dollar) as i64)),
                         value: vals[i],
                         on_input: move |n| {
                             amounts.write()[i] = n;

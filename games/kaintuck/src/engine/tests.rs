@@ -819,7 +819,7 @@ fn scenario_is_self_consistent() {
     }
     // Per-option prices live once on the menu (the engine charges them through
     // the action's cost); pin them to their design values.
-    let cost_of = |menu: &trail_kit::SetPiece, action: &str| -> f64 {
+    let cost_of = |menu: &trail_kit::SetPiece<trail_kit::Gate>, action: &str| -> f64 {
         menu.options.iter().find(|o| o.action == action).unwrap().cost
     };
     assert_eq!(cost_of(&sc.menus.falls, "falls-pilot"), 8.0);
