@@ -27,13 +27,25 @@ Scenario(
         credit_cap: 200.0,
         crew_wage: 3.0,
         provisions: 50.0,
+        // Every quote carries an 8% bid/ask spread (buy 4% over the mid, sell 4%
+        // under); a town's market entries widen it on thin or contested goods.
+        base_spread: 0.08,
     ),
 
     river: (
         river_miles: 1830.0,
         towns: [
-            (name: "Pittsburgh",  slug: "pittsburgh",  milepost: 0.0,    base_ranks: [2, 8,  4, 6,  5,  7,  12], moneylender: false),
+            (name: "Pittsburgh",  slug: "pittsburgh",  milepost: 0.0,    base_ranks: [2, 8,  4, 6,  5,  7,  12], moneylender: false,
+                // Head of the trade: Monongahela rye off the valley stills, and
+                // the first flour barrels of the Ohio country.
+                market: [
+                    (good: "Whiskey", supply: 0.30, note: Some("Monongahela rye, straight from the valley stills")),
+                    (good: "Flour",   supply: 0.12),
+                ]),
             (name: "Wheeling",    slug: "wheeling",    milepost: 90.0,   base_ranks: [2, 10, 4, 7,  6,  7,  11], moneylender: false,
+                market: [
+                    (good: "Flour", supply: 0.12, note: Some("Wheeling's mills never stop")),
+                ],
                 // Upper Ohio: the first hundred miles are one long string of
                 // riffles and bars (the sandbar arm 1 widened to 18%); piracy
                 // this far up is near nil (arm 3 trimmed to 3%).
@@ -51,6 +63,9 @@ Scenario(
                     ],
                 ))),
             (name: "Marietta",    slug: "marietta",    milepost: 170.0,  base_ranks: [2, 11, 5, 8,  6,  7,  13], moneylender: false,
+                market: [
+                    (good: "Corn", supply: 0.12, note: Some("the Ohio Company's bottomland corn")),
+                ],
                 // Still the upper Ohio — riffles and bars, with Letart's Rapids
                 // on the reach above (a touch more bail). Piracy still slight.
                 hazards: Some((
@@ -66,10 +81,34 @@ Scenario(
                         Minigame(outcome: "bail"),
                     ],
                 ))),
-            (name: "Maysville",   slug: "maysville",   milepost: 410.0,  base_ranks: [3, 12, 5, 8,  7,  8,  15], moneylender: false),
-            (name: "Cincinnati",  slug: "cincinnati",  milepost: 470.0,  base_ranks: [3, 13, 6, 9,  7,  8,  17], moneylender: true),
-            (name: "Louisville",  slug: "louisville",  milepost: 600.0,  base_ranks: [3, 14, 6, 10, 8,  9,  18], moneylender: false),
+            (name: "Maysville",   slug: "maysville",   milepost: 410.0,  base_ranks: [3, 12, 5, 8,  7,  8,  15], moneylender: false,
+                // The Kentucky bluffs: burley tobacco and droves of livestock
+                // come down to the landing here.
+                market: [
+                    (good: "Tobacco",   supply: 0.25, note: Some("burley cured in the Kentucky bluffs")),
+                    (good: "Livestock", supply: 0.15),
+                ]),
+            (name: "Cincinnati",  slug: "cincinnati",  milepost: 470.0,  base_ranks: [3, 13, 6, 9,  7,  8,  17], moneylender: true,
+                // Porkopolis: the packing houses glut the wharf with cheap pork,
+                // while the tanneries bid up every hide that comes downriver.
+                market: [
+                    (good: "Pork",  supply: 0.30, note: Some("Porkopolis, where the packing houses glut the wharf")),
+                    (good: "Hides", demand: 0.15, spread: 0.10, note: Some("the tanneries are hungry for them")),
+                ]),
+            (name: "Louisville",  slug: "louisville",  milepost: 600.0,  base_ranks: [3, 14, 6, 10, 8,  9,  18], moneylender: false,
+                // At the Falls: Kentucky bourbon barreled above the rapids, and
+                // more of the burley leaf.
+                market: [
+                    (good: "Whiskey", supply: 0.18, note: Some("Kentucky bourbon, barreled above the Falls")),
+                    (good: "Tobacco", supply: 0.15),
+                ]),
             (name: "Shawneetown", slug: "shawneetown", milepost: 850.0,  base_ranks: [3, 14, 6, 11, 8,  9,  18], moneylender: false,
+                // A salt-works town on the lower Ohio that grows little of its
+                // own — it buys provisions off the river, at a wide spread.
+                market: [
+                    (good: "Flour", demand: 0.12, spread: 0.10, note: Some("a salt town that grows little of its own")),
+                    (good: "Pork",  demand: 0.10, spread: 0.10),
+                ],
                 // Lower Ohio: the snags begin — planters and sawyers fixed in the
                 // bottom (the patch arm 2 widened to 17%), and the first whiff of
                 // the piracy that thickens toward Cave-in-Rock.
@@ -87,6 +126,9 @@ Scenario(
                     ],
                 ))),
             (name: "Cairo",       slug: "cairo",       milepost: 980.0,  base_ranks: [3, 15, 6, 11, 8,  10, 19], moneylender: false,
+                market: [
+                    (good: "Flour", demand: 0.12, spread: 0.12, note: Some("a half-built landing in the swamp, fed by the river")),
+                ],
                 // The mouth of the Ohio: the two currents collide into "boils" —
                 // irregular water that can swamp a boat (the bail arm 6 up to
                 // 11%). The Cave-in-Rock relay-pilot set-piece carries the piracy
@@ -105,6 +147,9 @@ Scenario(
                     ],
                 ))),
             (name: "Grand Tower", slug: "grand-tower", milepost: 1010.0, base_ranks: [3, 16, 6, 11, 9,  10, 19], moneylender: false,
+                market: [
+                    (good: "Pork", demand: 0.10, spread: 0.12),
+                ],
                 // The Grand Chain of the Mississippi: thirty miles of rock — the
                 // Devil's Bake Oven, the Devil's Anvil and Backbone — where boats
                 // must land and cordelle through, and where the gangs lay in
@@ -123,6 +168,11 @@ Scenario(
                     ],
                 ))),
             (name: "Memphis",     slug: "memphis",     milepost: 1430.0, base_ranks: [3, 16, 6, 11, 9,  11, 19], moneylender: true,
+                // A young bluff town buying what floats down — provisions go dear.
+                market: [
+                    (good: "Flour", demand: 0.12, spread: 0.10, note: Some("a young bluff town buying what floats down")),
+                    (good: "Corn",  demand: 0.10, spread: 0.10),
+                ],
                 // The Chickasaw Bluffs: the Mississippi gathers into great basin
                 // eddies below the bluffs (the sandbar arm carries the whirl).
                 hazards: Some((
@@ -506,6 +556,17 @@ Scenario(
                         (voice: "The old riverman spits over the side:", text: "The Ohio does the work clear to its mouth. Easy water — bars and snags, mostly. Save your worry for the Mississippi."),
                     ],
                 ),
+                // The thesis of the whole trade, taught early so it can guide the
+                // player's buying: every town is its own market. The false rumor
+                // it corrects is the natural assumption that prices are fixed; the
+                // wharf-factor reality at each dock then proves it leg by leg.
+                (
+                    key: "rumor-river-prices",
+                    lines: [
+                        (voice: "The farmhand frowns over his tally:", text: "Prices is the same the whole river down, ain't they? Same coin at every wharf, top to bottom."),
+                        (voice: "The old riverman laughs:", text: "Then you'll die poor, boy. Every town's its own market — cheap where they make a thing, dear where they can't. Read the wharf when you tie up, not the talk on the water."),
+                    ],
+                ),
                 (
                     key: "upper-ohio-trade",
                     lines: [
@@ -529,6 +590,21 @@ Scenario(
                     key: "marietta-yard",
                     lines: [
                         (voice: "The boatwright jerks a thumb at a riverside town of saw-pits and ways:", text: "Marietta yonder builds seagoing ships — rigged brigs at fifty dollar a ton — and floats 'em clear down to the ocean. Our flatboat won't ever see salt water. She's a pile of lumber the day we tie up at Natchez."),
+                    ],
+                ),
+                // Rumor — the dockside truth (the wharf-factor line on arrival)
+                // either confirms or trims it.
+                (
+                    key: "rumor-porkopolis",
+                    lines: [
+                        (voice: "The farmhand leans in, lowering his voice:", text: "Fella at the last wooding stop swears Cincinnati pork's so cheap they near give it away. Load the hold and we're rich men at Natchez."),
+                        (voice: "The old riverman snorts:", text: "Porkopolis earns the name, I'll grant him. But 'near give it away' is wharf talk. Hear it cheap, see it cheap on the dock, then buy — a rumor never filled a hold yet."),
+                    ],
+                ),
+                (
+                    key: "rumor-kentucky-leaf",
+                    lines: [
+                        (voice: "The boatwright nods toward the Kentucky shore:", text: "Maysville's the place for leaf — burley off the bluffs, cured sweet, cheaper there than anywhere above it. Tobacco and a drove of hogs on the hoof, that's Kentucky's offering."),
                     ],
                 ),
             ],
@@ -589,6 +665,19 @@ Scenario(
                     key: "shore-dance",
                     lines: [
                         (voice: "Tied up by a settler's cabin, a fiddle strikes up and the men stamp out the time:", text: "\"Dance, boatman, dance — dance all night till broad daylight — and go home with the gals in the morning!\""),
+                    ],
+                ),
+                (
+                    key: "rumor-falls-bourbon",
+                    lines: [
+                        (voice: "The farmhand wipes his brow:", text: "They say the whiskey's a different thing below the Falls — corn liquor, barreled brown."),
+                        (voice: "The old riverman nods:", text: "Bourbon, out of Kentucky. Comes cheap at Louisville where they barrel it above the rapids. Lay in a few kegs and they'll bless you for 'em down south."),
+                    ],
+                ),
+                (
+                    key: "rumor-hungry-landings",
+                    lines: [
+                        (voice: "The old riverman eyes the thinning settlements:", text: "Mark the lower landings — Shawneetown and the like. Salt towns, swamp towns, growin' little but trouble. Flour and pork go dear there; they buy whatever floats past. Sell what you can spare before the country empties out."),
                     ],
                 ),
             ],

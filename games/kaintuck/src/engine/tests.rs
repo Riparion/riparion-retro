@@ -798,8 +798,15 @@ fn golden_trace_is_stable() {
     // ambush, the Chickasaw-bluff eddies) plus folk-named flavor messages. Retuned
     // thresholds shift which arm fires, so river outcomes/scores move (the win/loss
     // pattern across seeds is unchanged). Falls success/partial prose enriched too.
+    // Re-pinned for the two-vector market pass: each town now carries a local
+    // supply/demand bias (Porkopolis pork, Monongahela rye, Kentucky leaf, the
+    // provision-hungry lower landings) that scales the rank-mean, plus an 8% base
+    // bid/ask spread widened on thin markets — a real behavior change (every
+    // buy/sell quote moves, so cash, holds, reputation and downstream scores all
+    // drift). Adds the engine-derived "wharf factor" reality line at each biased
+    // dock and a "rumor-river-prices" thesis beat early on the upper Ohio.
     // Behavior must not drift; if this trips, run `print_golden_trace` to diff.
-    const EXPECTED: u64 = 0x617f_b5bc_5588_aa65;
+    const EXPECTED: u64 = 0x4702_3407_a369_986e;
     assert_eq!(
         got, EXPECTED,
         "golden trace drifted: got {:#018x} over {} bytes",
@@ -954,6 +961,19 @@ fn scenario_is_self_consistent() {
         assert_eq!(t.slug, TOWN_SLUGS[i], "town {i} slug");
         assert_eq!(t.base_ranks.len(), NUM_GOODS, "town {i} ranks width");
         assert_eq!(t.moneylender, i == CINCINNATI || i == MEMPHIS, "town {i} lender");
+        // Every local market bias names a real good and stays in the bands the
+        // price math assumes: supply/spread strictly under 1.0 (so neither the
+        // mid nor the bid can collapse to zero), demand non-negative.
+        for b in &t.market {
+            assert!(
+                GOOD_NAMES.contains(&b.good.as_str()),
+                "town {i} market: unknown good {:?}",
+                b.good
+            );
+            assert!((0.0..1.0).contains(&b.supply), "town {i} {} supply", b.good);
+            assert!(b.demand >= 0.0, "town {i} {} demand", b.good);
+            assert!((0.0..1.0).contains(&b.spread), "town {i} {} spread", b.good);
+        }
     }
 
     // Landings and stands run strictly downstream / up-trail.
@@ -1095,6 +1115,76 @@ fn scenario_is_self_consistent() {
     assert_eq!(cost_of(&sc.menus.natchez, "buy-horse"), 12.0);
     assert_eq!(cost_of(&sc.menus.stand, "rest"), 8.0);
     assert_eq!(cost_of(&sc.menus.stand, "buy-horse"), 14.0);
+}
+
+/// The dock's *reality* line is derived from the same market data the prices use,
+/// so it can never drift from them: it must name the town's actually-cheapest and
+/// actually-dearest goods, and be silent only where the town has no bias.
+#[test]
+fn reality_banter_matches_the_market() {
+    use super::river::market_reality_line;
+    use super::state::NUM_RIVER_TOWNS;
+    let sc = super::scenario_data::scenario();
+
+    for town in 0..NUM_RIVER_TOWNS {
+        let market = &sc.river.towns[town].market;
+        let cheapest = market
+            .iter()
+            .filter(|b| b.supply > 0.0)
+            .max_by(|a, b| a.supply.total_cmp(&b.supply));
+        let dearest = market
+            .iter()
+            .filter(|b| b.demand > 0.0)
+            .max_by(|a, b| a.demand.total_cmp(&b.demand));
+        let line = market_reality_line(town);
+
+        if cheapest.is_none() && dearest.is_none() {
+            assert!(line.is_none(), "town {town} has no bias but speaks: {line:?}");
+            continue;
+        }
+        let line = line.unwrap_or_else(|| panic!("town {town} has bias but is silent"));
+        if let Some(b) = cheapest {
+            let good = b.good.to_lowercase();
+            assert!(
+                line.contains(&good),
+                "town {town}: cheap good {good:?} not named in {line:?}"
+            );
+        }
+        if let Some(b) = dearest {
+            let good = b.good.to_lowercase();
+            assert!(
+                line.contains(&good),
+                "town {town}: dear good {good:?} not named in {line:?}"
+            );
+        }
+    }
+
+    // Concrete anchor: Cincinnati is cheap on pork (Porkopolis) and dear on hides.
+    let cincy = market_reality_line(super::state::CINCINNATI).unwrap();
+    assert!(cincy.contains("pork") && cincy.contains("hides"), "Cincinnati: {cincy:?}");
+    // Natchez carries its premium in the distance gradient, not a local craving.
+    assert!(market_reality_line(super::state::NATCHEZ).is_none());
+}
+
+/// The ask must never sit below the bid in the *actual* transaction path. This
+/// drives the real `Game::buy_price`/`sell_price` (not a re-derived inequality),
+/// so a sign error or a dropped spread term in either method trips it — and the
+/// bid must stay strictly positive so a sale never pays the player nothing.
+#[test]
+fn buy_ask_never_below_sell_bid() {
+    use super::state::{NUM_GOODS, NUM_RIVER_TOWNS};
+    let mut g = started(1);
+    g.state.reputation = 0.0; // neutral: only the spread separates ask and bid
+    for town in 0..NUM_RIVER_TOWNS {
+        g.state.town = town;
+        super::prices::generate_prices(&mut g.state, &mut g.rng);
+        for i in 0..NUM_GOODS {
+            let ask = g.buy_price(i);
+            let bid = g.sell_price(i);
+            assert!(ask >= bid, "town {town} good {i}: ask {ask} < bid {bid}");
+            assert!(bid > 0.0, "town {town} good {i}: non-positive bid {bid}");
+        }
+    }
 }
 
 #[test]

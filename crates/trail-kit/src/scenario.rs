@@ -162,6 +162,12 @@ pub struct StartParams {
     pub credit_cap: f64,
     pub crew_wage: f64,
     pub provisions: f64,
+    /// Baseline bid/ask spread applied to every quote: the buy (ask) is half a
+    /// spread above the mid and the sell (bid) half below, so a market always
+    /// costs more to enter than it returns. A town's [`MarketBias::spread`] adds
+    /// to this. Defaults to 0.0 — no spread, reproducing the single-quote market.
+    #[serde(default)]
+    pub base_spread: f64,
 }
 
 /// Phase 1 — Pittsburgh to Natchez.
@@ -230,8 +236,16 @@ pub struct Town {
     pub slug: String,
     /// Cumulative river miles from Pittsburgh.
     pub milepost: f64,
-    /// Base price rank per good (the mean quote is half this).
+    /// Base price rank per good (the mean quote is half this). This is the
+    /// macro *distance* gradient — cheap upstream, dear toward Natchez. Local
+    /// economic texture (what a town makes or lacks) lives in [`Town::market`].
     pub base_ranks: Vec<i64>,
+    /// Sparse per-good local price bias: the goods this landing produces (cheap)
+    /// or craves (dear), layered on top of `base_ranks`. A good not listed here
+    /// trades at the plain gradient. Most towns specialise in a few goods, so the
+    /// list is short and self-documenting. Absent ⇒ no local bias anywhere.
+    #[serde(default)]
+    pub market: Vec<MarketBias>,
     /// Whether a generous moneylender here raises the credit cap.
     pub moneylender: bool,
     /// Hazard table for the leg *arriving at* this town, overriding the
@@ -242,6 +256,35 @@ pub struct Town {
     /// heavier piracy on the lower river toward Natchez).
     #[serde(default)]
     pub hazards: Option<HazardTable>,
+}
+
+/// A landing's local economic bias on one good — why its quote departs from the
+/// plain distance gradient. `supply` cheapens a good the town *produces*;
+/// `demand` dears a good it *lacks*; `spread` widens the bid/ask on a thin or
+/// contested market. The good's mid quote is scaled by
+/// `(1 - supply) * (1 + demand)`. Fields default to 0, so an entry can set just
+/// the one force that applies.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MarketBias {
+    /// Good name; must match a [`Good::name`] (validated by the host's scenario
+    /// consistency test).
+    pub good: String,
+    /// Local-production discount, `[0, 1)`. Cheap because it is made here.
+    #[serde(default)]
+    pub supply: f64,
+    /// Local-scarcity premium, `>= 0`. Dear because it is wanted but not made
+    /// here. (Kept distinct from the distance gradient in `base_ranks` so the two
+    /// forces don't double-count.)
+    #[serde(default)]
+    pub demand: f64,
+    /// Extra bid/ask spread on top of [`StartParams::base_spread`], `[0, 1)`.
+    #[serde(default)]
+    pub spread: f64,
+    /// Short cause phrase ("Porkopolis") the engine weaves into the *reality*
+    /// banter line at the dock, so the spoken truth can never drift from the
+    /// numbers. Absent ⇒ a generic good-named line.
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 /// Phase 2 — Natchez to Nashville.
