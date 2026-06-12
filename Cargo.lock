@@ -1637,7 +1637,7 @@ dependencies = [
 
 [[package]]
 name = "kaintuck"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "dioxus",
  "gloo-timers",

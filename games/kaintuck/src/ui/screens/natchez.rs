@@ -58,7 +58,7 @@ pub fn Natchez() -> Element {
                 options: scenario().menus.natchez.options.as_slice(),
                 onselect: move |(action, cost): (String, f64)| {
                     match action.as_str() {
-                        "sell-cargo" => game.write().mode = Mode::Trade { buying: false },
+                        "sell-cargo" => game.write().mode = Mode::Trade { can_buy: false, can_sell: true },
                         "gamble" => gambling.set(true),
                         _ => game.write().run_set_piece(&action, cost),
                     }

@@ -105,7 +105,7 @@ fn LoadAndDepart() -> Element {
             }
             button {
                 class: "{BTN}",
-                onclick: move |_| game.write().mode = Mode::Trade { buying: true },
+                onclick: move |_| game.write().mode = Mode::Trade { can_buy: true, can_sell: false },
                 "BUY CARGO"
             }
             button {

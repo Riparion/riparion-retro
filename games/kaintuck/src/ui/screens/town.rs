@@ -68,14 +68,9 @@ pub fn Town() -> Element {
                 }
                 div { class: "grid grid-cols-2 gap-2",
                     button {
-                        class: "{BTN}",
-                        onclick: move |_| game.write().mode = Mode::Trade { buying: false },
-                        "SELL"
-                    }
-                    button {
-                        class: "{BTN}",
-                        onclick: move |_| game.write().mode = Mode::Trade { buying: true },
-                        "BUY"
+                        class: "{BTN} col-span-2",
+                        onclick: move |_| game.write().mode = Mode::Trade { can_buy: true, can_sell: true },
+                        "TRADE ⇄"
                     }
                     if has_moneylender {
                         button {
