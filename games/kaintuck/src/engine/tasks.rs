@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use trail_kit::effect::{apply_effects, EffectCtx, EffectTarget, Outcome, Tier};
 
 use super::scenario_data::scenario;
-use super::state::{fmt_money, GameOverCause, Mode};
+use super::state::{fmt_money, GameOverCause, Mode, Phase};
 use super::Game;
 
 /// Which strain put up the steady-hand trace. Steadiness is now only ever
@@ -93,8 +93,11 @@ pub enum TimingTask {
 /// Which strain put up the sequence (order-memory) game.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SequenceTask {
-    /// Patching a snagged hull (River).
+    /// Patching a snagged hull on the spot, mid-leg (River hazard).
     Patch,
+    /// Lying up at a landing to mend the hull yourself — the player-initiated
+    /// self-repair, its sequence length scaled to the damage (River).
+    SelfRepair,
 }
 
 /// Which strain put up the bucket-brigade game.
@@ -157,6 +160,7 @@ impl MiniTask {
             MiniTask::Timing(TimingTask::Gamble) => "gamble",
             MiniTask::Timing(TimingTask::CaveTell) => "cave-tell",
             MiniTask::Sequence(SequenceTask::Patch) => "patch",
+            MiniTask::Sequence(SequenceTask::SelfRepair) => "self-repair",
             MiniTask::Brigade(BrigadeTask::Bail) => "bail",
         }
     }
@@ -218,6 +222,7 @@ impl Game {
             "side-trail" => self.begin_crowd(CrowdTask::SideTrail),
             "dose" => self.begin_timing(TimingTask::Dose),
             "patch" => self.begin_sequence(SequenceTask::Patch),
+            "self-repair" => self.begin_sequence(SequenceTask::SelfRepair),
             "bail" => self.begin_brigade(BrigadeTask::Bail),
             other => panic!("unknown minigame outcome {other}"),
         }
@@ -424,25 +429,81 @@ impl Game {
         self.advance();
     }
 
-    /// Sequence (order-memory) game — patching a snagged hull.
+    /// Sequence (order-memory) game — patching a snagged hull mid-leg, or the
+    /// player-initiated self-repair lying up at a landing.
     pub fn resolve_sequence(&mut self, correct_prefix: usize, length: usize, perfect: bool) {
         if self.mode != Mode::Sequence {
             return;
         }
-        if !matches!(self.pending_task, Some(MiniTask::Sequence(_))) {
+        let Some(MiniTask::Sequence(task)) = self.pending_task else {
             return;
-        }
+        };
         self.pending_task = None;
-        let o = scenario().outcome("patch").expect("missing patch outcome");
-        let miss = if length == 0 {
+        let frac = if length == 0 {
             0.0
         } else {
-            (1.0 - correct_prefix as f64 / length as f64).clamp(0.0, 1.0)
+            (correct_prefix as f64 / length as f64).clamp(0.0, 1.0)
         };
-        let base = if perfect { Tier::Success } else { Tier::Partial };
-        let tier = resolve_tier(o, base, 1.0 - miss);
-        self.apply_outcome("patch", tier, miss);
+        let miss = 1.0 - frac;
+        match task {
+            SequenceTask::Patch => {
+                let o = scenario().outcome("patch").expect("missing patch outcome");
+                let base = if perfect { Tier::Success } else { Tier::Partial };
+                let tier = resolve_tier(o, base, frac);
+                self.apply_outcome("patch", tier, miss);
+            }
+            SequenceTask::SelfRepair => self.resolve_self_repair(correct_prefix, frac, perfect),
+        }
         self.advance();
+    }
+
+    /// Apply a self-repair attempt to the hull: a flawless run mends her wholly,
+    /// a slip mends in proportion to how far you got, and a botched run (no step
+    /// right) leaves her worse than before. The damage math is hand-coded (it
+    /// mutates the boat's condition, not the standard effect channels); the
+    /// `self-repair` outcome supplies the per-tier narration and morale flavor.
+    fn resolve_self_repair(&mut self, correct_prefix: usize, frac: f64, perfect: bool) {
+        let bomb_penalty = scenario().repair.bomb_penalty;
+        let tier = if perfect {
+            Tier::Success
+        } else if correct_prefix == 0 {
+            Tier::Fail
+        } else {
+            Tier::Partial
+        };
+        // Narrate first, so a botch that wrecks her (bomb past 100) still tells
+        // the tale before the game-over.
+        self.apply_outcome("self-repair", tier, 0.0);
+        // Then move the hull through the shared chokepoint: a flawless run mends
+        // her whole, a slip mends in proportion, a botch leaves her worse (and
+        // can sink her, like any other damage path).
+        let cur = self.state.boat_damage();
+        let delta = match tier {
+            Tier::Success => -cur,
+            Tier::Partial => -(cur * frac),
+            _ => bomb_penalty,
+        };
+        self.adjust_boat_damage(delta);
+    }
+
+    /// The self-repair sequence length, scaled to the current hull damage: from
+    /// the minigame's own `length` (a sound-ish hull) up to `self_seq_max_len` (a
+    /// wreck). `None` for any other sequence, so the host falls back to the
+    /// scenario length. Owning the task-type branch here keeps the UI dumb.
+    pub fn self_repair_seq_len(&self) -> Option<usize> {
+        if !matches!(
+            self.pending_task,
+            Some(MiniTask::Sequence(SequenceTask::SelfRepair))
+        ) {
+            return None;
+        }
+        let base = match scenario().minigame_params("self-repair") {
+            Some(trail_kit::MiniParams::Sequence { length, .. }) => *length,
+            _ => return None,
+        };
+        let max = scenario().repair.self_seq_max_len.max(base);
+        let bump = ((max - base) as f64 * self.state.boat_damage() / 100.0).round() as usize;
+        Some(base + bump)
     }
 
     /// Bucket-brigade game — bailing a flooded boat.
@@ -573,14 +634,26 @@ impl Game {
     }
 
     /// Look up an outcome by id and apply its tier's effect list. The single seam
-    /// through which every ported minigame result reaches the world.
+    /// through which every ported minigame result reaches the world. On the river,
+    /// a battered hull adds to the severity `drift`, so a damaged boat bleeds more
+    /// cargo on every mishap (the `drift_coeff` channel) — see [`RepairParams`].
     fn apply_outcome(&mut self, id: &str, tier: Tier, drift: f64) {
         let effects = scenario()
             .outcome(id)
             .unwrap_or_else(|| panic!("missing outcome {id}"))
             .tier(tier);
+        let drift = drift + self.hull_drift();
         let mut ctx = EffectCtx::new(drift);
         apply_effects(self, effects, &mut ctx);
+    }
+
+    /// Extra severity drift a damaged hull adds to a river hazard's outcome — the
+    /// "worse outcomes when battered" tooth. Zero off the water or with no boat.
+    fn hull_drift(&self) -> f64 {
+        if self.phase != Phase::River {
+            return 0.0;
+        }
+        scenario().repair.outcome_drift_coeff * self.state.boat_damage() / 100.0
     }
 }
 
@@ -634,6 +707,9 @@ impl EffectTarget for Game {
     }
     fn reputation(&mut self, d: f64) {
         self.adjust_reputation(d);
+    }
+    fn boat_damage(&mut self, d: f64) {
+        self.adjust_boat_damage(d);
     }
     fn draft(&self) -> f64 {
         self.state.boat.map(|b| b.draft()).unwrap_or(1.0)

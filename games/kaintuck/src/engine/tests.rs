@@ -47,6 +47,7 @@ fn check_invariants(g: &Game) {
     assert!(s.debt >= 0.0, "debt {}", s.debt);
     assert!(s.hold.iter().all(|&n| n >= 0), "hold {:?}", s.hold);
     assert!((0.0..=100.0).contains(&s.morale), "morale {}", s.morale);
+    assert!((0.0..=100.0).contains(&s.boat_damage()), "boat damage {}", s.boat_damage());
     assert!(s.health <= 100.0, "health {}", s.health);
     assert!(
         s.health > 0.0 || g.outcome.is_some(),
@@ -590,12 +591,167 @@ fn minigame_inverse_map_round_trips() {
     // empty minigame screen. Pin them in agreement for every hazard minigame.
     for id in [
         "sandbar", "cordelle", "falls-run", "cave-run", "swamp", "duck-ford", "pirates", "mason",
-        "harpe", "trace-hunt", "side-trail", "dose", "patch", "bail",
+        "harpe", "trace-hunt", "side-trail", "dose", "patch", "bail", "self-repair",
     ] {
         let mut g = Game::new(0);
         g.begin_minigame_for(id);
         assert_eq!(g.pending_task.unwrap().outcome_id(), id, "round-trip for {id}");
     }
+}
+
+// ===== Boat damage & repair =====
+
+use super::tasks::{HeaveTask, SequenceTask};
+
+/// A flatboat built and ready, parked at a river town hub, for repair tests.
+fn afloat_at_town(seed: u64, town: usize, damage: f64) -> Game {
+    let mut g = started(seed);
+    g.build(BoatKind::Flatboat, 2).unwrap();
+    g.state.boat.as_mut().unwrap().damage = damage;
+    g.state.town = town;
+    g.mode = Mode::Town;
+    g
+}
+
+#[test]
+fn a_hazard_inflicts_hull_damage() {
+    let mut g = started(1);
+    g.build(BoatKind::Flatboat, 2).unwrap();
+    assert_eq!(g.state.boat_damage(), 0.0);
+    // A grounding that doesn't come off clean (Partial) splinters the hull.
+    g.begin_heave(HeaveTask::Ground);
+    g.resolve_heave(false, 0, 0.3);
+    assert!(g.state.boat_damage() > 0.0, "sandbar partial should damage the hull");
+}
+
+#[test]
+fn enough_damage_wrecks_her() {
+    let mut g = started(1);
+    g.build(BoatKind::Flatboat, 2).unwrap();
+    g.state.boat.as_mut().unwrap().damage = 95.0;
+    // The sandbar partial adds another dozen points — over 100, she goes down.
+    g.begin_heave(HeaveTask::Ground);
+    g.resolve_heave(false, 0, 0.0);
+    assert_eq!(g.state.boat_damage(), 100.0);
+    assert_eq!(
+        g.outcome.as_ref().map(|e| e.cause_kind),
+        Some(state::GameOverCause::BoatWrecked)
+    );
+}
+
+#[test]
+fn a_battered_hull_seeps_cargo_each_leg() {
+    let mut g = started(1);
+    g.build(BoatKind::Flatboat, 2).unwrap();
+    g.state.hold[0] = 100;
+    // Below the threshold she holds tight.
+    g.state.boat.as_mut().unwrap().damage = 30.0;
+    g.apply_hull_seepage();
+    assert_eq!(g.state.hold[0], 100, "no seepage below the threshold");
+    // Badly hurt, she weeps.
+    g.state.boat.as_mut().unwrap().damage = 80.0;
+    g.apply_hull_seepage();
+    assert!(g.state.hold[0] < 100, "a battered hull should leak cargo");
+}
+
+#[test]
+fn the_boatwright_mends_her_for_a_scaling_fee() {
+    let mut g = afloat_at_town(2, state::LOUISVILLE, 50.0);
+    assert!(g.is_boatyard());
+    let cost = g.repair_cost();
+    assert_eq!(cost, 45.0, "50 damage * $0.9/pt, rounded up");
+    let spent_before = g.state.cash + g.state.debt;
+    g.repair_in_port();
+    assert_eq!(g.state.boat_damage(), 0.0, "she's sound again");
+    assert_eq!(g.state.cash + g.state.debt - spent_before, cost, "charged the fee");
+}
+
+#[test]
+fn the_boatwright_only_works_at_a_boatyard() {
+    let mut g = afloat_at_town(2, 1, 50.0); // Wheeling — no boatyard
+    assert!(!g.is_boatyard());
+    g.repair_in_port();
+    assert_eq!(g.state.boat_damage(), 50.0, "no boatyard, no repair");
+}
+
+#[test]
+fn self_repair_costs_days_and_runs_the_sequence() {
+    let mut g = afloat_at_town(7, 1, 50.0); // self-repair is offered anywhere
+    let days0 = g.state.extra_days;
+    g.self_repair();
+    assert_eq!(
+        g.state.extra_days,
+        days0 + scenario().repair.self_repair_days,
+        "self-repair burns days"
+    );
+    // The moored hazard's narration drains, then the sequence launches; a clean
+    // run (settle plays it perfect) mends her whole.
+    settle(&mut g);
+    assert_eq!(g.state.boat_damage(), 0.0, "a perfect self-repair mends her whole");
+}
+
+#[test]
+fn self_repair_perfect_partial_and_bomb() {
+    // Perfect → fully mended.
+    let mut g = afloat_at_town(3, 1, 60.0);
+    g.begin_sequence(SequenceTask::SelfRepair);
+    g.resolve_sequence(6, 6, true);
+    assert_eq!(g.state.boat_damage(), 0.0);
+
+    // A slip → mended in proportion to how far you got (3/6 of the damage).
+    let mut g = afloat_at_town(3, 1, 60.0);
+    g.begin_sequence(SequenceTask::SelfRepair);
+    g.resolve_sequence(3, 6, false);
+    assert!((g.state.boat_damage() - 30.0).abs() < 1e-9, "half-done halves the damage");
+
+    // A botched run (no step right) → worse than before, by the bomb penalty.
+    let mut g = afloat_at_town(3, 1, 60.0);
+    g.begin_sequence(SequenceTask::SelfRepair);
+    g.resolve_sequence(0, 6, false);
+    assert_eq!(g.state.boat_damage(), 60.0 + scenario().repair.bomb_penalty);
+}
+
+#[test]
+fn a_botched_self_repair_can_sink_a_failing_hull() {
+    // The wreck-at-100 rule must hold on the hand-coded bomb path too, not just
+    // the AdjustBoatDamage effect path (the shared adjust_boat_damage chokepoint).
+    let mut g = afloat_at_town(3, 1, 95.0);
+    g.begin_sequence(SequenceTask::SelfRepair);
+    g.resolve_sequence(0, 6, false); // bomb adds bomb_penalty, tipping past 100
+    assert_eq!(g.state.boat_damage(), 100.0);
+    assert_eq!(
+        g.outcome.as_ref().map(|e| e.cause_kind),
+        Some(state::GameOverCause::BoatWrecked)
+    );
+}
+
+#[test]
+fn self_repair_sequence_grows_with_the_damage() {
+    use trail_kit::MiniParams;
+    let base = match scenario().minigame_params("self-repair").unwrap() {
+        MiniParams::Sequence { length, .. } => *length,
+        _ => unreachable!("self-repair is a sequence"),
+    };
+    let max = scenario().repair.self_seq_max_len;
+    // Off the self-repair task there is no override.
+    let g = afloat_at_town(3, 1, 0.0);
+    assert_eq!(g.self_repair_seq_len(), None);
+    // A sound-ish hull plays the base length; a wreck the max.
+    let mut g = afloat_at_town(3, 1, 0.0);
+    g.begin_sequence(SequenceTask::SelfRepair);
+    assert_eq!(g.self_repair_seq_len(), Some(base));
+    g.state.boat.as_mut().unwrap().damage = 100.0;
+    assert_eq!(g.self_repair_seq_len(), Some(max));
+}
+
+#[test]
+fn damage_cuts_the_salvage_value() {
+    use super::state::Boat;
+    let sound = Boat::new(BoatKind::Flatboat).salvage_value();
+    assert_eq!(sound, Boat::new(BoatKind::Flatboat).lumber_value(), "sound = full lumber");
+    let mut wrecked = Boat::new(BoatKind::Flatboat);
+    wrecked.damage = 100.0;
+    assert!(wrecked.salvage_value() < sound, "a wreck fetches less for lumber");
 }
 
 // ===== Golden-trace harness =====
@@ -923,8 +1079,16 @@ fn golden_trace_is_stable() {
     // (cheaper when respected, dearer when notorious), and the Cincinnati/Memphis
     // credit cap scales the cash-multiple ±50% by reputation — so debt growth and
     // borrowing room (and every downstream cash/score) move with your name.
+    // Re-pinned for the boat damage & repair system: river hazard outcomes
+    // (sandbar, cordelle, falls/cave runs, pirates, patch, bail) now carry
+    // `AdjustBoatDamage` effects, a battered hull seeps cargo each leg and adds to
+    // every river mishap's severity drift, and the Natchez cash-out pays the
+    // damage-discounted salvage value rather than full lumber — a real behavior
+    // change (cargo, cash, and scores move once the hull takes hurt). The port
+    // boatwright and the self-repair sequence are player-initiated and so don't
+    // enter this scripted trace.
     // Behavior must not drift; if this trips, run `print_golden_trace` to diff.
-    const EXPECTED: u64 = 0xeffa_9403_1a68_664c;
+    const EXPECTED: u64 = 0x9373_712a_cce8_ef92;
     assert_eq!(
         got, EXPECTED,
         "golden trace drifted: got {:#018x} over {} bytes",
@@ -1126,7 +1290,7 @@ fn scenario_is_self_consistent() {
     }
     for id in [
         "sandbar", "cordelle", "falls-run", "cave-run", "swamp", "duck-ford", "pirates", "mason",
-        "harpe", "trace-hunt", "side-trail", "dose", "patch", "bail",
+        "harpe", "trace-hunt", "side-trail", "dose", "patch", "bail", "self-repair",
     ] {
         assert!(sc.outcome(id).is_some(), "missing outcome {id}");
     }
@@ -1150,6 +1314,7 @@ fn scenario_is_self_consistent() {
         ("gamble", "timing"),
         ("cave-tell", "timing"),
         ("patch", "sequence"),
+        ("self-repair", "sequence"),
         ("bail", "brigade"),
     ] {
         let p = sc

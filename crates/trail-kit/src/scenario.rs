@@ -42,6 +42,55 @@ pub struct Scenario {
     /// `banter:` block parses fine and quiet legs fall back to their flat line.
     #[serde(default)]
     pub banter: Vec<BanterPool>,
+    /// Boat damage & repair tuning. Optional: a scenario with no `repair:` block
+    /// (e.g. a game with no boat condition) parses with the inert defaults.
+    #[serde(default)]
+    pub repair: RepairParams,
+}
+
+/// Tuning for the boat hull-damage and repair system (the River phase). Damage
+/// accumulates from hazards (via [`Effect::AdjustBoatDamage`](crate::Effect)),
+/// bites in four ways (a sink at 100, worse river outcomes, per-leg cargo
+/// seepage, a lower salvage value), and is mended either at a dockside boatyard
+/// for cash or by a self-repair sequence that costs days and risks a mishap.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct RepairParams {
+    /// Town indices with a boatwright who will repair for a fee.
+    #[serde(default)]
+    pub boatyards: Vec<usize>,
+    /// Dollars charged per damage point mended in port.
+    #[serde(default)]
+    pub port_cost_per_point: f64,
+    /// Weight of the damage haircut on the boat's salvage (lumber) value:
+    /// `lumber * (1 - damage/100 * coeff)`.
+    #[serde(default)]
+    pub salvage_damage_coeff: f64,
+    /// No per-leg cargo seepage below this much damage.
+    #[serde(default)]
+    pub seepage_threshold: f64,
+    /// Cargo fraction lost per leg while leaking: `coeff * (damage/100)`.
+    #[serde(default)]
+    pub seepage_coeff: f64,
+    /// Added to a river hazard's severity drift: `coeff * (damage/100)` — a
+    /// battered hull bleeds more cargo on every mishap.
+    #[serde(default)]
+    pub outcome_drift_coeff: f64,
+    /// River days a self-repair costs (folds into the speed score).
+    #[serde(default)]
+    pub self_repair_days: u32,
+    /// Self-repair sequence length at full damage. The base (zero-damage) length
+    /// is the self-repair minigame's own `length`; the engine scales between the
+    /// two by the hull damage.
+    #[serde(default)]
+    pub self_seq_max_len: usize,
+    /// Damage added when a self-repair is botched (the sequence is bombed).
+    #[serde(default)]
+    pub bomb_penalty: f64,
+    /// The hazard rolled while lying up to self-repair. Must use only
+    /// `Clean`/`Special` arms (no `Minigame`), so self-repair never nests a
+    /// second minigame.
+    #[serde(default)]
+    pub moored_hazards: HazardTable,
 }
 
 /// A region's worth of ambient crew banter. On a quiet (clean) leg whose
@@ -199,13 +248,16 @@ pub struct RiverPhase {
 /// `arms[i]` corresponds to `thresholds[i-1]` (so there is one more arm than
 /// threshold). The selected [`HazardArm`] says, declaratively, which minigame
 /// fires (by its outcome id) or which built-in handler runs.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct HazardTable {
     /// Cumulative percentile thresholds, ascending.
+    #[serde(default)]
     pub thresholds: Vec<f64>,
     /// Arm indices (1-based) that travelling in company can thin to a clean leg.
+    #[serde(default)]
     pub grouped_thins: Vec<usize>,
     /// What each selected arm does. `arms[0]` is the clean leg.
+    #[serde(default)]
     pub arms: Vec<HazardArm>,
 }
 

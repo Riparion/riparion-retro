@@ -16,6 +16,12 @@ pub fn Town() -> Element {
     let town = s.town;
     let has_moneylender = scenario().river.towns[town].moneylender;
     let convoy = s.river_convoy;
+    // Hull repair: a self-patch is offered at any landing once she's hurt; a
+    // boatwright (Louisville, Memphis) will mend her whole for a fee.
+    let damaged = s.boat_damage() > 0.0;
+    let hull = s.hull_label();
+    let has_boatyard = g.is_boatyard();
+    let repair_cost = fmt_money(g.repair_cost());
     // Quote the prices the player actually transacts at: the ask to buy, the bid
     // to sell (spread folded in), not the bare mid in `state.prices`.
     let rows: Vec<(usize, String, String, i64)> = (0..GOOD_NAMES.len())
@@ -78,6 +84,24 @@ pub fn Town() -> Element {
                             class: "{BTN} col-span-2",
                             onclick: move |_| game.write().mode = Mode::Moneylender,
                             "MONEYLENDER"
+                        }
+                    }
+                    if damaged {
+                        div { class: "col-span-2 chip-label mt-1", "── HULL: {hull} ──" }
+                        if has_boatyard {
+                            button {
+                                class: "{BTN} col-span-2",
+                                onclick: move |_| game.write().repair_in_port(),
+                                "BOATWRIGHT — REPAIR ({repair_cost})"
+                            }
+                        }
+                        button {
+                            class: "{BTN} col-span-2",
+                            onclick: move |_| game.write().self_repair(),
+                            "PATCH HER YOURSELF"
+                        }
+                        p { class: "text-xs opacity-60 col-span-2 mb-1",
+                            "Mending her yourself costs days and risks a mishap while you lie up — but not a dollar."
                         }
                     }
                     button {

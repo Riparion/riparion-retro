@@ -263,17 +263,21 @@ pub struct GameState {
     pub heard_banter: std::collections::HashSet<String>,
 }
 
-/// The flatboat. Only the `kind` is stored; the derived numbers are methods that
-/// delegate to it, so a rebalance of [`BoatKind`] can never leave a save carrying
-/// a stale cached capacity/draft/lumber value.
+/// The flatboat. The `kind` fixes the derived numbers (capacity/draft/lumber),
+/// which stay methods so a rebalance can't leave a save with stale cached values;
+/// `damage` is genuine mutable condition the hull accumulates from river hazards.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Boat {
     pub kind: BoatKind,
+    /// Hull damage, 0 (sound) .. 100 (wrecked). `serde(default)` keeps
+    /// pre-damage saves loading (they resume with a sound hull).
+    #[serde(default)]
+    pub damage: f64,
 }
 
 impl Boat {
     pub fn new(kind: BoatKind) -> Self {
-        Self { kind }
+        Self { kind, damage: 0.0 }
     }
     pub fn capacity(self) -> i64 {
         self.kind.capacity()
@@ -283,6 +287,12 @@ impl Boat {
     }
     pub fn lumber_value(self) -> f64 {
         self.kind.lumber_value()
+    }
+    /// What her timbers fetch broken up, after the damage haircut: a battered
+    /// hull is worth less as lumber. The haircut weight is scenario data.
+    pub fn salvage_value(self) -> f64 {
+        let coeff = scenario().repair.salvage_damage_coeff;
+        (self.lumber_value() * (1.0 - self.damage / 100.0 * coeff)).max(0.0)
     }
 }
 
@@ -379,6 +389,21 @@ impl GameState {
             h if h >= 75.0 => "Hale",
             h if h >= 45.0 => "Worn",
             h if h >= 20.0 => "Ailing",
+            _ => "Failing",
+        }
+    }
+
+    /// The boat's hull damage (0 when there's no boat).
+    pub fn boat_damage(&self) -> f64 {
+        self.boat.map(|b| b.damage).unwrap_or(0.0)
+    }
+
+    /// A word for the hull's condition, for the status chrome.
+    pub fn hull_label(&self) -> &'static str {
+        match self.boat_damage() {
+            d if d < 20.0 => "Sound",
+            d if d < 50.0 => "Weathered",
+            d if d < 80.0 => "Damaged",
             _ => "Failing",
         }
     }

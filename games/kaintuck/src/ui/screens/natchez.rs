@@ -23,7 +23,9 @@ pub fn Natchez() -> Element {
     // The realizable sale value (every good at its bid), not the mid-quote — this
     // is the money the player actually walks away with when they sell up.
     let cargo_value = g.cargo_sale_value();
-    let boat_lumber = s.boat.map(|b| b.lumber_value()).unwrap_or(0.0);
+    // What you'll actually be paid for her timbers — the damage-discounted
+    // salvage, not the sound-hull lumber price (matches sell_boat / set_out).
+    let boat_lumber = s.boat.map(|b| b.salvage_value()).unwrap_or(0.0);
     drop(g);
 
     if gambling() {
