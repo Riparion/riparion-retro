@@ -429,6 +429,22 @@ pub enum Mode {
     GameOver,
 }
 
+impl Mode {
+    /// True for the in-port screens — the town/market hubs where the stats
+    /// chrome (cash, debt, cargo, crew) is worth keeping on screen. Everything
+    /// else (set pieces, banter, minigames, the Trace) runs without it.
+    pub fn is_port(&self) -> bool {
+        matches!(
+            self,
+            Mode::Pittsburgh
+                | Mode::Town
+                | Mode::Trade { .. }
+                | Mode::Moneylender
+                | Mode::Natchez
+        )
+    }
+}
+
 /// Which leg of the journey is underway.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Phase {

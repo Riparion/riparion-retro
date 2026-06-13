@@ -96,7 +96,7 @@ fn GameRoot() -> Element {
 
     rsx! {
         div { class: "crt flex flex-col h-[100dvh] overflow-hidden",
-            if in_game {
+            if in_game && mode.is_port() {
                 StatusBar {}
             }
             div { class: "flex-1 overflow-y-auto flex flex-col",
