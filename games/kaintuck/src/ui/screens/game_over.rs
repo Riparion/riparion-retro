@@ -45,6 +45,10 @@ pub fn GameOver() -> Element {
                 StatRow { label: "Robbed".to_string(), value: (if end.robbed { "yes" } else { "no" }).to_string() }
                 StatRow { label: "Score".to_string(), value: end.score.to_string() }
                 StatRow { label: "Standing".to_string(), value: end.rank.clone() }
+                StatRow {
+                    label: "Carried to next run".to_string(),
+                    value: format!("${}", group_thousands((end.cash - end.debt).max(0))),
+                }
             }
             div { class: "flex gap-2 w-full max-w-sm",
                 button {

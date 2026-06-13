@@ -6,13 +6,16 @@ use crate::engine::state::Mode;
 use crate::engine::Game;
 use crate::storage;
 use retro_kit::components::score_board::ScoreBoard;
-use retro_kit::theme::{BTN_PRIMARY, BTN_WIDE, SCREEN_HERO};
+use retro_kit::components::stat_row::StatRow;
+use retro_kit::format::group_thousands;
+use retro_kit::theme::{BTN, BTN_PRIMARY, BTN_WIDE, PANEL, SCREEN_HERO};
 
 #[component]
 pub fn Splash() -> Element {
     let mut game = use_context::<Signal<Game>>();
     let mut on_splash = use_context::<Signal<bool>>();
     let scores = use_hook(storage::high_scores);
+    let mut house = use_signal(storage::ledger);
     // A save loads in a gameplay mode; a fresh game sits on Splash.
     let resumable = game.peek().mode != Mode::Splash;
 
@@ -45,6 +48,25 @@ pub fn Splash() -> Element {
                     }
                 }
                 button { class: "{start_class}", onclick: new_game, "{start_label}" }
+            }
+            if let Some(l) = house() {
+                div { class: "{PANEL} p-4 w-full max-w-xs text-left text-sm flex flex-col gap-1",
+                    p { class: "text-center tracking-widest opacity-80 mb-1", "YOUR TRADING HOUSE" }
+                    StatRow { label: "Fortune".to_string(), value: format!("${}", group_thousands(l.cash as i64)) }
+                    StatRow { label: "Reputation".to_string(), value: (l.reputation as i64).to_string() }
+                    StatRow { label: "Journeys".to_string(), value: l.journeys.to_string() }
+                    StatRow { label: "Reached home".to_string(), value: l.arrivals.to_string() }
+                    StatRow { label: "Best score".to_string(), value: group_thousands(l.best_score) }
+                    StatRow { label: "Miles travelled".to_string(), value: group_thousands(l.lifetime_miles) }
+                    button {
+                        class: "{BTN} mt-2 text-xs",
+                        onclick: move |_| {
+                            storage::clear_ledger();
+                            house.set(None);
+                        },
+                        "DISBAND THE HOUSE"
+                    }
+                }
             }
             ScoreBoard {
                 title: "KAINTUCKS REMEMBERED".to_string(),
