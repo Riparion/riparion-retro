@@ -30,6 +30,11 @@ Scenario(
         // Every quote carries an 8% bid/ask spread (buy 4% over the mid, sell 4%
         // under); a town's market entries widen it on thin or contested goods.
         base_spread: 0.08,
+        // Boatyard debt grows 5% a leg at a neutral name; reputation swings the
+        // charged rate ±half that. Cincinnati/Memphis offer credit at twice cash
+        // (before reputation scaling), never below the flat credit_cap floor.
+        base_interest: 0.05,
+        credit_multiple: 2.0,
     ),
 
     river: (

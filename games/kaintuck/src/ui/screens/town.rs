@@ -2,6 +2,7 @@
 
 use dioxus::prelude::*;
 
+use crate::engine::scenario_data::scenario;
 use crate::engine::state::{fmt_money, Mode, GOOD_NAMES};
 use crate::engine::Game;
 use retro_kit::components::seg_button::SegButton;
@@ -13,7 +14,7 @@ pub fn Town() -> Element {
     let g = game.read();
     let s = &g.state;
     let town = s.town;
-    let has_moneylender = town == 2 || town == 5;
+    let has_moneylender = scenario().river.towns[town].moneylender;
     let convoy = s.river_convoy;
     // Quote the prices the player actually transacts at: the ask to buy, the bid
     // to sell (spread folded in), not the bare mid in `state.prices`.

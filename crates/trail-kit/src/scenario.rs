@@ -168,6 +168,16 @@ pub struct StartParams {
     /// to this. Defaults to 0.0 — no spread, reproducing the single-quote market.
     #[serde(default)]
     pub base_spread: f64,
+    /// Per-leg interest on the boatyard debt at a neutral standing; a game may
+    /// swing the charged rate around it (e.g. by reputation). Defaults to 0.0 —
+    /// interest-free credit.
+    #[serde(default)]
+    pub base_interest: f64,
+    /// The moneylender's credit offer as a multiple of the trader's cash, before
+    /// any reputation scaling. Defaults to 0.0 — no cash-backed credit beyond the
+    /// flat [`StartParams::credit_cap`] floor.
+    #[serde(default)]
+    pub credit_multiple: f64,
 }
 
 /// Phase 1 — Pittsburgh to Natchez.

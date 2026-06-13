@@ -5,51 +5,10 @@ use dioxus::prelude::*;
 use retro_kit::game_flow::{use_persistence, Persisted};
 
 use crate::engine::scoring::HighScore;
-use crate::engine::state::{EndGame, Mode};
+use crate::engine::state::Mode;
 use crate::engine::Game;
+use crate::leaderboard::{ScorePayload, BOARD, SLUG};
 use crate::storage;
-
-/// The app's slug as published in riparion-cms — the leaderboard namespace.
-const LEADERBOARD_SLUG: &str = "kaintuck";
-/// The default board within the app.
-const LEADERBOARD_BOARD: &str = "main";
-
-/// The opaque per-run JSON echoed back on board reads. The server stores it
-/// verbatim (size-bounded); the hall of fame reads `won`/`rank` from it for
-/// display, and `version` lets future balance comparisons filter by game build.
-/// The deterministic run seed (for replay verification) is intentionally left
-/// out for now — capturing it would force a save-format break and is useless
-/// without a decision log, both of which belong to a later phase.
-#[derive(serde::Serialize)]
-struct ScorePayload {
-    won: bool,
-    rank: String,
-    cash: i64,
-    debt: i64,
-    crew_survived: i64,
-    reputation: i64,
-    robbed: bool,
-    miles: i64,
-    days: i64,
-    version: &'static str,
-}
-
-impl ScorePayload {
-    fn from_end(end: &EndGame) -> Self {
-        Self {
-            won: end.won,
-            rank: end.rank.clone(),
-            cash: end.cash,
-            debt: end.debt,
-            crew_survived: end.crew_survived,
-            reputation: end.reputation,
-            robbed: end.robbed,
-            miles: end.miles,
-            days: end.days,
-            version: env!("CARGO_PKG_VERSION"),
-        }
-    }
-}
 use crate::ui::components::cover::Cover;
 use crate::ui::components::status_bar::StatusBar;
 use crate::ui::screens;
@@ -84,8 +43,8 @@ impl Persisted for Game {
                 // Errors (offline, server down) are non-fatal: the local record
                 // already stuck, so just drop it.
                 let _ = retro_kit::leaderboard::submit(
-                    LEADERBOARD_SLUG,
-                    LEADERBOARD_BOARD,
+                    SLUG,
+                    BOARD,
                     &trader,
                     end.score,
                     &payload,

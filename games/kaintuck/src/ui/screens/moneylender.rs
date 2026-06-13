@@ -25,6 +25,7 @@ pub fn Moneylender() -> Element {
     let cash = g.state.cash;
     let debt = g.state.debt;
     let max_borrow = g.max_borrow();
+    let interest_pct = g.interest_rate() * 100.0;
     // The moneylender sits in a river-town landing, and at Natchez — go back to
     // whichever hub the player came from.
     let back = if g.state.town == NATCHEZ {
@@ -71,7 +72,7 @@ pub fn Moneylender() -> Element {
                     StatRow { label: "Owed".to_string(), value: fmt_money(debt) }
                     StatRow { label: "Can borrow".to_string(), value: fmt_money(max_borrow) }
                 }
-                p { class: "text-xs opacity-60 text-center", "Interest runs 5% a leg. Debt comes off your earnings at Natchez." }
+                p { class: "text-xs opacity-60 text-center", "Interest runs {interest_pct:.1}% a leg — your standing sets the rate. Debt comes off your earnings at Natchez." }
                 button { class: "{BTN_WIDE} py-3", onclick: move |_| sub.set(Sub::Borrow), "BORROW" }
                 button { class: "{BTN_WIDE} py-3", disabled: debt <= 0.0, onclick: move |_| sub.set(Sub::Repay), "REPAY" }
                 button { class: "{BTN}", onclick: move |_| game.write().mode = back.clone(), "Back to the landing" }

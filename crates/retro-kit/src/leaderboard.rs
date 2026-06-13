@@ -37,13 +37,6 @@ pub fn api_base() -> Option<String> {
     (!trimmed.is_empty()).then(|| trimmed.to_string())
 }
 
-/// Whether online leaderboards are available (a CMS injected an API base). Cheap
-/// enough to call from a component body to decide whether to show an online
-/// board.
-pub fn enabled() -> bool {
-    api_base().is_some()
-}
-
 /// One row from a board read. `payload` is the game's own per-run JSON echoed
 /// back unparsed (rank label, win flag, day count, …) — `Null` when the row
 /// carried none. The game interprets it; the kit stays game-agnostic.
