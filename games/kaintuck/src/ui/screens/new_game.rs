@@ -2,14 +2,18 @@
 
 use dioxus::prelude::*;
 
+use crate::engine::ledger::Carryover;
 use crate::engine::state::Mode;
 use crate::engine::Game;
+use crate::storage;
+use retro_kit::format::group_thousands;
 use retro_kit::theme::{BTN, BTN_PRIMARY, SCREEN_CENTERED};
 
 #[component]
 pub fn NewGame() -> Element {
     let mut game = use_context::<Signal<Game>>();
     let mut name = use_signal(String::new);
+    let house = use_hook(storage::ledger);
 
     let ready = use_memo(move || {
         let n = name.read();
@@ -19,7 +23,10 @@ pub fn NewGame() -> Element {
     let set_out = move |_| {
         let n = name.read().trim().to_string();
         if !n.is_empty() && n.len() <= 22 {
-            game.write().begin(n);
+            let carry = storage::ledger()
+                .map(|l| l.carry())
+                .unwrap_or_else(Carryover::fresh);
+            game.write().begin_with(n, carry);
         }
     };
 
@@ -28,6 +35,11 @@ pub fn NewGame() -> Element {
             h2 { class: "text-center text-lg tracking-widest", "PITTSBURGH, c. 1805" }
             p { class: "text-center leading-snug",
                 "The flatboat capital of the frontier. What name do you go by, Kaintuck? (Up to 22 characters.)"
+            }
+            if let Some(l) = house.as_ref() {
+                p { class: "text-center text-sm opacity-80 leading-snug",
+                    "You set out with ${group_thousands(l.cash as i64)} and a reputation of {l.reputation as i64} to your house's name."
+                }
             }
             input {
                 class: "crt-input text-center text-lg",

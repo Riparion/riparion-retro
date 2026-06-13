@@ -7,7 +7,7 @@ use super::*;
 
 fn started(seed: u64) -> Game {
     let mut g = Game::new(seed);
-    g.begin("Tester".into());
+    g.begin_with("Tester".into(), ledger::Carryover::fresh());
     g
 }
 

@@ -15,6 +15,7 @@
 //! when the queue drains, so a refresh resumes exactly in place.
 
 pub mod interaction;
+pub mod ledger;
 pub mod prices;
 pub use retro_kit::rng;
 pub mod scenario_data;
@@ -98,10 +99,15 @@ impl Game {
         }
     }
 
-    /// Begin a fresh game at the Pittsburgh boatyard.
-    pub fn begin(&mut self, trader: String) {
+    /// Begin at the Pittsburgh boatyard, seeding starting cash and reputation
+    /// from a prior run's house ledger (see [`ledger::Carryover`]). A house that
+    /// has never run passes [`ledger::Carryover::fresh`] for the clean-slate
+    /// scenario stake.
+    pub fn begin_with(&mut self, trader: String, carry: ledger::Carryover) {
         let trader = trader.trim().to_string();
         self.state = GameState::new(trader);
+        self.state.cash = carry.cash;
+        self.state.reputation = carry.reputation;
         self.phase = Phase::River;
         self.pending.clear();
         self.voyage = None;

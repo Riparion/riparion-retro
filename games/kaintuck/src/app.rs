@@ -27,6 +27,10 @@ impl Persisted for Game {
         let snapshot = game.read();
         if let Some(end) = snapshot.outcome.clone().filter(|e| !e.recorded) {
             storage::record_score(HighScore::from_end(&snapshot.state.trader, &end));
+            // Roll the run's fortune into the house for the next Kaintuck.
+            let mut ledger = storage::ledger().unwrap_or_default();
+            ledger.record(&end);
+            storage::save_ledger(&ledger);
             drop(snapshot);
             if let Some(out) = game.write().outcome.as_mut() {
                 out.recorded = true;
