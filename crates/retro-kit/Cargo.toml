@@ -1,6 +1,6 @@
 [package]
 name = "retro-kit"
-version = "0.1.5"
+version = "0.1.6"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,11 +9,11 @@ description = "Shared CRT aesthetic, UI components, and retro-game primitives fo
 [dependencies]
 dioxus = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 gloo-storage = { workspace = true }
 gloo-timers = { workspace = true }
+gloo-net = { workspace = true }
+web-sys = { workspace = true }
 rand = { workspace = true }
 rand_pcg = { workspace = true }
 getrandom = { workspace = true }
-
-[dev-dependencies]
-serde_json = { workspace = true }

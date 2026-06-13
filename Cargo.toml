@@ -24,6 +24,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 gloo-storage = "0.3"
 gloo-timers = { version = "0.3", features = ["futures"] }
+# Optional online leaderboards: the http client for talking to a riparion-cms
+# app backend, and web-sys for reading the injected API-base meta tag.
+gloo-net = { version = "0.6", default-features = false, features = ["http", "json"] }
+web-sys = { version = "0.3", features = ["Window", "Document", "Element"] }
 rand = { version = "0.8", default-features = false }
 rand_pcg = { version = "0.3", features = ["serde1"] }
 getrandom = { version = "0.2", features = ["js"] }

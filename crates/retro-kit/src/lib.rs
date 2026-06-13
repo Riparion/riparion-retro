@@ -11,6 +11,7 @@
 pub mod components;
 pub mod format;
 pub mod game_flow;
+pub mod leaderboard;
 pub mod playback;
 pub mod rations;
 pub mod rng;
