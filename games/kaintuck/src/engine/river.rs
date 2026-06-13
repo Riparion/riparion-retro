@@ -12,7 +12,7 @@ use super::state::{
     NUM_RIVER_TOWNS,
     TOWN_SLUGS,
 };
-use super::tasks::{QuickTask, SteadyTask};
+use super::tasks::{SteadyTask, TimingTask};
 use super::{Flow, Game, Resume};
 
 /// Where a downstream leg is in its little chain.
@@ -299,25 +299,17 @@ impl Game {
 
     // ----- Cave-in-Rock: the relay-pilot con -----
 
-    /// Take the stranger's free pilot offer. He's the pirates' man, and whether
-    /// he wrecks you turns on the value of your cargo (just as the wreckers
-    /// judged it): a fat hold is worth grounding for, a poor one isn't.
+    /// Take the stranger's free pilot offer — but read him first. He's the
+    /// pirates' man; the relay-pilot con (RESEARCH_PIRATES §4) turns on whether you
+    /// catch his tell in time. A clean read waves him off safely; a misread with a
+    /// hold worth taking drops you onto the bar and into the boarding. The
+    /// cargo-value gate (a fat hold is worth grounding for, a poor one isn't) lives
+    /// in `resolve_timing`'s CaveTell arm.
     pub fn cave_take(&mut self) {
         if !self.enter_setpiece(Mode::CaveInRock) {
             return;
         }
-        // The threshold roughly matches a half-laden flatboat — enough plunder
-        // to be worth the betrayal.
-        if self.state.cargo_value() > 60.0 {
-            // You've tangled with Mason's river gang at his own lair — it follows
-            // you onto the Trace as the wanted-poster payoff.
-            self.state.crossed_mason = true;
-            self.message("The stranger takes your steering oar — and runs you straight onto the bar below the cave, where his friends are already pushing off in skiffs.");
-            self.begin_quick(QuickTask::Pirates);
-        } else {
-            self.message("The stranger looks over your thin cargo, sees little worth the trouble, and pilots you through honestly enough. Luck, more than judgment.");
-            self.advance();
-        }
+        self.begin_timing(TimingTask::CaveTell);
     }
 
     /// Hire your own pilot — the honest hand the *Navigator* names — for a fee.

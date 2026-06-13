@@ -103,7 +103,10 @@ fn GameRoot() -> Element {
                         | Mode::Crowd
                         | Mode::Timing
                         | Mode::Sequence
-                        | Mode::Brigade => rsx! { screens::minigame::Minigame {} },
+                        | Mode::Brigade
+                        | Mode::Heave
+                        | Mode::HotCold
+                        | Mode::Hunter => rsx! { screens::minigame::Minigame {} },
                         Mode::Interaction => rsx! { screens::interaction_host::InteractionHost {} },
                         Mode::GameOver => rsx! { screens::game_over::GameOver {} },
                     }}

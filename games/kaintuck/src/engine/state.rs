@@ -421,6 +421,9 @@ pub enum Mode {
     Timing,
     Sequence,
     Brigade,
+    Heave,
+    HotCold,
+    Hunter,
     // --- shared ---
     Interaction,
     GameOver,

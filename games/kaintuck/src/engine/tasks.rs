@@ -12,30 +12,60 @@ use super::scenario_data::scenario;
 use super::state::{fmt_money, GameOverCause, Mode};
 use super::Game;
 
-/// Which strain put up the steady-hand trace.
+/// Which strain put up the steady-hand trace. Steadiness is now only ever
+/// "hold a line against a force" — the Falls chute and the Duck River ford.
+/// (Grounding moved to [`HeaveTask`], the swamp to [`HotColdTask`].)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SteadyTask {
-    /// Holding the boat off a sandbar (River).
-    Sandbar,
     /// Running the Falls of the Ohio (River).
     FallsRun,
     /// Running the shoals below Cave-in-Rock (River).
     CaveRun,
-    /// A swamp crossing on the Trace.
-    Swamp,
     /// Fording the Duck River on foot (Trace).
     DuckFord,
 }
 
-/// Which ambush put up the quick-draw.
+/// Which ambush put up the quick-draw. Now the *river* boarding only — the Trace
+/// bandits each got their own mechanic (Mason → [`HotColdTask`], Harpe →
+/// [`HunterTask`]) so trick, greed, and terror no longer play identically.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QuickTask {
-    /// River pirates.
+    /// River pirates pulling alongside to board.
     Pirates,
-    /// Sam Mason's gang on the Trace.
-    Mason,
-    /// The Harpe brothers, north of the divide.
+}
+
+/// Which strain put up the press-and-hold heave. Grounding is exertion, not
+/// precision: "all hands overboard to push," handspikes to lever, rollers to
+/// roll her off (RESEARCH_NAVIGATION §7a); the cordelle haul at the Grand Chain
+/// (§4, §6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HeaveTask {
+    /// Heaving the grounded boat off a sandbar (River).
+    Ground,
+    /// Hauling the boat through the Grand Chain rapids on the cordelle (River).
+    Cordelle,
+}
+
+/// Which strain put up the probe-and-deduce search. A swamp crossing is
+/// route-finding through "soupy mud" (RESEARCH_PIRATES §7); Mason's man hunts the
+/// money you hid — specie sewn in seams, the belt in a hollow log (§5, §7).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HotColdTask {
+    /// Finding a firm line through a flooded swamp / the "hell holes" (Trace).
+    Swamp,
+    /// Sam Mason's man searches your camp for your hidden purse (Trace).
+    MasonSearch,
+}
+
+/// Which strain put up the track-and-shoot. The Harpes "killed for its own sake"
+/// (RESEARCH_PIRATES §6) — surrender buys nothing, so you fight; or you hunt game
+/// for the pot to spare your provisions (§7).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HunterTask {
+    /// A fight for your life against the Harpe brothers, north of the divide.
     Harpe,
+    /// Hunting game for the pot on the Trace, to spare the ration.
+    Pot,
 }
 
 /// Which strain put up the crowd-threading route game.
@@ -52,6 +82,8 @@ pub enum TimingTask {
     Gamble,
     /// Measuring out a dose of medicine against swamp fever.
     Dose,
+    /// Reading the fake pilot's tell at Cave-in-Rock before he takes the helm.
+    CaveTell,
 }
 
 /// Which strain put up the sequence (order-memory) game.
@@ -80,6 +112,9 @@ pub enum MiniTask {
     Timing(TimingTask),
     Sequence(SequenceTask),
     Brigade(BrigadeTask),
+    Heave(HeaveTask),
+    HotCold(HotColdTask),
+    Hunter(HunterTask),
 }
 
 impl MiniTask {
@@ -92,6 +127,9 @@ impl MiniTask {
             MiniTask::Timing(_) => Mode::Timing,
             MiniTask::Sequence(_) => Mode::Sequence,
             MiniTask::Brigade(_) => Mode::Brigade,
+            MiniTask::Heave(_) => Mode::Heave,
+            MiniTask::HotCold(_) => Mode::HotCold,
+            MiniTask::Hunter(_) => Mode::Hunter,
         }
     }
 
@@ -100,17 +138,20 @@ impl MiniTask {
     /// `begin_minigame_for` all agree through this.
     pub fn outcome_id(self) -> &'static str {
         match self {
-            MiniTask::Steady(SteadyTask::Sandbar) => "sandbar",
             MiniTask::Steady(SteadyTask::FallsRun) => "falls-run",
             MiniTask::Steady(SteadyTask::CaveRun) => "cave-run",
-            MiniTask::Steady(SteadyTask::Swamp) => "swamp",
             MiniTask::Steady(SteadyTask::DuckFord) => "duck-ford",
             MiniTask::Quick(QuickTask::Pirates) => "pirates",
-            MiniTask::Quick(QuickTask::Mason) => "mason",
-            MiniTask::Quick(QuickTask::Harpe) => "harpe",
+            MiniTask::Heave(HeaveTask::Ground) => "sandbar",
+            MiniTask::Heave(HeaveTask::Cordelle) => "cordelle",
+            MiniTask::HotCold(HotColdTask::Swamp) => "swamp",
+            MiniTask::HotCold(HotColdTask::MasonSearch) => "mason",
+            MiniTask::Hunter(HunterTask::Harpe) => "harpe",
+            MiniTask::Hunter(HunterTask::Pot) => "trace-hunt",
             MiniTask::Crowd(CrowdTask::SideTrail) => "side-trail",
             MiniTask::Timing(TimingTask::Dose) => "dose",
             MiniTask::Timing(TimingTask::Gamble) => "gamble",
+            MiniTask::Timing(TimingTask::CaveTell) => "cave-tell",
             MiniTask::Sequence(SequenceTask::Patch) => "patch",
             MiniTask::Brigade(BrigadeTask::Bail) => "bail",
         }
@@ -144,6 +185,15 @@ impl Game {
     pub(crate) fn begin_brigade(&mut self, task: BrigadeTask) {
         self.begin_task(MiniTask::Brigade(task));
     }
+    pub(crate) fn begin_heave(&mut self, task: HeaveTask) {
+        self.begin_task(MiniTask::Heave(task));
+    }
+    pub(crate) fn begin_hotcold(&mut self, task: HotColdTask) {
+        self.begin_task(MiniTask::HotCold(task));
+    }
+    pub(crate) fn begin_hunter(&mut self, task: HunterTask) {
+        self.begin_task(MiniTask::Hunter(task));
+    }
 
     /// Begin the minigame whose result selects `outcome` — the bridge from a
     /// data-driven hazard arm (which names an [`Outcome`] id) to the concrete
@@ -151,14 +201,16 @@ impl Game {
     /// `minigame_inverse_map_round_trips` test pins the two in agreement.
     pub(crate) fn begin_minigame_for(&mut self, outcome: &str) {
         match outcome {
-            "sandbar" => self.begin_steady(SteadyTask::Sandbar),
             "falls-run" => self.begin_steady(SteadyTask::FallsRun),
             "cave-run" => self.begin_steady(SteadyTask::CaveRun),
-            "swamp" => self.begin_steady(SteadyTask::Swamp),
             "duck-ford" => self.begin_steady(SteadyTask::DuckFord),
             "pirates" => self.begin_quick(QuickTask::Pirates),
-            "mason" => self.begin_quick(QuickTask::Mason),
-            "harpe" => self.begin_quick(QuickTask::Harpe),
+            "sandbar" => self.begin_heave(HeaveTask::Ground),
+            "cordelle" => self.begin_heave(HeaveTask::Cordelle),
+            "swamp" => self.begin_hotcold(HotColdTask::Swamp),
+            "mason" => self.begin_hotcold(HotColdTask::MasonSearch),
+            "harpe" => self.begin_hunter(HunterTask::Harpe),
+            "trace-hunt" => self.begin_hunter(HunterTask::Pot),
             "side-trail" => self.begin_crowd(CrowdTask::SideTrail),
             "dose" => self.begin_timing(TimingTask::Dose),
             "patch" => self.begin_sequence(SequenceTask::Patch),
@@ -191,6 +243,24 @@ impl Game {
     pub fn timing_task(&self) -> Option<TimingTask> {
         match self.pending_task {
             Some(MiniTask::Timing(t)) => Some(t),
+            _ => None,
+        }
+    }
+    pub fn heave_task(&self) -> Option<HeaveTask> {
+        match self.pending_task {
+            Some(MiniTask::Heave(t)) => Some(t),
+            _ => None,
+        }
+    }
+    pub fn hotcold_task(&self) -> Option<HotColdTask> {
+        match self.pending_task {
+            Some(MiniTask::HotCold(t)) => Some(t),
+            _ => None,
+        }
+    }
+    pub fn hunter_task(&self) -> Option<HunterTask> {
+        match self.pending_task {
+            Some(MiniTask::Hunter(t)) => Some(t),
             _ => None,
         }
     }
@@ -317,6 +387,27 @@ impl Game {
                 let tier = resolve_tier(o, base, accuracy);
                 self.apply_outcome("dose", tier, 0.0);
             }
+            // Reading the fake pilot at Cave-in-Rock. Hand-coded like the gamble:
+            // its branch turns on the live cargo value (the wreckers only bothered
+            // to ground a hold worth the betrayal — RESEARCH_PIRATES §4), so a clean
+            // read saves you, a misread on a fat hold drops you into the boarding.
+            TimingTask::CaveTell => {
+                if hit {
+                    self.adjust_reputation(2.0);
+                    self.message("Something in the pilot's patter rings false. You wave him off and thread the shoals on the Navigator's own marks — clean, and you kept your dollar.");
+                } else if self.state.cargo_value() > 60.0 {
+                    // You missed the tell with a hold worth taking — you've tangled
+                    // with Mason's river gang at his own lair, and it follows you
+                    // onto the Trace as the wanted-poster payoff.
+                    self.state.crossed_mason = true;
+                    self.message("You miss the tell. The stranger takes your steering oar — and runs you straight onto the bar below the cave, where his friends are already pushing off in skiffs.");
+                    self.begin_quick(QuickTask::Pirates);
+                    // begin_quick set the screen; don't fall through to advance.
+                    return;
+                } else {
+                    self.message("You misjudge the man, but your thin cargo isn't worth the betrayal. He pilots you through honestly enough — luck, more than judgment.");
+                }
+            }
         }
         self.advance();
     }
@@ -360,6 +451,123 @@ impl Game {
         let base = if contained { Tier::Success } else { Tier::Fail };
         let tier = resolve_tier(o, base, 1.0 - sev);
         self.apply_outcome("bail", tier, sev);
+        self.advance();
+    }
+
+    /// Heave (press-and-hold exertion) — heaving a grounded boat off a bar, or
+    /// hauling on the cordelle. `opened` = every resistance stage gave way;
+    /// `slips` = over-exertions; `grip_left` (0..1) = crew strength left at the
+    /// end. Clearing her is the success; running out of grip the partial.
+    pub fn resolve_heave(&mut self, opened: bool, slips: usize, grip_left: f64) {
+        if self.mode != Mode::Heave {
+            return;
+        }
+        let Some(MiniTask::Heave(task)) = self.pending_task else {
+            return;
+        };
+        self.pending_task = None;
+        let id = MiniTask::Heave(task).outcome_id();
+        let o = scenario().outcome(id).expect("missing heave outcome");
+        let base = if opened { Tier::Success } else { Tier::Partial };
+        // Quality is the grip you had to spare, docked for each slipped handspike;
+        // a band can make an utterly botched heave (snapped poles, no grip) worse.
+        let quality = (grip_left - 0.15 * slips as f64).clamp(0.0, 1.0);
+        // Drift scales the cargo-overboard loss: the more you flounder, the more
+        // washes off the bar.
+        let drift = (1.0 - grip_left).clamp(0.0, 1.0);
+        let tier = resolve_tier(o, base, quality);
+        self.apply_outcome(id, tier, drift);
+        self.advance();
+    }
+
+    /// HotCold (probe-and-deduce search). `found` = the target was located;
+    /// `probes_used` vs. the search `budget` (the encounter's `max_probes`) grades
+    /// how sharp it was. We grade against the *budget*, not the kit's `par`:
+    /// kaintuck deliberately caps `max_probes` below the grid's natural par (a
+    /// tight search), so within that budget "good play" is finding it in the first
+    /// half, not under the lenient full-grid par (grading on par leaves the slow
+    /// tier unreachable, since `probes_used` never reaches it). The meaning of
+    /// "found" flips with who is searching: on the swamp *you* hunt firm ground
+    /// (finding it fast is the clean win); for Mason *you* scramble to reach your
+    /// hidden purse first (fast = clean getaway, slow = they grab a share, never =
+    /// they take the lot).
+    pub fn resolve_hotcold(&mut self, found: bool, probes_used: usize, budget: usize) {
+        if self.mode != Mode::HotCold {
+            return;
+        }
+        let Some(MiniTask::HotCold(task)) = self.pending_task else {
+            return;
+        };
+        self.pending_task = None;
+        let id = MiniTask::HotCold(task).outcome_id();
+        let o = scenario().outcome(id).expect("missing hotcold outcome");
+        let budget = budget.max(1);
+        // Fraction of the budget spent (0 = instant, 1 = used it all); a find in
+        // the first half is "sharp".
+        let spent = (probes_used as f64 / budget as f64).clamp(0.0, 1.0);
+        let sharp = probes_used * 2 <= budget;
+        let (base, quality, drift) = match task {
+            HotColdTask::Swamp => {
+                // You search: firm ground found is the success, floundering the
+                // partial; drift grows the longer you flailed in the mire.
+                let base = if found { Tier::Success } else { Tier::Partial };
+                let quality = if found { (1.0 - spent).clamp(0.0, 1.0) } else { 0.0 };
+                (base, quality, (1.0 - quality).clamp(0.0, 1.0))
+            }
+            HotColdTask::MasonSearch => {
+                // Ambushed, you scramble in the dark to reach your hidden purse
+                // before Mason's men do. Reaching it sharply is a clean getaway
+                // (you palm them a decoy); reaching it slowly, they grab a share;
+                // never reaching it, they take it all and leave you bleeding.
+                let base = if !found {
+                    Tier::Fail
+                } else if sharp {
+                    Tier::Success
+                } else {
+                    Tier::Partial
+                };
+                (base, if found { 1.0 } else { 0.0 }, 0.0)
+            }
+        };
+        let tier = resolve_tier(o, base, quality);
+        self.apply_outcome(id, tier, drift);
+        self.advance();
+    }
+
+    /// Hunter (track-and-shoot, finite ammo) — the Harpe fight, or hunting for the
+    /// pot. `hit` = the quarry was struck; `shots_fired` = rounds spent. A clean
+    /// one- or two-shot kill is the success; a kill that emptied the gun the
+    /// partial; an empty gun the fail.
+    pub fn resolve_hunter(&mut self, hit: bool, shots_fired: usize) {
+        if self.mode != Mode::Hunter {
+            return;
+        }
+        let Some(MiniTask::Hunter(task)) = self.pending_task else {
+            return;
+        };
+        self.pending_task = None;
+        let id = MiniTask::Hunter(task).outcome_id();
+        let o = scenario().outcome(id).expect("missing hunter outcome");
+        let base = if hit && shots_fired <= 2 {
+            Tier::Success
+        } else if hit {
+            Tier::Partial
+        } else {
+            Tier::Fail
+        };
+        // Quality: a clean kill is 1, a ragged one 0.5, a miss 0. It only bites if
+        // an outcome declares a `catastrophe_below` band; neither Hunter outcome
+        // does today, so it's an inert forward hook — the Harpes' lethality comes
+        // from the Fail tier's own AdjustHealth(-20) + DieIfDead, not from quality.
+        let quality = if !hit {
+            0.0
+        } else if shots_fired <= 2 {
+            1.0
+        } else {
+            0.5
+        };
+        let tier = resolve_tier(o, base, quality);
+        self.apply_outcome(id, tier, 0.0);
         self.advance();
     }
 

@@ -9,7 +9,9 @@ use dioxus::prelude::*;
 
 use crate::engine::interaction::Interaction;
 use crate::engine::state::{Mode, TOWN_SLUGS, NUM_RIVER_TOWNS};
-use crate::engine::tasks::{QuickTask, SteadyTask, TimingTask};
+use crate::engine::tasks::{
+    HeaveTask, HotColdTask, HunterTask, QuickTask, SteadyTask, TimingTask,
+};
 use crate::engine::Game;
 
 // build.rs writes `cover_asset(key) -> Option<Asset>`, one arm per jpg present.
@@ -35,6 +37,9 @@ fn mode_key(mode: &Mode) -> &'static str {
         Mode::Timing => "timing",
         Mode::Sequence => "sequence",
         Mode::Brigade => "brigade",
+        Mode::Heave => "heave",
+        Mode::HotCold => "hot-cold",
+        Mode::Hunter => "hunter",
         Mode::Interaction => "interaction",
         Mode::GameOver => "game-over",
     }
@@ -57,10 +62,8 @@ pub fn cover_keys(game: &Game) -> Vec<String> {
         Mode::Steady => {
             if let Some(task) = game.steady_task() {
                 let v = match task {
-                    SteadyTask::Sandbar => "sandbar",
                     SteadyTask::FallsRun => "falls-run",
                     SteadyTask::CaveRun => "cave-run",
-                    SteadyTask::Swamp => "swamp",
                     SteadyTask::DuckFord => "duck-ford",
                 };
                 keys.push(format!("steady-{v}"));
@@ -70,10 +73,35 @@ pub fn cover_keys(game: &Game) -> Vec<String> {
             if let Some(task) = game.quick_task() {
                 let v = match task {
                     QuickTask::Pirates => "pirates",
-                    QuickTask::Mason => "mason",
-                    QuickTask::Harpe => "harpe",
                 };
                 keys.push(format!("quick-{v}"));
+            }
+        }
+        Mode::Heave => {
+            if let Some(task) = game.heave_task() {
+                let v = match task {
+                    HeaveTask::Ground => "sandbar",
+                    HeaveTask::Cordelle => "cordelle",
+                };
+                keys.push(format!("heave-{v}"));
+            }
+        }
+        Mode::HotCold => {
+            if let Some(task) = game.hotcold_task() {
+                let v = match task {
+                    HotColdTask::Swamp => "swamp",
+                    HotColdTask::MasonSearch => "mason",
+                };
+                keys.push(format!("hot-cold-{v}"));
+            }
+        }
+        Mode::Hunter => {
+            if let Some(task) = game.hunter_task() {
+                let v = match task {
+                    HunterTask::Harpe => "harpe",
+                    HunterTask::Pot => "trace-hunt",
+                };
+                keys.push(format!("hunter-{v}"));
             }
         }
         Mode::Crowd => keys.push("crowd-side-trail".to_string()),
@@ -82,6 +110,7 @@ pub fn cover_keys(game: &Game) -> Vec<String> {
                 let v = match task {
                     TimingTask::Gamble => "gamble",
                     TimingTask::Dose => "dose",
+                    TimingTask::CaveTell => "cave-tell",
                 };
                 keys.push(format!("timing-{v}"));
             }
