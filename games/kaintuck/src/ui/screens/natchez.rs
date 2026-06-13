@@ -60,6 +60,7 @@ pub fn Natchez() -> Element {
                     match action.as_str() {
                         "sell-cargo" => game.write().mode = Mode::Trade { can_buy: false, can_sell: true },
                         "gamble" => gambling.set(true),
+                        "moneylender" => game.write().mode = Mode::Moneylender,
                         _ => game.write().run_set_piece(&action, cost),
                     }
                 },

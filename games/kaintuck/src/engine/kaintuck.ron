@@ -324,6 +324,7 @@ Scenario(
             (label: "Sell cargo",                   hint: "Top prices on the river — sell it all.", gate: [HasCargo], action: "sell-cargo"),
             (label: "Sell the boat for lumber",     hint: "She can't go back upstream. The wood is worth real money.", gate: [HasBoat], action: "sell-boat"),
             (label: "Spend a night Under-the-Hill", hint: "Gambling, drinking, and thieves. Every dollar lost hurts the walk.", action: "gamble"),
+            (label: "See the moneylender",          hint: "Settle your debt before the cash-out — or borrow against the boat.", action: "moneylender"),
             (label: "Buy a horse — {cost}",         hint: "Faster on the Trace, and the difference at the Duck River.", cost: 12.0, gate: [NoHorse], affordable_only: true, action: "buy-horse"),
             (label: "Set out on the Trace ▸",       hint: "The long walk home begins.", primary: true, action: "set-out"),
         ]),
@@ -402,15 +403,15 @@ Scenario(
                 Message(text: "You strike a bar below the cave and hang there working free — {cargo_lost} of cargo washes off into the channel."),
             ],
         ),
-        // --- Trace steady-hand: a swamp crossing ---
+        // --- Trace crowd-threading: pathfinding the firm line across a swamp ---
         (
             id: "swamp",
-            success: [ Message(text: "You pick a firm line through the swamp and come out the far side dry.") ],
-            partial: [
+            success: [ Message(text: "You hold the firm line in your mind and pick your way across the swamp, out the far side dry.") ],
+            fail: [
                 AdjustHealth(-10.0),
                 AdjustProvisions(-5.0),
-                AdjustMiles(base: -5.0),
-                Message(text: "The swamp nearly swallows you — you lose ground, provisions, and strength."),
+                AdjustMiles(base: -5.0, drift_coeff: -10.0),
+                Message(text: "You lose the firm line and flounder into the mire — losing ground, provisions, and strength."),
                 DieIfDead("disease"),
             ],
         ),
@@ -558,7 +559,7 @@ Scenario(
     // "gamble" is here too — its outcome is hand-coded, but its timing bar is data.
     minigames: [
         // Steadiness is now only "hold a line against a force": the Falls chute,
-        // the Duck River ford. Grounding moved to Heave, the swamp to HotCold.
+        // the Duck River ford. Grounding moved to Heave, the swamp to Crowd.
         (id: "falls-run",  params: Steady(prompt: "The Falls of the Ohio! Run the chute — hold your line through the rapids.", tolerance: 0.10, duration_ms: 7000, drift_speed: 1.6)),
         (id: "cave-run",   params: Steady(prompt: "Below Cave-in-Rock — thread the bars and rock of the serpentine channel.", tolerance: 0.11, duration_ms: 6800, drift_speed: 1.5)),
         (id: "duck-ford",  params: Steady(prompt: "Fording the Duck River on foot — hold against the current.",              tolerance: 0.11, duration_ms: 6500, drift_speed: 1.5)),
@@ -566,17 +567,19 @@ Scenario(
         // walk her off (push → lever → roller). A deep, heavy hold grounds harder.
         (id: "sandbar",    params: Heave(prompt: "She's hard aground on a bar — set the handspikes and heave her off. Pace it, don't snap the poles.", stages: 3, heave_rate: 0.022, hold_ticks: 8, slip_load: 0.92)),
         (id: "cordelle",   params: Heave(prompt: "The Grand Chain — land and haul her up through the rapids on the cordelle. Down on her, and heave!",  stages: 4, heave_rate: 0.020, hold_ticks: 9, slip_load: 0.90)),
-        // HotCold — probe-and-deduce search: firm ground through the hell holes,
-        // and your own hidden purse in the dark under ambush.
-        (id: "swamp",      params: HotCold(prompt: "A 'hell hole' of soupy mud — probe for firm ground and pick a line across.",                  cols: 5, rows: 5, max_probes: 8)),
+        // HotCold — probe-and-deduce search: your own hidden purse in the dark
+        // under ambush.
         (id: "mason",      params: HotCold(prompt: "Mason's men have you at gunpoint. Find your purse — hidden in the brush at camp — before they do.", cols: 5, rows: 5, max_probes: 7)),
         // Quick — now the river boarding only, with its own deck-fight words.
         (id: "pirates",    params: Quick(prompt: "River pirates grapple alongside and come over the gunwale — REPEL them!", words: ["REPEL", "FEND", "PIKE", "FIRE"])),
         // Hunter — track-and-shoot, finite ammo: the Harpe fight (surrender buys
         // nothing) and hunting for the pot to spare the ration.
         (id: "harpe",      params: Hunter(prompt: "The Harpe brothers are on you — no quarter, no bargain. Bring one down before they reach you!", hunted_icon: "H", cols: 7, rows: 5, ammo: 3, step_ms: 260, reload_ms: 900)),
-        (id: "trace-hunt", params: Hunter(prompt: "Provisions run low. Game in the canebrake — bag it for the pot before it bolts.",               hunted_icon: "d", cols: 7, rows: 5, ammo: 5, step_ms: 330, reload_ms: 800)),
+        (id: "trace-hunt", params: Hunter(prompt: "Provisions run low. Game in the canebrake — bag it for the pot before it bolts.",               hunter_icon: "🤠", hunted_icon: "🦌", cols: 7, rows: 5, ammo: 5, step_ms: 330, reload_ms: 800)),
+        // Crowd — route-memory: fix the way in mind, then thread it. The Trace
+        // forking into side trails, and the firm line across a swamp's soupy mud.
         (id: "side-trail", params: Crowd(prompt: "The Trace forks into a dozen side trails. Fix the way north in your mind.", crowd_size: 11, member_icon: "🌲", player_icon: "@", exit_icon: ">", reveal_ms: 2800, navigate_ms: 11000)),
+        (id: "swamp",      params: Crowd(prompt: "A 'hell hole' of soupy mud — fix the firm line in your mind, then pick your way across before the mire takes you.", crowd_size: 12, member_icon: "🟫", player_icon: "@", exit_icon: ">", reveal_ms: 3000, navigate_ms: 10000)),
         (id: "dose",       params: Timing(prompt: "Swamp fever. Measure out the dose — too much or too little does no good.", action: "POUR",    tolerance: 0.12, period_ms: 1500)),
         (id: "gamble",     params: Timing(prompt: "Under-the-Hill — lay your stake and call it as the wheel comes round.",    action: "CALL IT", tolerance: 0.10, period_ms: 1300)),
         (id: "cave-tell",  params: Timing(prompt: "The stranger offers to pilot you past the cave. Watch his eyes — call it the instant you read the tell.", action: "READ HIM", tolerance: 0.11, period_ms: 1400)),

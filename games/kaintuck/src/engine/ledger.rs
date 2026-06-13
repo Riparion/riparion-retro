@@ -30,6 +30,10 @@ impl Carryover {
 /// the next journey, plus a lifetime tally for the title screen.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Ledger {
+    /// The name the last Kaintuck went by, pre-filled when naming the next one.
+    /// `#[serde(default)]` so a pre-name ledger blob still loads (no version bump).
+    #[serde(default)]
+    pub name: String,
     /// Net cash the next run starts with (debt forgiven, never below zero).
     pub cash: f64,
     /// Reputation the next run starts with (−50..50).
@@ -55,8 +59,10 @@ impl Ledger {
 
     /// Fold a finished run into the house. Net wealth carries forward with debt
     /// forgiven and floored at zero, so a ruinous run leaves you poor but never
-    /// soft-locked — the boatyard credit still covers a skiff.
-    pub fn record(&mut self, end: &EndGame) {
+    /// soft-locked — the boatyard credit still covers a skiff. The trader's name
+    /// is kept so the next Kaintuck can be named with one tap.
+    pub fn record(&mut self, end: &EndGame, trader: &str) {
+        self.name = trader.to_string();
         self.cash = (end.cash - end.debt).max(0) as f64;
         self.reputation = end.reputation as f64;
         self.journeys += 1;
@@ -98,26 +104,28 @@ mod tests {
     #[test]
     fn record_carries_net_wealth_and_forgives_debt() {
         let mut l = Ledger::default();
-        l.record(&end(true, 400, 150, 12, 2000, 2280));
+        l.record(&end(true, 400, 150, 12, 2000, 2280), "Davy");
         assert_eq!(l.cash, 250.0);
         assert_eq!(l.reputation, 12.0);
         assert_eq!(l.carry().cash, 250.0);
         assert_eq!(l.carry().reputation, 12.0);
+        // The trader's name is kept for the next run's naming screen.
+        assert_eq!(l.name, "Davy");
     }
 
     #[test]
     fn cash_floors_at_zero() {
         let mut l = Ledger::default();
-        l.record(&end(false, 30, 200, -10, 0, 1200));
+        l.record(&end(false, 30, 200, -10, 0, 1200), "Davy");
         assert_eq!(l.cash, 0.0);
     }
 
     #[test]
     fn counters_and_best_score_accrue() {
         let mut l = Ledger::default();
-        l.record(&end(false, 0, 0, 0, 500, 1000));
-        l.record(&end(true, 600, 0, 5, 2200, 2280));
-        l.record(&end(true, 100, 0, 0, 1800, 2280));
+        l.record(&end(false, 0, 0, 0, 500, 1000), "Davy");
+        l.record(&end(true, 600, 0, 5, 2200, 2280), "Davy");
+        l.record(&end(true, 100, 0, 0, 1800, 2280), "Davy");
         assert_eq!(l.journeys, 3);
         assert_eq!(l.arrivals, 2);
         assert_eq!(l.best_score, 2200);

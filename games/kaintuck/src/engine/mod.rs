@@ -174,6 +174,12 @@ impl Game {
         (bid * (1.0 + self.state.reputation / 200.0)).max(0.0)
     }
 
+    /// Whether the current town locally produces `good` — drives the "*" flag and
+    /// the "locally produced" footnote on the trade screen.
+    pub fn produces_locally(&self, good: usize) -> bool {
+        prices::is_locally_produced(self.state.town, good)
+    }
+
     /// What the whole hold would actually fetch if sold here right now — every
     /// good at its current bid (spread and reputation folded in). This is the
     /// realizable figure the Natchez cash-out shows, as opposed to the notional
@@ -493,9 +499,10 @@ impl Game {
             "set-out" => self.set_out_on_trace(),
             "rest" => self.rest_and_resupply(cost),
             "leave" => self.leave_stand(),
-            // `sell-cargo` (→ Trade screen) and `gamble` (→ stake entry) are
-            // screen navigation, dispatched by the UI — an explicit no-op here.
-            "sell-cargo" | "gamble" => {}
+            // `sell-cargo` (→ Trade screen), `gamble` (→ stake entry), and
+            // `moneylender` (→ Moneylender screen) are screen navigation,
+            // dispatched by the UI — an explicit no-op here.
+            "sell-cargo" | "gamble" | "moneylender" => {}
             // Anything else is a scenario/code mismatch; fail loudly like the
             // sibling dispatchers (begin_minigame_for, run_special).
             other => panic!("unknown set-piece action {other}"),

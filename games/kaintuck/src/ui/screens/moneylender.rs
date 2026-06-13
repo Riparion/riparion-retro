@@ -1,8 +1,9 @@
-//! The moneylender at Cincinnati and Memphis: borrow against the boat, or repay.
+//! The moneylender at Cincinnati and Memphis, and at Natchez (to clear the debt
+//! before the cash-out): borrow against the boat, or repay.
 
 use dioxus::prelude::*;
 
-use crate::engine::state::{fmt_money, Mode};
+use crate::engine::state::{fmt_money, Mode, NATCHEZ};
 use crate::engine::Game;
 use retro_kit::components::number_entry::NumberEntry;
 use retro_kit::components::stat_row::StatRow;
@@ -24,6 +25,13 @@ pub fn Moneylender() -> Element {
     let cash = g.state.cash;
     let debt = g.state.debt;
     let max_borrow = g.max_borrow();
+    // The moneylender sits in a river-town landing, and at Natchez — go back to
+    // whichever hub the player came from.
+    let back = if g.state.town == NATCHEZ {
+        Mode::Natchez
+    } else {
+        Mode::Town
+    };
     drop(g);
 
     match sub() {
@@ -66,7 +74,7 @@ pub fn Moneylender() -> Element {
                 p { class: "text-xs opacity-60 text-center", "Interest runs 5% a leg. Debt comes off your earnings at Natchez." }
                 button { class: "{BTN_WIDE} py-3", onclick: move |_| sub.set(Sub::Borrow), "BORROW" }
                 button { class: "{BTN_WIDE} py-3", disabled: debt <= 0.0, onclick: move |_| sub.set(Sub::Repay), "REPAY" }
-                button { class: "{BTN}", onclick: move |_| game.write().mode = Mode::Town, "Back to the landing" }
+                button { class: "{BTN}", onclick: move |_| game.write().mode = back.clone(), "Back to the landing" }
             }
         },
     }

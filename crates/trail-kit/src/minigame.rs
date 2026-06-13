@@ -71,6 +71,10 @@ pub enum MiniParams {
     /// hunting game for the pot on the Trace).
     Hunter {
         prompt: String,
+        /// Glyph for the hunter on the bottom row (defaults to a portable `@`
+        /// when omitted, matching the kit component's own fallback).
+        #[serde(default = "default_hunter_icon")]
+        hunter_icon: String,
         hunted_icon: String,
         cols: usize,
         rows: usize,
@@ -78,6 +82,11 @@ pub enum MiniParams {
         step_ms: u32,
         reload_ms: u32,
     },
+}
+
+/// The kit's portable hunter glyph, used when a `Hunter` spec omits `hunter_icon`.
+fn default_hunter_icon() -> String {
+    String::from("@")
 }
 
 /// A minigame instance: its id and the parameters to launch it with. Generic
