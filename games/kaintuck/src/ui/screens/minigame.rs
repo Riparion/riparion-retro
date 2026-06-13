@@ -10,6 +10,9 @@ use dioxus::prelude::*;
 
 use minigames_kit::bucket_brigade::{BucketBrigade, BucketBrigadeResult};
 use minigames_kit::crowd_threading::{CrowdThreading, CrowdThreadingResult};
+use minigames_kit::heave::{Heave, HeaveResult};
+use minigames_kit::hot_cold::{HotCold, HotColdResult};
+use minigames_kit::hunter::{Hunter, HunterResult};
 use minigames_kit::quickdraw::{QuickDraw, QuickDrawResult};
 use minigames_kit::sequence::{Sequence as SequenceGame, SequenceResult};
 use minigames_kit::steady_hands::{SteadyHands, SteadyHandsResult};
@@ -33,7 +36,14 @@ pub fn Minigame() -> Element {
         MiniParams::Crowd { .. } => g.encounter_seed(0x51DE_7411),
         MiniParams::Sequence { .. } => g.encounter_seed(0x05E9_E0CE),
         MiniParams::Brigade { .. } => g.encounter_seed(0x6A11_0000),
+        MiniParams::Heave { .. } => g.encounter_seed(0x4EA7_E000),
+        MiniParams::HotCold { .. } => g.encounter_seed(0x40C0_1D00),
+        MiniParams::Hunter { .. } => g.encounter_seed(0x40A7_E211),
     };
+    // Hiding the money pays off in company: a kept night-watch (a party on the
+    // road — RESEARCH_PIRATES §7) buys you time to reach your stash before
+    // Mason's men do.
+    let in_company = g.state.grouped || g.state.river_convoy;
     drop(g);
 
     match params {
@@ -143,6 +153,80 @@ pub fn Minigame() -> Element {
                 seed,
                 on_complete: move |res: BucketBrigadeResult| {
                     game.write().resolve_brigade(res.contained, res.leaked, res.capacity);
+                },
+            }
+        },
+        MiniParams::Heave {
+            prompt,
+            stages,
+            heave_rate,
+            hold_ticks,
+            slip_load,
+        } => rsx! {
+            Heave {
+                prompt: prompt.clone(),
+                stages: *stages,
+                heave_rate: *heave_rate,
+                hold_ticks: *hold_ticks,
+                slip_load: *slip_load,
+                seed,
+                on_complete: move |res: HeaveResult| {
+                    game.write().resolve_heave(res.opened, res.slips, res.grip_left);
+                },
+            }
+        },
+        MiniParams::HotCold {
+            prompt,
+            cols,
+            rows,
+            max_probes,
+        } => {
+            // A kept watch in company shortens the bandit's search of your camp,
+            // but never the swamp (there you are the one searching for firm ground).
+            let is_search = matches!(
+                game.read().hotcold_task(),
+                Some(crate::engine::tasks::HotColdTask::MasonSearch)
+            );
+            let probes = if is_search && in_company {
+                max_probes + 2
+            } else {
+                *max_probes
+            };
+            rsx! {
+                HotCold {
+                    prompt: prompt.clone(),
+                    cols: *cols,
+                    rows: *rows,
+                    max_probes: probes,
+                    seed,
+                    on_complete: move |res: HotColdResult| {
+                        // Grade against the budget the encounter actually allows
+                        // (`probes`), not the kit's lenient full-grid `res.par`.
+                        game.write().resolve_hotcold(res.found, res.probes_used, probes);
+                    },
+                }
+            }
+        }
+        MiniParams::Hunter {
+            prompt,
+            hunted_icon,
+            cols,
+            rows,
+            ammo,
+            step_ms,
+            reload_ms,
+        } => rsx! {
+            Hunter {
+                prompt: prompt.clone(),
+                hunted_icon: hunted_icon.clone(),
+                cols: *cols,
+                rows: *rows,
+                ammo: *ammo,
+                step_ms: *step_ms,
+                reload_ms: *reload_ms,
+                seed,
+                on_complete: move |res: HunterResult| {
+                    game.write().resolve_hunter(res.hit, res.shots_fired);
                 },
             }
         },

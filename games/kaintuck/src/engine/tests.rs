@@ -31,6 +31,9 @@ fn settle(g: &mut Game) {
             Mode::Timing => g.resolve_timing(true, 0.9),
             Mode::Sequence => g.resolve_sequence(4, 4, true),
             Mode::Brigade => g.resolve_brigade(true, 0, 9),
+            Mode::Heave => g.resolve_heave(true, 0, 0.6),
+            Mode::HotCold => g.resolve_hotcold(true, 1, 9), // a sharp find (clean)
+            Mode::Hunter => g.resolve_hunter(true, 1),
             _ => return,
         }
         guard += 1;
@@ -183,9 +186,12 @@ fn pushing_a_hard_pace_with_no_food_eventually_kills() {
     g.mode = Mode::Natchez;
     g.set_out_on_trace();
     g.state.provisions = 0.0;
-    // Hard pace, starving — health bleeds out within the day cap.
+    // Hard pace, starving — health bleeds out within the day cap. Re-zero
+    // provisions each turn so an incidental hunt-for-the-pot can't quietly feed
+    // the test out of its premise.
     let mut guard = 0;
     while g.outcome.is_none() {
+        g.state.provisions = 0.0;
         if g.mode == Mode::TraceHub {
             g.set_pace(super::state::Pace::Hard);
             g.travel_day();
@@ -302,39 +308,86 @@ fn on_the_trace(seed: u64) -> Game {
 }
 
 #[test]
-fn mason_robbery_takes_two_fifths_of_cash_ungrouped() {
+fn mason_search_keeps_your_cash_on_a_clean_getaway() {
+    // Reaching the hidden purse first (a sharp find) palms them a decoy — you keep
+    // the lot. The signature payoff of the hide-the-money mechanic.
     let mut g = on_the_trace(1);
     g.state.cash = 100.0;
     g.state.health = 50.0;
     g.state.grouped = false;
-    g.begin_quick(super::tasks::QuickTask::Mason);
-    g.resolve_quick(2.0, false); // a clean miss (not slow)
+    g.begin_hotcold(super::tasks::HotColdTask::MasonSearch);
+    g.resolve_hotcold(true, 2, 7); // sharp find (2 of a 7 budget) → success
+    assert!(!g.state.robbed, "a clean getaway is no robbery");
+    assert_eq!(g.state.cash, 100.0, "you keep every dollar");
+    assert!(g.state.reputation > 0.0);
+}
+
+#[test]
+fn mason_search_costs_a_share_on_a_slow_find() {
+    // Reaching the purse in the second half of the budget — they grab a share but
+    // you'd cached enough to walk away with the rest. The previously-unreachable
+    // middle tier (it required probes_used > the kit's full-grid par, which the
+    // tight budget could never reach; grading now keys off the budget).
+    let mut g = on_the_trace(1);
+    g.state.cash = 100.0;
+    g.state.health = 50.0;
+    g.state.grouped = false;
+    g.begin_hotcold(super::tasks::HotColdTask::MasonSearch);
+    g.resolve_hotcold(true, 6, 7); // found, but 6 of 7 (second half) → partial
     assert!(g.state.robbed);
-    assert_eq!(g.state.cash, 60.0, "loses floor(100*0.4)=40");
-    assert_eq!(g.state.health, 35.0, "a clean miss costs 15 health");
+    assert_eq!(g.state.cash, 75.0, "loses floor(100*0.25)=25");
+    assert_eq!(g.state.health, 50.0, "a slow find is no beating — morale only");
     assert!(g.outcome.is_none());
 }
 
 #[test]
-fn harpe_robbery_takes_three_fifths_of_cash_when_slow() {
+fn mason_search_robs_you_when_you_dont_reach_the_purse() {
+    let mut g = on_the_trace(1);
+    g.state.cash = 100.0;
+    g.state.health = 50.0;
+    g.state.grouped = false;
+    g.begin_hotcold(super::tasks::HotColdTask::MasonSearch);
+    g.resolve_hotcold(false, 7, 7); // never reach it → fail tier
+    assert!(g.state.robbed);
+    assert_eq!(g.state.cash, 55.0, "loses floor(100*0.45)=45");
+    assert_eq!(g.state.health, 38.0, "a failed scramble costs 12 health");
+    assert!(g.outcome.is_none());
+}
+
+#[test]
+fn harpe_fight_takes_three_fifths_of_cash_on_a_ragged_kill() {
     let mut g = on_the_trace(1);
     g.state.cash = 100.0;
     g.state.health = 80.0;
     g.state.grouped = false;
-    g.begin_quick(super::tasks::QuickTask::Harpe);
-    g.resolve_quick(1.5, true); // a hit, but slow
+    g.begin_hunter(super::tasks::HunterTask::Harpe);
+    g.resolve_hunter(true, 3); // a hit, but it emptied the gun → partial
     assert!(g.state.robbed);
     assert_eq!(g.state.cash, 40.0, "loses floor(100*0.6)=60");
-    assert_eq!(g.state.health, 65.0, "a slow draw costs 15 health vs the Harpes");
+    assert_eq!(g.state.health, 65.0, "a ragged kill costs 15 health vs the Harpes");
 }
 
 #[test]
-fn a_botched_mason_draw_can_kill() {
+fn a_failed_mason_scramble_can_kill() {
     let mut g = on_the_trace(1);
     g.state.cash = 100.0;
     g.state.health = 10.0;
-    g.begin_quick(super::tasks::QuickTask::Mason);
-    g.resolve_quick(2.0, false);
+    g.begin_hotcold(super::tasks::HotColdTask::MasonSearch);
+    g.resolve_hotcold(false, 7, 7); // never reach it → fail; -12 health onto 10 → dead
+    assert!(g
+        .outcome
+        .as_ref()
+        .is_some_and(|e| e.cause_kind == super::state::GameOverCause::BanditMurder));
+}
+
+#[test]
+fn an_empty_gun_against_the_harpes_can_kill() {
+    // Surrender buys nothing with the Harpes — miss the shot and they fall on you.
+    let mut g = on_the_trace(1);
+    g.state.cash = 100.0;
+    g.state.health = 15.0;
+    g.begin_hunter(super::tasks::HunterTask::Harpe);
+    g.resolve_hunter(false, 3); // missed, gun empty → fail (-20 health) → dead
     assert!(g
         .outcome
         .as_ref()
@@ -446,24 +499,38 @@ fn the_counterfeit_con_is_a_no_op_on_an_empty_purse() {
 }
 
 #[test]
-fn cave_in_rock_offer_traps_a_rich_boat_and_spares_a_poor_one() {
-    // A fat hold is worth grounding for — the stranger's offer is a trap.
+fn cave_in_rock_tell_decides_whether_a_rich_boat_is_trapped() {
+    // Taking the stranger's offer opens the pilot-tell (a timing read), not an
+    // immediate coin-flip — skill now decides the con.
     let mut g = started(1);
     g.build(BoatKind::Flatboat, 3).unwrap();
     g.buy(0, g.max_buy(0)); // load up on corn
     g.mode = Mode::CaveInRock;
     assert!(g.state.cargo_value() > 60.0);
     g.cave_take();
-    assert_eq!(g.mode, Mode::Quick, "a rich boat is led into the pirates' ambush");
+    assert_eq!(g.mode, Mode::Timing, "the offer opens the pilot tell");
+
+    // Reading the tell clean waves him off safely, even with a fat hold — no
+    // boarding, no mark.
+    let mut clean = g.clone();
+    clean.resolve_timing(true, 0.9);
+    assert_ne!(clean.mode, Mode::Quick, "a clean read is safe");
+    assert!(!clean.state.crossed_mason, "no confrontation, no mark");
+
+    // Missing the tell with a hold worth taking drops you into the boarding and
+    // marks you for the Trace.
+    g.resolve_timing(false, 0.1);
+    assert_eq!(g.mode, Mode::Quick, "a missed tell on a rich boat is the ambush");
     assert!(g.state.crossed_mason, "tangling with Mason's gang marks him for the Trace");
 
-    // A near-empty hold isn't worth the betrayal — you pass clean (no quick-draw),
-    // and with no confrontation Mason leaves no mark.
+    // A near-empty hold isn't worth the betrayal — even a missed tell passes you
+    // through, and with no confrontation Mason leaves no mark.
     let mut g = started(1);
     g.build(BoatKind::Flatboat, 3).unwrap();
     g.mode = Mode::CaveInRock;
     assert!(g.state.cargo_value() <= 60.0);
     g.cave_take();
+    g.resolve_timing(false, 0.1);
     assert_ne!(g.mode, Mode::Quick, "a poor boat is waved through");
     assert!(!g.state.crossed_mason, "no confrontation, no mark");
 }
@@ -522,8 +589,8 @@ fn minigame_inverse_map_round_trips() {
     // inverses; a drift between them would silently break a hazard (panic) or an
     // empty minigame screen. Pin them in agreement for every hazard minigame.
     for id in [
-        "sandbar", "falls-run", "cave-run", "swamp", "duck-ford", "pirates", "mason", "harpe",
-        "side-trail", "dose", "patch", "bail",
+        "sandbar", "cordelle", "falls-run", "cave-run", "swamp", "duck-ford", "pirates", "mason",
+        "harpe", "trace-hunt", "side-trail", "dose", "patch", "bail",
     ] {
         let mut g = Game::new(0);
         g.begin_minigame_for(id);
@@ -668,6 +735,35 @@ fn settle_feed(g: &mut Game, feed: &mut Feed, log: &mut String) {
                 };
                 g.resolve_brigade(contained, leaked, cap);
             }
+            Mode::Heave => {
+                let (opened, slips, grip) = match feed.next() % 4 {
+                    0 => (true, 0, 0.60),  // clean heave
+                    1 => (false, 2, 0.00), // grip gone, poles snapped
+                    2 => (true, 1, 0.30),  // cleared, but a slip
+                    _ => (false, 1, 0.15), // floundered free
+                };
+                g.resolve_heave(opened, slips, grip);
+            }
+            Mode::HotCold => {
+                // 3rd arg is the search budget (max_probes); a find in the first
+                // half is sharp. Exercise sharp / slow / never-found.
+                let (found, probes, budget) = match feed.next() % 4 {
+                    0 => (true, 2, 7),  // sharp find
+                    1 => (false, 7, 7), // never found
+                    2 => (true, 6, 7),  // slow find (second half)
+                    _ => (true, 4, 7),  // borderline slow
+                };
+                g.resolve_hotcold(found, probes, budget);
+            }
+            Mode::Hunter => {
+                let (hit, shots) = match feed.next() % 4 {
+                    0 => (true, 1),  // clean first-shot kill
+                    1 => (false, 3), // empty gun — fatal for the Harpe band
+                    2 => (true, 3),  // a ragged kill
+                    _ => (true, 2),  // a clean kill
+                };
+                g.resolve_hunter(hit, shots);
+            }
             _ => return,
         }
         snap(g, log);
@@ -805,8 +901,22 @@ fn golden_trace_is_stable() {
     // buy/sell quote moves, so cash, holds, reputation and downstream scores all
     // drift). Adds the engine-derived "wharf factor" reality line at each biased
     // dock and a "rumor-river-prices" thesis beat early on the upper Ohio.
+    // Re-pinned for the minigame redesign (TODO_KAINTUCK_MINIGAMES.md): grounding
+    // moved from a steady-hand trace to a press-and-hold Heave (crew/draft levers);
+    // the swamp from Steady to a HotCold route-find; Mason from a quick-draw to a
+    // HotCold scramble for your hidden purse (hide-the-money); the Harpes from a
+    // quick-draw to a Hunter fight (surrender buys nothing); the river pirates kept
+    // Quick but with their own boarding words; Cave-in-Rock's "take the offer" now
+    // opens a Timing pilot-tell before the cargo-value boarding (skill, not a coin
+    // flip); plus two net-adds — a Heave cordelle band on the Grand Tower leg and a
+    // Hunter "hunt for the pot" band on the Trace. New minigame outcomes/effects
+    // and two new hazard bands shift the RNG stream and every downstream score.
+    // Re-pinned again for the HotCold grading fix: the search now grades against
+    // the encounter's budget (max_probes) instead of the kit's lenient full-grid
+    // par, so Mason's "slow find" Partial tier (lose a share) is reachable where
+    // before every find took Success — a real behavior change on the Trace search.
     // Behavior must not drift; if this trips, run `print_golden_trace` to diff.
-    const EXPECTED: u64 = 0x4702_3407_a369_986e;
+    const EXPECTED: u64 = 0x37c4_036c_5232_d722;
     assert_eq!(
         got, EXPECTED,
         "golden trace drifted: got {:#018x} over {} bytes",
@@ -1007,25 +1117,30 @@ fn scenario_is_self_consistent() {
         assert_eq!(e.won, should_win, "ending {c:?} won-flag");
     }
     for id in [
-        "sandbar", "falls-run", "cave-run", "swamp", "duck-ford", "pirates", "mason", "harpe",
-        "side-trail", "dose", "patch", "bail",
+        "sandbar", "cordelle", "falls-run", "cave-run", "swamp", "duck-ford", "pirates", "mason",
+        "harpe", "trace-hunt", "side-trail", "dose", "patch", "bail",
     ] {
         assert!(sc.outcome(id).is_some(), "missing outcome {id}");
     }
 
-    // Every minigame (including the hand-coded gamble) has params of the right kind.
+    // Every minigame (including the hand-coded gamble and cave-tell) has params of
+    // the right kind — the kind the host's `Mode`/resolve for that id expects.
     use trail_kit::MiniParams;
     for (id, kind) in [
-        ("sandbar", "steady"),
         ("falls-run", "steady"),
-        ("swamp", "steady"),
+        ("cave-run", "steady"),
         ("duck-ford", "steady"),
+        ("sandbar", "heave"),
+        ("cordelle", "heave"),
+        ("swamp", "hotcold"),
+        ("mason", "hotcold"),
+        ("harpe", "hunter"),
+        ("trace-hunt", "hunter"),
         ("pirates", "quick"),
-        ("mason", "quick"),
-        ("harpe", "quick"),
         ("side-trail", "crowd"),
         ("dose", "timing"),
         ("gamble", "timing"),
+        ("cave-tell", "timing"),
         ("patch", "sequence"),
         ("bail", "brigade"),
     ] {
@@ -1039,6 +1154,9 @@ fn scenario_is_self_consistent() {
             MiniParams::Crowd { .. } => "crowd",
             MiniParams::Sequence { .. } => "sequence",
             MiniParams::Brigade { .. } => "brigade",
+            MiniParams::Heave { .. } => "heave",
+            MiniParams::HotCold { .. } => "hotcold",
+            MiniParams::Hunter { .. } => "hunter",
         };
         assert_eq!(actual, kind, "minigame {id} kind");
     }

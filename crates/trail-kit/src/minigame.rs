@@ -50,6 +50,34 @@ pub enum MiniParams {
         spread_ms: u32,
         duration_ms: u32,
     },
+    /// Press-and-hold sustained exertion (heaving a grounded boat off a bar,
+    /// hauling on a cordelle). The other props use the component's defaults.
+    Heave {
+        prompt: String,
+        stages: usize,
+        heave_rate: f64,
+        hold_ticks: u32,
+        slip_load: f64,
+    },
+    /// Probe-and-deduce search (finding firm ground in a swamp, a bandit hunting
+    /// your hidden money). `feedback` stays at the component default (warmer/colder).
+    HotCold {
+        prompt: String,
+        cols: usize,
+        rows: usize,
+        max_probes: usize,
+    },
+    /// Track-and-shoot with finite ammo (a fight for your life with the Harpes,
+    /// hunting game for the pot on the Trace).
+    Hunter {
+        prompt: String,
+        hunted_icon: String,
+        cols: usize,
+        rows: usize,
+        ammo: usize,
+        step_ms: u32,
+        reload_ms: u32,
+    },
 }
 
 /// A minigame instance: its id and the parameters to launch it with. Generic

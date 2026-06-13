@@ -1,6 +1,6 @@
 [package]
 name = "kaintuck"
-version = "0.1.14"
+version = "0.1.15"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,12 +10,14 @@ retro-kit = { workspace = true }
 # The data-driven scenario (content + flow) lives in an embedded RON file that
 # trail-kit parses into an immutable Scenario.
 trail-kit = { workspace = true }
-# SteadyHands drives the sandbar/swamp/Falls run/Duck River fords; QuickDraw
-# drives the river-pirate and Mason/Harpe ambushes; CrowdThreading drives
-# getting lost on side trails; TimingBar drives the Under-the-Hill gamble and
-# medicine dosing; Sequence drives the snag hull-repair; BucketBrigade drives
-# bailing a flooded boat. Skip the rest.
-minigames-kit = { workspace = true, features = ["quickdraw", "steady_hands", "crowd_threading", "timing_bar", "sequence", "bucket_brigade"] }
+# SteadyHands drives the Falls run / Duck River ford (holding a line against a
+# force); Heave the grounding-on-a-bar push and the Grand Chain cordelle; Hunter
+# the Harpe fight and hunting for the pot; HotCold the swamp route-find and
+# Mason's search for your hidden money; QuickDraw the river-pirate boarding;
+# CrowdThreading the side-trails; TimingBar the Under-the-Hill gamble, medicine
+# dosing, and the Cave-in-Rock pilot tell; Sequence the snag hull-repair;
+# BucketBrigade bailing a flooded boat.
+minigames-kit = { workspace = true, features = ["quickdraw", "steady_hands", "crowd_threading", "timing_bar", "sequence", "bucket_brigade", "heave", "hot_cold", "hunter"] }
 
 dioxus = { workspace = true }
 serde = { workspace = true }
