@@ -14,6 +14,7 @@ use super::state::{
 };
 use super::tasks::{SteadyTask, TimingTask};
 use super::{Flow, Game, Resume};
+use trail_kit::HazardArm;
 
 /// Where a downstream leg is in its little chain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -49,11 +50,38 @@ impl Game {
         if self.state.river_convoy {
             self.lose_days(1);
         }
+        // A leaky hull sheds a little cargo over the coming leg before any hazard.
+        self.apply_hull_seepage();
         self.voyage = Some(Voyage {
             to_town: to,
             stage: RiverStage::Hazard,
         });
         self.continue_voyage();
+    }
+
+    /// A damaged hull weeps over the course of a leg: above the threshold, a
+    /// small fraction of the cargo spoils or washes out, scaled by the damage.
+    /// Deterministic (no RNG) so it can't perturb the hazard sequence. Called once
+    /// per cast-off, the "seepage" tooth of the damage system.
+    pub(crate) fn apply_hull_seepage(&mut self) {
+        let rep = &scenario().repair;
+        let dmg = self.state.boat_damage();
+        if dmg < rep.seepage_threshold {
+            return;
+        }
+        let frac = rep.seepage_coeff * dmg / 100.0;
+        // Gate the notice on whether cargo actually left the hold (units), not on
+        // its dollar value — a cheap load can shed units worth under $1.
+        let before: i64 = self.state.hold.iter().sum();
+        let _ = self.lose_cargo_fraction(frac);
+        let units_lost = before - self.state.hold.iter().sum::<i64>();
+        if units_lost > 0 {
+            self.dent_morale(3.0);
+            self.message_keyed(
+                "Water seeps through the strained seams below the waterline — some of the cargo is spoiled before you've gone a mile.",
+                "spoilage",
+            );
+        }
     }
 
     /// Advance the downstream chain until a hazard pauses for the player or we
@@ -149,6 +177,22 @@ impl Game {
         }
     }
 
+    /// Special arm: while lying up to self-repair, the work goes wrong — a snag
+    /// shifts under her, or a brace gives — and she takes a few more points of
+    /// damage before you've even begun. The moored-hazard "risk" that doesn't
+    /// nest a second minigame.
+    pub(crate) fn do_moor_mishap(&mut self) {
+        let extra = (self.rng.ri(6) + 4) as f64; // 4–9 points
+        self.dent_morale(4.0);
+        self.message_keyed(
+            "Tied up to mend her, you find it worse than it looked — a sprung plank works loose as you lever at it, and she takes on more hurt before the repair's even begun.",
+            "spoilage",
+        );
+        // Through the shared chokepoint, so a mishap that tips her to 100 sinks
+        // her like any other damage.
+        self.adjust_boat_damage(extra);
+    }
+
     /// Special arm: a hand grumbles and morale dips; sometimes one slips off.
     pub(crate) fn do_crew_grumble(&mut self) {
         self.dent_morale(8.0);
@@ -237,6 +281,63 @@ impl Game {
         }
         self.resume = Resume::Town;
         true
+    }
+
+    // ----- Boat repair -----
+
+    /// Whether the current landing has a boatwright who'll mend the hull for cash.
+    pub fn is_boatyard(&self) -> bool {
+        scenario().repair.boatyards.contains(&self.state.town)
+    }
+
+    /// What a full hull repair costs at this landing's boatyard — scaled by the
+    /// damage to be mended.
+    pub fn repair_cost(&self) -> f64 {
+        (self.state.boat_damage() * scenario().repair.port_cost_per_point).ceil()
+    }
+
+    /// Pay the boatwright to mend the hull whole. Cash first, the overflow onto
+    /// the boatyard debt (a forced expense, like any other). Guarded to a
+    /// boatyard town with a damaged boat.
+    pub fn repair_in_port(&mut self) {
+        if self.mode != Mode::Town || !self.is_boatyard() || self.state.boat_damage() <= 0.0 {
+            return;
+        }
+        let cost = self.repair_cost();
+        self.spend(cost);
+        // Mend her whole through the shared chokepoint (a full repair only ever
+        // lowers damage, so it can't trip the wreck check).
+        self.adjust_boat_damage(-self.state.boat_damage());
+        self.message(format!(
+            "The boatwright caulks her seams and scarfs in fresh timber. She's sound again — {} the poorer.",
+            super::state::fmt_money(cost)
+        ));
+        self.advance();
+    }
+
+    /// Lie up at the landing to mend the hull yourself: a day or two lost and a
+    /// roll on the moored-hazard table (a snag works loose, a sneak-thief, or a
+    /// quiet berth) before the self-repair sequence. Available at any landing with
+    /// a damaged boat. The sequence is launched from `after_queue` once the
+    /// hazard's narration drains (see [`Resume::SelfRepair`]).
+    pub fn self_repair(&mut self) {
+        if self.mode != Mode::Town || self.state.boat_damage() <= 0.0 {
+            return;
+        }
+        self.lose_days(scenario().repair.self_repair_days);
+        let moored = &scenario().repair.moored_hazards;
+        let idx = self.pick_arm_idx(moored, false);
+        // Narrate the quiet-berth arm directly: routing a Clean arm through
+        // run_hazard_arm would fire ambient *travel* banter (and burn a beat)
+        // while we're tied up at a dock. Specials still run as usual.
+        match &moored.arms[idx] {
+            HazardArm::Clean { message, cover } => self.narrate_opt(message, cover),
+            other => {
+                let _ = self.run_hazard_arm(other);
+            }
+        }
+        self.resume = Resume::SelfRepair;
+        self.advance();
     }
 
     // ----- The Falls of the Ohio -----
@@ -341,7 +442,7 @@ impl Game {
             return;
         }
         if let Some(boat) = self.state.boat.take() {
-            self.state.cash += boat.lumber_value();
+            self.state.cash += boat.salvage_value();
         }
     }
 
@@ -390,7 +491,7 @@ impl Game {
             }
         }
         if let Some(boat) = self.state.boat.take() {
-            self.state.cash += boat.lumber_value();
+            self.state.cash += boat.salvage_value();
         }
         self.enter_trace();
     }

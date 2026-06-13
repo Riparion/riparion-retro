@@ -21,6 +21,7 @@ pub fn StatusBar() -> Element {
             let cap = s.capacity();
             let low_morale = s.morale < 40.0;
             let in_debt = s.debt > 0.0;
+            let hull_bad = s.boat_damage() >= 80.0;
             rsx! {
                 header { class: "status-bar shrink-0",
                     div { class: "flex justify-between items-baseline px-3 pt-2 pb-1",
@@ -30,10 +31,11 @@ pub fn StatusBar() -> Element {
                     div { class: "px-3 pb-1 text-xs opacity-70",
                         "{group_thousands(s.river_mile() as i64)} / {scenario().river.river_miles as i64} river miles to Natchez"
                     }
-                    div { class: "grid grid-cols-4 gap-px text-center pb-1 px-1",
+                    div { class: "grid grid-cols-5 gap-px text-center pb-1 px-1",
                         Chip { label: "CASH", value: fmt_dollars_compact(s.cash.max(0.0)) }
                         Chip { label: "DEBT", value: fmt_dollars_compact(s.debt.max(0.0)), danger: in_debt }
                         Chip { label: "CARGO", value: format!("{cargo}/{cap}") }
+                        Chip { label: "HULL", value: s.hull_label().to_string(), danger: hull_bad }
                         Chip { label: "CREW", value: format!("{} · {}", s.crew, s.morale_label()), danger: low_morale }
                     }
                 }

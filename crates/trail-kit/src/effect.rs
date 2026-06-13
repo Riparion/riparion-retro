@@ -59,6 +59,9 @@ pub enum Effect {
     },
     /// Reputation delta (the host clamps it).
     AdjustReputation(f64),
+    /// Boat hull-damage delta (the host clamps to 0..100 and wrecks her at 100).
+    /// A no-op for a host with no boat — see [`EffectTarget::boat_damage`].
+    AdjustBoatDamage(f64),
     /// Take `frac` (or `frac_grouped` when in company) of the purse.
     TakeCashFraction {
         frac: f64,
@@ -139,6 +142,10 @@ pub trait EffectTarget {
     fn provisions(&mut self, d: f64);
     fn miles(&mut self, d: f64);
     fn reputation(&mut self, d: f64);
+    /// Adjust the boat's hull damage by `d` (the host clamps to 0..100 and wrecks
+    /// her on reaching 100). Defaults to a no-op so a host with no boat condition
+    /// need not implement it.
+    fn boat_damage(&mut self, _d: f64) {}
     /// The boat's draft (1.0 if none), for draft-scaled cargo loss.
     fn draft(&self) -> f64;
     /// Whether travelling in company.
@@ -192,6 +199,7 @@ fn apply_one(t: &mut dyn EffectTarget, e: &Effect, ctx: &mut EffectCtx) {
         Effect::AdjustProvisions(d) => t.provisions(*d),
         Effect::AdjustMiles { base, drift_coeff } => t.miles(base + drift_coeff * ctx.drift),
         Effect::AdjustReputation(d) => t.reputation(*d),
+        Effect::AdjustBoatDamage(d) => t.boat_damage(*d),
         Effect::TakeCashFraction {
             frac,
             frac_grouped,

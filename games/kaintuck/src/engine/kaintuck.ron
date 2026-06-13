@@ -358,11 +358,15 @@ Scenario(
         // --- River heave: setting the handspikes and walking her off a bar ---
         (
             id: "sandbar",
-            success: [ Message(text: "Handspikes under her and all hands heaving — she lifts, slides, and floats free without losing a thing.") ],
+            success: [
+                Message(text: "Handspikes under her and all hands heaving — she lifts, slides, and floats free without losing a thing, though her bottom planks scrape the bar."),
+                AdjustBoatDamage(4.0),
+            ],
             partial: [
                 LoseCargoFraction(base: 0.05, drift_coeff: 0.08, scale_by_draft: true),
                 AdjustMorale(-8.0),
-                Message(text: "She's stuck fast. You heave till the poles bend, dig, and roll her off at last — but {cargo_lost} of cargo goes overboard in the working."),
+                Message(text: "She's stuck fast. You heave till the poles bend, dig, and roll her off at last — but she's gouged her hull on the bar and {cargo_lost} of cargo goes overboard in the working."),
+                AdjustBoatDamage(12.0),
             ],
         ),
         // --- River heave: hauling the cordelle through the Grand Chain ---
@@ -375,7 +379,8 @@ Scenario(
             partial: [
                 AdjustMorale(-10.0),
                 LoseCargoFraction(base: 0.04, drift_coeff: 0.10),
-                Message(text: "The line fouls on the Cornice Rocks and she swings hard against the current — you fight her up, but the day is half lost and {cargo_lost} of cargo shakes loose over the side."),
+                Message(text: "The line fouls on the Cornice Rocks and she swings hard against the current, slamming the rocks — you fight her up, but the day is half lost and {cargo_lost} of cargo shakes loose over the side."),
+                AdjustBoatDamage(10.0),
             ],
         ),
         // --- River set-piece: running the Falls of the Ohio ---
@@ -390,7 +395,8 @@ Scenario(
             partial: [
                 LoseCargoFraction(base: 0.10, drift_coeff: 0.15),
                 AdjustMorale(-15.0),
-                Message(text: "You scrape the rocks of the Indian Chute coming through the falls — {cargo_lost} of cargo goes into the river."),
+                Message(text: "You scrape the rocks of the Indian Chute coming through the falls — the hull grinds and splinters, and {cargo_lost} of cargo goes into the river."),
+                AdjustBoatDamage(15.0),
             ],
         ),
         // --- River set-piece: running the shoals below Cave-in-Rock ---
@@ -405,7 +411,8 @@ Scenario(
             partial: [
                 LoseCargoFraction(base: 0.10, drift_coeff: 0.15),
                 AdjustMorale(-15.0),
-                Message(text: "You strike a bar below the cave and hang there working free — {cargo_lost} of cargo washes off into the channel."),
+                Message(text: "You strike a bar below the cave and hang there working free — she stoves a plank, and {cargo_lost} of cargo washes off into the channel."),
+                AdjustBoatDamage(15.0),
             ],
         ),
         // --- Trace crowd-threading: pathfinding the firm line across a swamp ---
@@ -445,13 +452,15 @@ Scenario(
                 LoseCargoFraction(base: 0.15, halve_if_grouped: true),
                 AdjustReputation(-10.0),
                 AdjustMorale(-10.0),
-                Message(text: "The pirates board you and make off with {cargo_lost} of cargo before you beat them back."),
+                Message(text: "The pirates board you and make off with {cargo_lost} of cargo before you beat them back, splintering her rail and gunwale in the scrap."),
+                AdjustBoatDamage(8.0),
             ],
             fail: [
                 LoseCargoFraction(base: 0.30, halve_if_grouped: true),
                 AdjustReputation(-10.0),
                 AdjustMorale(-10.0),
-                Message(text: "The pirates board you and make off with {cargo_lost} of cargo before you beat them back."),
+                Message(text: "The pirates board you and make off with {cargo_lost} of cargo before you beat them back, leaving her timbers hacked and stove in the fight."),
+                AdjustBoatDamage(16.0),
             ],
         ),
         // --- Trace quick-draw: Sam Mason's gang ---
@@ -538,11 +547,15 @@ Scenario(
         // --- River sequence: patching a snagged hull ---
         (
             id: "patch",
-            success: [ Message(text: "Wedge, oakum, plank — you patch the hole in good order before much water gets in.") ],
+            success: [
+                Message(text: "Wedge, oakum, plank — you patch the hole in good order before much water gets in, though the snag left its mark on her hull."),
+                AdjustBoatDamage(6.0),
+            ],
             partial: [
                 LoseCargoFraction(base: 0.05, drift_coeff: 0.15),
                 AdjustMorale(-8.0),
-                Message(text: "You fumble the patch and she ships water — {cargo_lost} of cargo is ruined before you stop the leak."),
+                Message(text: "You fumble the patch and she ships water — the breach widens and {cargo_lost} of cargo is ruined before you stop the leak."),
+                AdjustBoatDamage(16.0),
             ],
         ),
         // --- River bucket-brigade: bailing a flooded boat ---
@@ -550,12 +563,33 @@ Scenario(
             id: "bail",
             success: [
                 LoseCargoFraction(base: 0.03),
-                Message(text: "You bail her out ahead of the rising water — only {cargo_lost} of cargo lost."),
+                Message(text: "You bail her out ahead of the rising water — only {cargo_lost} of cargo lost, though the flood worked her seams loose."),
+                AdjustBoatDamage(5.0),
             ],
             fail: [
                 LoseCargoFraction(base: 0.08, drift_coeff: 0.25),
                 AdjustMorale(-10.0),
-                Message(text: "The flood gets ahead of you — {cargo_lost} of cargo is soaked and lost over the side."),
+                Message(text: "The flood gets ahead of you — her seams spring under the weight of water and {cargo_lost} of cargo is soaked and lost over the side."),
+                AdjustBoatDamage(15.0),
+            ],
+        ),
+        // --- River sequence: lying up to mend the hull yourself ---
+        // The damage change itself is hand-coded (perfect mends her whole, a slip
+        // mends in proportion, a botch leaves her worse); these supply only the
+        // per-tier narration and morale.
+        (
+            id: "self-repair",
+            success: [
+                AdjustMorale(4.0),
+                Message(text: "You work through the repair in good order — caulk, plank, and pitch — and stand back from a hull as sound as the day she was launched."),
+            ],
+            partial: [
+                AdjustMorale(-3.0),
+                Message(text: "You patch what you can reach before the light goes and the crew tires. She's the better for it, but not whole."),
+            ],
+            fail: [
+                AdjustMorale(-8.0),
+                Message(text: "Nothing goes right — you split a plank fitting it, foul the pitch, and leave her worse than you found her. Time and temper both wasted."),
             ],
         ),
     ],
@@ -590,6 +624,10 @@ Scenario(
         (id: "cave-tell",  params: Timing(prompt: "The stranger offers to pilot you past the cave. Watch his eyes — call it the instant you read the tell.", action: "READ HIM", tolerance: 0.11, period_ms: 1400)),
         (id: "patch",      params: Sequence(prompt: "A snag punches a hole in the hull — patch it in order before she fills.", symbols: ["🪵", "🧵", "🔨", "🪣"], length: 4)),
         (id: "bail",       params: Brigade(prompt: "High water floods the boat — bail her out faster than she fills!", threat_icon: "💧", cols: 5, rows: 5, initial_active: 3, spread_ms: 750, duration_ms: 8000)),
+        // Self-repair — the sequence length is overridden by the engine to scale
+        // with the hull damage (the worse she's hurt, the longer the job); the
+        // `length` here is only the floor the host falls back to.
+        (id: "self-repair", params: Sequence(prompt: "Lay up and mend her — set each repair in the right order, or you'll do more harm than good.", symbols: ["🔨", "🪵", "🧵", "🪣", "⚓"], length: 4)),
     ],
 
     // Ambient crew banter, played on quiet (clean) legs instead of the flat
@@ -874,4 +912,33 @@ Scenario(
             ],
         ),
     ],
+
+    // Boat damage & repair tuning (the River phase). Damage accrues from the
+    // hazard outcomes' AdjustBoatDamage effects and is mended in port (a
+    // boatwright at Louisville/Memphis) or by self-repair (a sequence that costs
+    // days and rolls the moored-hazard table below).
+    repair: (
+        boatyards: [5, 9],            // Louisville, Memphis
+        port_cost_per_point: 0.9,     // ~$45 to mend a half-wrecked hull
+        salvage_damage_coeff: 0.6,    // a wreck fetches 40% of sound lumber value
+        seepage_threshold: 40.0,      // she only weeps once badly hurt
+        seepage_coeff: 0.04,          // up to ~4% cargo/leg at full damage
+        outcome_drift_coeff: 0.5,     // a battered hull bleeds more on every mishap
+        self_repair_days: 2,          // two days lost lying up
+        self_seq_max_len: 8,          // a near-wreck is an 8-step job (base = the
+                                      // self-repair minigame's own length, below)
+        bomb_penalty: 12.0,           // a botched repair leaves her worse
+        moored_hazards: (
+            // While tied up: mostly a quiet berth, sometimes the work goes wrong
+            // (more damage), a surly crew, or a sneak-thief passing counterfeit.
+            thresholds: [55.0, 75.0, 90.0],
+            grouped_thins: [],
+            arms: [
+                Clean(message: Some("You find a quiet berth out of the current and set to work.")),
+                Special("moor-mishap"),
+                Special("crew-grumble"),
+                Special("counterfeit"),
+            ],
+        ),
+    ),
 )

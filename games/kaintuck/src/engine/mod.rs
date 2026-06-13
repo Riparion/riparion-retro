@@ -59,6 +59,9 @@ pub enum Resume {
     TraceHub,
     Leg,
     NextDay,
+    /// After the moored hazard's narration drains, launch the self-repair
+    /// sequence (then fall back to the town hub).
+    SelfRepair,
 }
 
 /// The complete game: world state, phase, UI mode, pending prompts, the active
@@ -349,6 +352,13 @@ impl Game {
                         Resume::GrandTower => self.mode = Mode::GrandTower,
                         Resume::CaveInRock => self.mode = Mode::CaveInRock,
                         Resume::Natchez => self.mode = Mode::Natchez,
+                        Resume::SelfRepair => {
+                            // The moored hazard's lines have shown; now lie up and
+                            // mend her. Reset the resume so the sequence's own
+                            // resolve lands back at the town hub.
+                            self.resume = Resume::Town;
+                            self.begin_sequence(tasks::SequenceTask::SelfRepair);
+                        }
                         _ => self.mode = Mode::Town,
                     }
                 }
@@ -495,6 +505,10 @@ impl Game {
                 self.do_counterfeit();
                 Flow::Continue
             }
+            "moor-mishap" => {
+                self.do_moor_mishap();
+                Flow::Continue
+            }
             other => panic!("unknown hazard special {other}"),
         }
     }
@@ -584,6 +598,21 @@ impl Game {
 
     pub(crate) fn adjust_reputation(&mut self, d: f64) {
         self.state.reputation = (self.state.reputation + d).clamp(-50.0, 50.0);
+    }
+
+    /// Adjust the boat's hull damage by `d`, clamped to 0..100. She wrecks — game
+    /// over — on reaching 100. The single chokepoint every damage path funnels
+    /// through (the `AdjustBoatDamage` effect, a moored mishap, a botched
+    /// self-repair), so the clamp and the wreck threshold live in exactly one
+    /// place. A no-op with no boat.
+    pub(crate) fn adjust_boat_damage(&mut self, d: f64) {
+        let Some(b) = self.state.boat.as_mut() else {
+            return;
+        };
+        b.damage = (b.damage + d).clamp(0.0, 100.0);
+        if b.damage >= 100.0 {
+            self.die(GameOverCause::BoatWrecked);
+        }
     }
 
     // ----- Endings -----

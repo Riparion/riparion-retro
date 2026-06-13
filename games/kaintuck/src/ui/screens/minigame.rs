@@ -44,6 +44,9 @@ pub fn Minigame() -> Element {
     // road — RESEARCH_PIRATES §7) buys you time to reach your stash before
     // Mason's men do.
     let in_company = g.state.grouped || g.state.river_convoy;
+    // Self-repair's sequence length scales with the hull damage (the engine owns
+    // the rule); every other sequence uses the scenario's own length.
+    let seq_len_override = g.self_repair_seq_len();
     drop(g);
 
     match params {
@@ -126,7 +129,7 @@ pub fn Minigame() -> Element {
             SequenceGame {
                 prompt: prompt.clone(),
                 symbols: symbols.clone(),
-                length: *length,
+                length: seq_len_override.unwrap_or(*length),
                 seed,
                 on_complete: move |res: SequenceResult| {
                     game.write().resolve_sequence(res.correct_prefix, res.length, res.perfect);
