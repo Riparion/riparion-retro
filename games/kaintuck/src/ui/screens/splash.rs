@@ -16,6 +16,24 @@ pub fn Splash() -> Element {
     let mut on_splash = use_context::<Signal<bool>>();
     let scores = use_hook(storage::high_scores);
     let mut house = use_signal(storage::ledger);
+    // The online hall of fame (top runs across all players), when this build is
+    // served by a CMS. Absent/empty/errored ⇒ the panel simply doesn't render
+    // and the local board below stands alone.
+    let online = use_resource(|| async {
+        retro_kit::leaderboard::fetch_top("kaintuck", "main", 20).await
+    });
+    let online_rows: Vec<(String, String)> = match &*online.read_unchecked() {
+        Some(Ok(entries)) => entries
+            .iter()
+            .map(|e| {
+                let won = e.payload.get("won").and_then(|v| v.as_bool()).unwrap_or(false);
+                let rank = e.payload.get("rank").and_then(|v| v.as_str()).unwrap_or("");
+                let tag = if won { "✓ home" } else { "✗" };
+                (e.handle.clone(), format!("{} · {} · {}", e.score, rank, tag))
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
     // A save loads in a gameplay mode; a fresh game sits on Splash.
     let resumable = game.peek().mode != Mode::Splash;
 
@@ -66,6 +84,12 @@ pub fn Splash() -> Element {
                         },
                         "DISBAND THE HOUSE"
                     }
+                }
+            }
+            if !online_rows.is_empty() {
+                ScoreBoard {
+                    title: "HALL OF FAME".to_string(),
+                    rows: online_rows,
                 }
             }
             ScoreBoard {
