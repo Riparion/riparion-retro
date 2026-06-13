@@ -223,6 +223,27 @@ impl Game {
         (self.state.credit_cap - self.state.debt).max(0.0)
     }
 
+    /// The per-leg interest on the boatyard debt, set by the trader's standing:
+    /// the scenario's `base_interest` swung ±half its value by reputation in
+    /// [-50, 50] (so cheaper when respected, dearer when notorious), clamped to
+    /// that band. Shared by the arrival accrual and the moneylender screen so the
+    /// quoted rate is the rate actually charged.
+    pub fn interest_rate(&self) -> f64 {
+        let base = scenario().start.base_interest;
+        (base - self.state.reputation * base / 100.0).clamp(base / 2.0, base * 1.5)
+    }
+
+    /// The credit cap the Cincinnati/Memphis moneylenders offer on arrival: the
+    /// scenario's `credit_multiple` of the trader's cash, scaled ±50% by
+    /// reputation in [-50, 50], and never below the flat `credit_cap` floor.
+    /// Shared so any "your name gets you up to $X" quote matches what
+    /// [`Game::arrive_at_town`] actually grants.
+    pub fn credit_offer(&self) -> f64 {
+        let start = &scenario().start;
+        let rep_factor = 1.0 + self.state.reputation / 100.0; // 0.5 .. 1.5
+        (self.state.cash * start.credit_multiple * rep_factor).max(start.credit_cap)
+    }
+
     pub fn borrow(&mut self, amount: f64) {
         let amount = amount.clamp(0.0, self.max_borrow());
         self.state.cash += amount;

@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 
 use crate::engine::state::Mode;
 use crate::engine::Game;
+use crate::leaderboard::{ScorePayload, BOARD, SLUG};
 use crate::storage;
 use retro_kit::components::score_board::ScoreBoard;
 use retro_kit::components::stat_row::StatRow;
@@ -19,17 +20,16 @@ pub fn Splash() -> Element {
     // The online hall of fame (top runs across all players), when this build is
     // served by a CMS. Absent/empty/errored ⇒ the panel simply doesn't render
     // and the local board below stands alone.
-    let online = use_resource(|| async {
-        retro_kit::leaderboard::fetch_top("kaintuck", "main", 20).await
-    });
+    let online = use_resource(|| async { retro_kit::leaderboard::fetch_top(SLUG, BOARD, 20).await });
     let online_rows: Vec<(String, String)> = match &*online.read_unchecked() {
         Some(Ok(entries)) => entries
             .iter()
             .map(|e| {
-                let won = e.payload.get("won").and_then(|v| v.as_bool()).unwrap_or(false);
-                let rank = e.payload.get("rank").and_then(|v| v.as_str()).unwrap_or("");
-                let tag = if won { "✓ home" } else { "✗" };
-                (e.handle.clone(), format!("{} · {} · {}", e.score, rank, tag))
+                // Read the run stats back through the same typed payload they were
+                // written with, so a field rename can't silently blank the board.
+                let p: ScorePayload = serde_json::from_value(e.payload.clone()).unwrap_or_default();
+                let tag = if p.won { "✓ home" } else { "✗" };
+                (e.handle.clone(), format!("{} · {} · {}", e.score, p.rank, tag))
             })
             .collect(),
         _ => Vec::new(),

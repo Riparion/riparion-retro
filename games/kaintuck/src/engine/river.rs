@@ -166,13 +166,16 @@ impl Game {
         self.state.town = to;
         self.state.morale = (self.state.morale + 5.0).min(100.0);
         // Interest accrues on the boatyard credit each leg (no flooring, so small
-        // debts still grow rather than sitting interest-free under $20).
-        self.state.debt += self.state.debt * 0.05;
+        // debts still grow rather than sitting interest-free under $20). Your
+        // standing moves the rate around a 5% base (see `interest_rate`): the
+        // well-regarded borrow cheap, the notorious dear.
+        self.state.debt += self.state.debt * self.interest_rate();
         // Cincinnati and Memphis moneylenders extend more credit — only ever
-        // raising the cap, never snapping it back below an outstanding debt.
+        // raising the cap, never snapping it back below an outstanding debt. How
+        // much they offer turns on your name (see `credit_offer`): a respected
+        // captain borrows against triple his cash, a notorious one barely his.
         if to == CINCINNATI || to == MEMPHIS {
-            let offered = (self.state.cash * 2.0).max(scenario().start.credit_cap);
-            self.state.credit_cap = self.state.credit_cap.max(offered);
+            self.state.credit_cap = self.state.credit_cap.max(self.credit_offer());
         }
         prices::generate_prices(&mut self.state, &mut self.rng);
 

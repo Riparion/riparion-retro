@@ -918,8 +918,13 @@ fn golden_trace_is_stable() {
     // Re-pinned for moving the swamp from a HotCold probe to a Crowd route-memory
     // thread (pathfinding the firm line through the mud): the swamp success prose
     // changed and its penalty moved to the Fail tier, drift-scaling the lost miles.
+    // Re-pinned for folding reputation into the boatyard credit: the per-leg
+    // interest rate now swings ±2.5 points around 5% with the trader's standing
+    // (cheaper when respected, dearer when notorious), and the Cincinnati/Memphis
+    // credit cap scales the cash-multiple ±50% by reputation — so debt growth and
+    // borrowing room (and every downstream cash/score) move with your name.
     // Behavior must not drift; if this trips, run `print_golden_trace` to diff.
-    const EXPECTED: u64 = 0xf749_369d_3385_181d;
+    const EXPECTED: u64 = 0xeffa_9403_1a68_664c;
     assert_eq!(
         got, EXPECTED,
         "golden trace drifted: got {:#018x} over {} bytes",
@@ -1307,6 +1312,44 @@ fn buy_ask_never_below_sell_bid() {
             assert!(bid > 0.0, "town {town} good {i}: non-positive bid {bid}");
         }
     }
+}
+
+#[test]
+fn reputation_sets_the_interest_rate() {
+    let mut g = started(1);
+    // Neutral standing pays the 5% base; a good name borrows cheaper, a bad one
+    // dearer, and the rate is clamped to the [-50, 50] reputation band's ends.
+    g.state.reputation = 0.0;
+    assert!((g.interest_rate() - 0.05).abs() < 1e-9, "neutral is 5%");
+    g.state.reputation = 50.0;
+    assert!((g.interest_rate() - 0.025).abs() < 1e-9, "top standing is 2.5%");
+    g.state.reputation = -50.0;
+    assert!((g.interest_rate() - 0.075).abs() < 1e-9, "bottom standing is 7.5%");
+}
+
+#[test]
+fn reputation_scales_the_lender_credit_cap() {
+    use super::state::CINCINNATI;
+    // The Cincinnati/Memphis offer is double cash at a neutral name, scaled ±50%
+    // by reputation — so the well-regarded leave with more borrowing room. Drive a
+    // real arrival so the credit logic in `arrive_at_town` is what's under test.
+    let cap = |rep: f64| {
+        let mut g = started(1);
+        g.build(BoatKind::Flatboat, 2).unwrap();
+        // High cash so the offer (≈ cash × multiple) clears the base floor and the
+        // reputation scaling is what separates the three runs.
+        g.state.cash = 500.0;
+        g.state.reputation = rep;
+        g.state.town = CINCINNATI - 1; // Maysville: one plain leg above Cincinnati
+        g.mode = Mode::Town;
+        g.depart();
+        settle(&mut g);
+        assert_eq!(g.state.town, CINCINNATI, "reached Cincinnati");
+        g.state.credit_cap
+    };
+    let neutral = cap(0.0);
+    assert!(cap(50.0) > neutral, "a good name extends more credit than neutral");
+    assert!(cap(-50.0) < neutral, "a bad name extends less credit than neutral");
 }
 
 #[test]
