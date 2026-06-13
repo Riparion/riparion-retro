@@ -181,17 +181,9 @@ pub fn Minigame() -> Element {
             rows,
             max_probes,
         } => {
-            // A kept watch in company shortens the bandit's search of your camp,
-            // but never the swamp (there you are the one searching for firm ground).
-            let is_search = matches!(
-                game.read().hotcold_task(),
-                Some(crate::engine::tasks::HotColdTask::MasonSearch)
-            );
-            let probes = if is_search && in_company {
-                max_probes + 2
-            } else {
-                *max_probes
-            };
+            // A kept watch in company (a party on the road) buys you time to reach
+            // your hidden stash before Mason's men do — a wider search budget.
+            let probes = if in_company { max_probes + 2 } else { *max_probes };
             rsx! {
                 HotCold {
                     prompt: prompt.clone(),
@@ -209,6 +201,7 @@ pub fn Minigame() -> Element {
         }
         MiniParams::Hunter {
             prompt,
+            hunter_icon,
             hunted_icon,
             cols,
             rows,
@@ -218,6 +211,7 @@ pub fn Minigame() -> Element {
         } => rsx! {
             Hunter {
                 prompt: prompt.clone(),
+                hunter_icon: hunter_icon.clone(),
                 hunted_icon: hunted_icon.clone(),
                 cols: *cols,
                 rows: *rows,

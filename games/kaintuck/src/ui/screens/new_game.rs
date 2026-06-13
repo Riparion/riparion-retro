@@ -12,8 +12,11 @@ use retro_kit::theme::{BTN, BTN_PRIMARY, SCREEN_CENTERED};
 #[component]
 pub fn NewGame() -> Element {
     let mut game = use_context::<Signal<Game>>();
-    let mut name = use_signal(String::new);
     let house = use_hook(storage::ledger);
+    // Pre-fill the name the last Kaintuck went by, so a returning player names the
+    // next one with one tap (still editable).
+    let remembered = house.as_ref().map(|l| l.name.clone()).unwrap_or_default();
+    let mut name = use_signal(|| remembered);
 
     let ready = use_memo(move || {
         let n = name.read();

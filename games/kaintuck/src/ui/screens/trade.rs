@@ -48,9 +48,11 @@ pub fn Trade(can_buy: bool, can_sell: bool) -> Element {
     let cap = s.capacity();
     // Snapshot every good's quote, ceiling, and aboard count for this render;
     // the component re-renders after each trade, so these stay live.
-    let rows: Vec<(usize, f64, f64, i64, i64)> = (0..GOOD_NAMES.len())
-        .map(|i| (i, g.buy_price(i), g.sell_price(i), g.max_buy(i), s.hold[i]))
+    let rows: Vec<(usize, f64, f64, i64, i64, bool)> = (0..GOOD_NAMES.len())
+        .map(|i| (i, g.buy_price(i), g.sell_price(i), g.max_buy(i), s.hold[i], g.produces_locally(i)))
         .collect();
+    // The footnote only shows when at least one good is locally produced here.
+    let any_local = rows.iter().any(|&(.., local)| local);
     drop(g);
 
     // The quantity typed into the open row, clamped per action below.
@@ -79,14 +81,19 @@ pub fn Trade(can_buy: bool, can_sell: bool) -> Element {
                 span { class: "w-14 text-right", "ABRD" }
             }
             div { class: "flex-1 overflow-y-auto px-3 pt-1 flex flex-col gap-2",
-                for (i, buy_price, sell_price, max_buy, aboard) in rows {
+                for (i, buy_price, sell_price, max_buy, aboard, local) in rows {
                     div { key: "{i}", class: "{PANEL} overflow-hidden",
                         button {
                             class: "w-full flex items-center gap-2 px-3 py-3 text-left",
                             onclick: move |_| {
                                 open.set(if open() == Some(i) { None } else { Some(i) });
                             },
-                            span { class: "flex-1", "{GOOD_NAMES[i]}" }
+                            span { class: "flex-1",
+                                "{GOOD_NAMES[i]}"
+                                if local {
+                                    span { class: "opacity-80", "*" }
+                                }
+                            }
                             if can_buy {
                                 span { class: "w-16 text-right text-sm opacity-80", "{fmt_money(buy_price)}" }
                             }
@@ -161,7 +168,10 @@ pub fn Trade(can_buy: bool, can_sell: bool) -> Element {
                     }
                 }
             }
-            div { class: "p-3",
+            div { class: "p-3 flex flex-col gap-2",
+                if any_local {
+                    p { class: "text-xs opacity-60", "* locally produced" }
+                }
                 button {
                     class: "{BTN_PRIMARY}",
                     onclick: move |_| game.write().mode = back.clone(),

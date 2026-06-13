@@ -14,7 +14,7 @@ use super::Game;
 
 /// Which strain put up the steady-hand trace. Steadiness is now only ever
 /// "hold a line against a force" — the Falls chute and the Duck River ford.
-/// (Grounding moved to [`HeaveTask`], the swamp to [`HotColdTask`].)
+/// (Grounding moved to [`HeaveTask`], the swamp to [`CrowdTask`].)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SteadyTask {
     /// Running the Falls of the Ohio (River).
@@ -46,13 +46,12 @@ pub enum HeaveTask {
     Cordelle,
 }
 
-/// Which strain put up the probe-and-deduce search. A swamp crossing is
-/// route-finding through "soupy mud" (RESEARCH_PIRATES §7); Mason's man hunts the
-/// money you hid — specie sewn in seams, the belt in a hollow log (§5, §7).
+/// Which strain put up the probe-and-deduce search. Mason's man hunts the money
+/// you hid — specie sewn in seams, the belt in a hollow log (RESEARCH_PIRATES
+/// §5, §7). (The swamp crossing moved to [`CrowdTask`] — pathfinding the firm
+/// line through the mud is route-memory, not a blind probe.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HotColdTask {
-    /// Finding a firm line through a flooded swamp / the "hell holes" (Trace).
-    Swamp,
     /// Sam Mason's man searches your camp for your hidden purse (Trace).
     MasonSearch,
 }
@@ -68,11 +67,16 @@ pub enum HunterTask {
     Pot,
 }
 
-/// Which strain put up the crowd-threading route game.
+/// Which strain put up the crowd-threading route game: fixing a remembered route
+/// in mind, then threading it. Keeping to the Trace among the side trails, or
+/// picking the firm line across a swamp's "soupy mud" (RESEARCH_PIRATES §7).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CrowdTask {
     /// Keeping to the Trace among the tangle of side trails.
     SideTrail,
+    /// Threading a remembered firm line across a flooded swamp / the "hell
+    /// holes" — pathfinding through the soupy mud (Trace).
+    Swamp,
 }
 
 /// Which strain put up the timing-bar game.
@@ -144,11 +148,11 @@ impl MiniTask {
             MiniTask::Quick(QuickTask::Pirates) => "pirates",
             MiniTask::Heave(HeaveTask::Ground) => "sandbar",
             MiniTask::Heave(HeaveTask::Cordelle) => "cordelle",
-            MiniTask::HotCold(HotColdTask::Swamp) => "swamp",
             MiniTask::HotCold(HotColdTask::MasonSearch) => "mason",
             MiniTask::Hunter(HunterTask::Harpe) => "harpe",
             MiniTask::Hunter(HunterTask::Pot) => "trace-hunt",
             MiniTask::Crowd(CrowdTask::SideTrail) => "side-trail",
+            MiniTask::Crowd(CrowdTask::Swamp) => "swamp",
             MiniTask::Timing(TimingTask::Dose) => "dose",
             MiniTask::Timing(TimingTask::Gamble) => "gamble",
             MiniTask::Timing(TimingTask::CaveTell) => "cave-tell",
@@ -207,7 +211,7 @@ impl Game {
             "pirates" => self.begin_quick(QuickTask::Pirates),
             "sandbar" => self.begin_heave(HeaveTask::Ground),
             "cordelle" => self.begin_heave(HeaveTask::Cordelle),
-            "swamp" => self.begin_hotcold(HotColdTask::Swamp),
+            "swamp" => self.begin_crowd(CrowdTask::Swamp),
             "mason" => self.begin_hotcold(HotColdTask::MasonSearch),
             "harpe" => self.begin_hunter(HunterTask::Harpe),
             "trace-hunt" => self.begin_hunter(HunterTask::Pot),
@@ -237,6 +241,12 @@ impl Game {
     pub fn quick_task(&self) -> Option<QuickTask> {
         match self.pending_task {
             Some(MiniTask::Quick(t)) => Some(t),
+            _ => None,
+        }
+    }
+    pub fn crowd_task(&self) -> Option<CrowdTask> {
+        match self.pending_task {
+            Some(MiniTask::Crowd(t)) => Some(t),
             _ => None,
         }
     }
@@ -322,21 +332,23 @@ impl Game {
         self.advance();
     }
 
-    /// Crowd-threading route game (keeping to the Trace). `cleared` = the route
+    /// Crowd-threading route game — keeping to the Trace among side trails, or
+    /// threading the firm line across a swamp from memory. `cleared` = the route
     /// was reproduced; `accuracy` (0..1) how far you got before fouling it.
     pub fn resolve_crowd(&mut self, cleared: bool, accuracy: f64) {
         if self.mode != Mode::Crowd {
             return;
         }
-        if !matches!(self.pending_task, Some(MiniTask::Crowd(_))) {
+        let Some(MiniTask::Crowd(task)) = self.pending_task else {
             return;
-        }
+        };
         self.pending_task = None;
-        let o = scenario().outcome("side-trail").expect("missing side-trail outcome");
+        let id = MiniTask::Crowd(task).outcome_id();
+        let o = scenario().outcome(id).expect("missing crowd outcome");
         let base = if cleared { Tier::Success } else { Tier::Fail };
         let drift = (1.0 - accuracy).clamp(0.0, 1.0);
         let tier = resolve_tier(o, base, accuracy);
-        self.apply_outcome("side-trail", tier, drift);
+        self.apply_outcome(id, tier, drift);
         self.advance();
     }
 
@@ -486,11 +498,9 @@ impl Game {
     /// kaintuck deliberately caps `max_probes` below the grid's natural par (a
     /// tight search), so within that budget "good play" is finding it in the first
     /// half, not under the lenient full-grid par (grading on par leaves the slow
-    /// tier unreachable, since `probes_used` never reaches it). The meaning of
-    /// "found" flips with who is searching: on the swamp *you* hunt firm ground
-    /// (finding it fast is the clean win); for Mason *you* scramble to reach your
-    /// hidden purse first (fast = clean getaway, slow = they grab a share, never =
-    /// they take the lot).
+    /// tier unreachable, since `probes_used` never reaches it). Ambushed, *you*
+    /// scramble to reach your hidden purse before Mason's men do: fast = clean
+    /// getaway, slow = they grab a share, never = they take the lot.
     pub fn resolve_hotcold(&mut self, found: bool, probes_used: usize, budget: usize) {
         if self.mode != Mode::HotCold {
             return;
@@ -502,18 +512,9 @@ impl Game {
         let id = MiniTask::HotCold(task).outcome_id();
         let o = scenario().outcome(id).expect("missing hotcold outcome");
         let budget = budget.max(1);
-        // Fraction of the budget spent (0 = instant, 1 = used it all); a find in
-        // the first half is "sharp".
-        let spent = (probes_used as f64 / budget as f64).clamp(0.0, 1.0);
+        // A find in the first half is "sharp".
         let sharp = probes_used * 2 <= budget;
         let (base, quality, drift) = match task {
-            HotColdTask::Swamp => {
-                // You search: firm ground found is the success, floundering the
-                // partial; drift grows the longer you flailed in the mire.
-                let base = if found { Tier::Success } else { Tier::Partial };
-                let quality = if found { (1.0 - spent).clamp(0.0, 1.0) } else { 0.0 };
-                (base, quality, (1.0 - quality).clamp(0.0, 1.0))
-            }
             HotColdTask::MasonSearch => {
                 // Ambushed, you scramble in the dark to reach your hidden purse
                 // before Mason's men do. Reaching it sharply is a clean getaway

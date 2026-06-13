@@ -10,7 +10,7 @@ use dioxus::prelude::*;
 use crate::engine::interaction::Interaction;
 use crate::engine::state::{Mode, TOWN_SLUGS, NUM_RIVER_TOWNS};
 use crate::engine::tasks::{
-    HeaveTask, HotColdTask, HunterTask, QuickTask, SteadyTask, TimingTask,
+    CrowdTask, HeaveTask, HotColdTask, HunterTask, QuickTask, SteadyTask, TimingTask,
 };
 use crate::engine::Game;
 
@@ -89,7 +89,6 @@ pub fn cover_keys(game: &Game) -> Vec<String> {
         Mode::HotCold => {
             if let Some(task) = game.hotcold_task() {
                 let v = match task {
-                    HotColdTask::Swamp => "swamp",
                     HotColdTask::MasonSearch => "mason",
                 };
                 keys.push(format!("hot-cold-{v}"));
@@ -104,7 +103,15 @@ pub fn cover_keys(game: &Game) -> Vec<String> {
                 keys.push(format!("hunter-{v}"));
             }
         }
-        Mode::Crowd => keys.push("crowd-side-trail".to_string()),
+        Mode::Crowd => {
+            if let Some(task) = game.crowd_task() {
+                let v = match task {
+                    CrowdTask::SideTrail => "side-trail",
+                    CrowdTask::Swamp => "swamp",
+                };
+                keys.push(format!("crowd-{v}"));
+            }
+        }
         Mode::Timing => {
             if let Some(task) = game.timing_task() {
                 let v = match task {

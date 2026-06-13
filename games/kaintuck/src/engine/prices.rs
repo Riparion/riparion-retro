@@ -46,6 +46,13 @@ fn mid_factor(town: usize, good: usize) -> f64 {
     (1.0 - supply) * (1.0 + demand)
 }
 
+/// Whether `town` locally produces `good` — it carries a supply (production)
+/// discount on it, the same bias that drives the dock's "cheap here; they make it
+/// by the boatload" line. Used to flag the good on the trade screen.
+pub fn is_locally_produced(town: usize, good: usize) -> bool {
+    factors()[town][good][0] > 0.0
+}
+
 /// The combined bid/ask spread on `good` at `town`: the scenario base spread plus
 /// the town's local widening, clamped below 1.0 so the bid can't go non-positive.
 pub fn spread(town: usize, good: usize) -> f64 {

@@ -915,8 +915,11 @@ fn golden_trace_is_stable() {
     // the encounter's budget (max_probes) instead of the kit's lenient full-grid
     // par, so Mason's "slow find" Partial tier (lose a share) is reachable where
     // before every find took Success — a real behavior change on the Trace search.
+    // Re-pinned for moving the swamp from a HotCold probe to a Crowd route-memory
+    // thread (pathfinding the firm line through the mud): the swamp success prose
+    // changed and its penalty moved to the Fail tier, drift-scaling the lost miles.
     // Behavior must not drift; if this trips, run `print_golden_trace` to diff.
-    const EXPECTED: u64 = 0x37c4_036c_5232_d722;
+    const EXPECTED: u64 = 0xf749_369d_3385_181d;
     assert_eq!(
         got, EXPECTED,
         "golden trace drifted: got {:#018x} over {} bytes",
@@ -1132,7 +1135,7 @@ fn scenario_is_self_consistent() {
         ("duck-ford", "steady"),
         ("sandbar", "heave"),
         ("cordelle", "heave"),
-        ("swamp", "hotcold"),
+        ("swamp", "crowd"),
         ("mason", "hotcold"),
         ("harpe", "hunter"),
         ("trace-hunt", "hunter"),
@@ -1209,7 +1212,8 @@ fn scenario_is_self_consistent() {
     // shows match the economy the engine actually charges.
     let known = [
         "falls-pilot", "falls-run", "falls-wait", "gt-treat", "gt-duck", "cave-take", "cave-hire",
-        "cave-run", "sell-cargo", "sell-boat", "gamble", "buy-horse", "set-out", "rest", "leave",
+        "cave-run", "sell-cargo", "sell-boat", "gamble", "moneylender", "buy-horse", "set-out",
+        "rest", "leave",
     ];
     for menu in [
         &sc.menus.falls,
