@@ -41,6 +41,9 @@ pub fn Trade(can_buy: bool, can_sell: bool) -> Element {
     let g = game.read();
     let s = &g.state;
     let cash = s.cash;
+    // Boatyard credit still on tap — the buy header shows it so a low-cash trader
+    // sees they can still load cargo on credit (the whole upstream play).
+    let credit = g.max_borrow();
     let cargo = s.cargo_units();
     let cap = s.capacity();
     // Snapshot every good's quote, ceiling, and aboard count for this render;
@@ -58,7 +61,11 @@ pub fn Trade(can_buy: bool, can_sell: bool) -> Element {
             div { class: "p-3 text-center",
                 h2 { class: "text-lg tracking-widest", "{title}" }
                 p { class: "opacity-80 text-sm",
-                    "Cash {fmt_money(cash)} · hold {cargo}/{cap}"
+                    if can_buy {
+                        "Cash {fmt_money(cash)} · credit {fmt_money(credit)} · hold {cargo}/{cap}"
+                    } else {
+                        "Cash {fmt_money(cash)} · hold {cargo}/{cap}"
+                    }
                 }
             }
             div { class: "px-3 flex items-center gap-2 chip-label",

@@ -100,7 +100,7 @@ fn LoadAndDepart() -> Element {
                     }
                 }
                 if cargo == 0 {
-                    p { class: "text-sm opacity-60", "Empty. Buy cheap cargo here to sell downriver." }
+                    p { class: "text-sm opacity-60", "Empty. Buy cheap cargo on credit here to sell downriver." }
                 }
             }
             button {
