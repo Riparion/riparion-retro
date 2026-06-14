@@ -2,7 +2,6 @@
 //! persists every transition to localStorage.
 
 use dioxus::prelude::*;
-use retro_kit::game_flow::{use_persistence, Persisted};
 
 use crate::engine::scoring::HighScore;
 use crate::engine::state::Mode;
@@ -13,47 +12,63 @@ use crate::ui::components::cover::Cover;
 use crate::ui::components::status_bar::StatusBar;
 use crate::ui::screens;
 
-impl Persisted for Game {
-    fn is_transient(&self) -> bool {
-        matches!(self.mode, Mode::Splash | Mode::NewGame)
-    }
-    fn is_game_over(&self) -> bool {
-        matches!(self.mode, Mode::GameOver)
-    }
-    fn save(&self) {
-        storage::save(self);
-    }
-    fn finish(mut game: Signal<Self>) {
-        storage::clear_save();
+// Persist every transition; finished journeys clear the save and post a score.
+// This mirrors `retro_kit::game_flow::use_persistence`, but Kaintuck's `Game`
+// now lives in the standalone `kaintuck-engine` crate, so the orphan rule
+// forbids implementing retro-kit's `Persisted` trait on it here — the effect is
+// inlined instead, with Kaintuck's own storage + leaderboard glue.
+fn use_persistence(game: Signal<Game>) {
+    // Remember the last persisted payload so we only hit localStorage when the
+    // *saved* state actually changes. This matters in multiplayer: net_client
+    // mutates `game.market_link` several times a second, which re-fires this
+    // effect — but `market_link` is `#[serde(skip)]`, so the serialized form is
+    // unchanged and we skip the write, avoiding per-tick storage churn.
+    let mut last_saved = use_signal(String::new);
+    use_effect(move || {
         let snapshot = game.read();
-        if let Some(end) = snapshot.outcome.clone().filter(|e| !e.recorded) {
-            let trader = snapshot.state.trader.clone();
-            storage::record_score(HighScore::from_end(&trader, &end));
-            // Roll the run's fortune into the house for the next Kaintuck.
-            let mut ledger = storage::ledger().unwrap_or_default();
-            ledger.record(&end, &trader);
-            storage::save_ledger(&ledger);
+        // Pre-journey screens (Splash / NewGame) are not persisted.
+        if matches!(snapshot.mode, Mode::Splash | Mode::NewGame) {
+            return;
+        }
+        if matches!(snapshot.mode, Mode::GameOver) {
             drop(snapshot);
-            // Post to the online hall of fame too — fire-and-forget, and a
-            // no-op when the game isn't served by a CMS (plain dx serve), so it
-            // never blocks or fails the local record above. `spawn` runs in the
-            // surrounding effect's reactive scope.
-            let payload = ScorePayload::from_end(&end);
-            spawn(async move {
-                // Errors (offline, server down) are non-fatal: the local record
-                // already stuck, so just drop it.
-                let _ = retro_kit::leaderboard::submit(
-                    SLUG,
-                    BOARD,
-                    &trader,
-                    end.score,
-                    &payload,
-                )
-                .await;
-            });
-            if let Some(out) = game.write().outcome.as_mut() {
-                out.recorded = true;
+            finish_journey(game);
+        } else {
+            let json = serde_json::to_string(&*snapshot).unwrap_or_default();
+            if *last_saved.peek() != json {
+                storage::save(&snapshot);
+                drop(snapshot);
+                last_saved.set(json);
             }
+        }
+    });
+}
+
+/// A journey has ended: clear the save and, if the outcome has not yet been
+/// recorded, post its score to the hall of fame and mark it recorded.
+fn finish_journey(mut game: Signal<Game>) {
+    storage::clear_save();
+    let snapshot = game.read();
+    if let Some(end) = snapshot.outcome.clone().filter(|e| !e.recorded) {
+        let trader = snapshot.state.trader.clone();
+        storage::record_score(HighScore::from_end(&trader, &end));
+        // Roll the run's fortune into the house for the next Kaintuck.
+        let mut ledger = storage::ledger().unwrap_or_default();
+        ledger.record(&end, &trader);
+        storage::save_ledger(&ledger);
+        drop(snapshot);
+        // Post to the online hall of fame too — fire-and-forget, and a
+        // no-op when the game isn't served by a CMS (plain dx serve), so it
+        // never blocks or fails the local record above. `spawn` runs in the
+        // surrounding effect's reactive scope.
+        let payload = ScorePayload::from_end(&end);
+        spawn(async move {
+            // Errors (offline, server down) are non-fatal: the local record
+            // already stuck, so just drop it.
+            let _ = retro_kit::leaderboard::submit(SLUG, BOARD, &trader, end.score, &payload).await;
+        });
+        if let Some(out) = game.write().outcome.as_mut() {
+            out.recorded = true;
         }
     }
 }
@@ -86,6 +101,14 @@ fn GameRoot() -> Element {
     // (the splash then offers RESUME / NEW GAME). See NOTES.md "Start screen".
     let on_splash = use_signal(|| true);
     use_context_provider(|| on_splash);
+
+    // Optional shared-market multiplayer. The signal is always provided (so the
+    // UI can show connection state); the connection only opens when the bundle is
+    // served with a `riparion-ws-base` meta tag — otherwise this is a no-op and
+    // the game plays exactly as the offline single-player experience.
+    let remote = use_signal(|| None::<crate::net_client::RemoteMarket>);
+    use_context_provider(|| remote);
+    crate::net_client::use_shared_market();
 
     // Persist every transition; finished journeys clear the save and post a score.
     use_persistence(game);

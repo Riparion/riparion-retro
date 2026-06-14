@@ -1,12 +1,14 @@
 [package]
 name = "kaintuck"
-version = "0.1.22"
+version = "0.1.23"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 retro-kit = { workspace = true }
+# The headless game engine (state machine, economy, scenario interpretation).
+kaintuck-engine = { workspace = true }
 # The data-driven scenario (content + flow) lives in an embedded RON file that
 # trail-kit parses into an immutable Scenario.
 trail-kit = { workspace = true }
@@ -23,6 +25,9 @@ dioxus = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 gloo-timers = { workspace = true }
+# Optional multiplayer: WebSocket client for the shared-market game server.
+gloo-net = { workspace = true, features = ["websocket"] }
+futures = { workspace = true }
 
 [features]
 default = ["web"]
