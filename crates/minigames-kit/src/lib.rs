@@ -25,6 +25,9 @@
 //! - [`heave`] — a sustained-exertion test: press and hold to build force
 //!   against staged resistance without crossing the slip ceiling or draining
 //!   your grip; pacing, not mashing.
+//! - [`vingt_un`] — twenty-one, the ancestor of blackjack: lay a stake, draw
+//!   toward 21 against the dealer's fixed hand (a two-card 21 pays 3:2), and grow
+//!   your purse to a target before the round allowance runs out.
 //!
 //! A host can take only what it needs with
 //! `minigames-kit = { default-features = false, features = ["quickdraw"] }`.
@@ -35,6 +38,9 @@
 
 #[cfg(feature = "bucket_brigade")]
 pub mod bucket_brigade;
+/// Shared deck primitives and the flip-on-mount card for the card games (Faro, VingtUn).
+#[cfg(any(feature = "faro", feature = "vingt_un"))]
+pub mod cards;
 #[cfg(feature = "crowd_threading")]
 pub mod crowd_threading;
 #[cfg(feature = "faro")]
@@ -56,3 +62,5 @@ pub mod sequence;
 pub mod steady_hands;
 #[cfg(feature = "timing_bar")]
 pub mod timing_bar;
+#[cfg(feature = "vingt_un")]
+pub mod vingt_un;

@@ -21,30 +21,16 @@
 //! the cards are styled DOM, the deal a self-contained CSS flip.
 
 use dioxus::prelude::*;
-use gloo_timers::future::TimeoutFuture;
 
 use retro_kit::format::fmt_dollars_compact;
 use retro_kit::rng::GameRng;
 use retro_kit::theme::{BTN, BTN_PRIMARY};
 
-/// Inline card-face styling (border, rounded, faint phosphor fill, 3:4 portrait),
-/// applied directly so a host needs no faro-specific CSS compiled — the same
-/// inline-style convention the kit's grid-based minigames use.
-const CARD_FACE_STYLE: &str = "border:1px solid var(--phosphor-dim);border-radius:3px;\
-background:rgba(51,255,102,.04);display:flex;flex-direction:column;align-items:center;\
-justify-content:center;aspect-ratio:3/4;";
+use crate::cards::{session_over, shuffle, FlipCard, CARD_FACE_STYLE, DECK, RANKS, RANK_LABELS};
 
-/// The thirteen ranks, ace-low through king (index 0..13).
-pub const RANKS: usize = 13;
-/// A full deck: four of each rank.
-pub const DECK: usize = 52;
 /// Turns dealt from one deck: the first card is burned ("soda"), then 25 paired
 /// turns are pulled, leaving the last card ("hock") in the box.
 pub const TURNS: usize = 25;
-
-/// On-screen rank labels, indexed 0..13.
-pub const RANK_LABELS: [&str; RANKS] =
-    ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
 
 /// The outcome of a faro session, handed to the host's `on_complete`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,10 +80,7 @@ pub fn dealt_deck(seed: u64) -> Vec<u8> {
     // 0,1,…,12,0,1,…,12,… over 52 slots is exactly four of each rank.
     let mut deck: Vec<u8> = (0..DECK).map(|i| (i % RANKS) as u8).collect();
     let mut rng = GameRng::from_seed(seed);
-    for i in (1..deck.len()).rev() {
-        let j = rng.ri(i as i64 + 1) as usize;
-        deck.swap(i, j);
-    }
+    shuffle(&mut deck, &mut rng);
     deck
 }
 
@@ -156,12 +139,6 @@ pub fn remaining_counts(deck: &[u8], turns_played: usize) -> [u8; RANKS] {
         counts[r as usize] += 1;
     }
     counts
-}
-
-/// Whether the session ends after a turn settles: the stake is busted, the
-/// target is reached, or the turn allowance is spent.
-fn session_over(stake: i64, target: i64, played: usize, turns_total: usize) -> bool {
-    stake <= 0 || stake >= target || played >= turns_total
 }
 
 /// A self-contained faro table. Mount it (with a `key` that changes per session
@@ -384,29 +361,14 @@ pub fn Faro(
 }
 
 /// One revealed card in a turn: a styled face with the rank and a WINS/LOSES
-/// label, dealt in with a quick flip. The flip is self-contained — an inline
-/// transform that transitions on mount, so no global CSS or keyframes leak into
-/// the host document (the card remounts per turn via its `key`, replaying it).
+/// label, dealt in with the shared [`FlipCard`] flip (self-contained, so no
+/// global CSS leaks; remounts per turn via its `key`, replaying the flip).
 #[component]
 fn DealtCard(rank: u8, label: String, danger: bool) -> Element {
     let pip_class = if danger { "chip-danger" } else { "" };
-    let mut flipped = use_signal(|| false);
-    use_future(move || async move {
-        TimeoutFuture::new(20).await;
-        flipped.set(true);
-    });
-    let (transform, opacity) = if flipped() {
-        ("none", "1")
-    } else {
-        ("rotateY(85deg) scale(0.7)", "0")
-    };
-    let card_style = format!(
-        "{CARD_FACE_STYLE}width:100%;transition:transform 320ms ease-out,opacity 320ms ease-out;\
-         transform:{transform};opacity:{opacity};"
-    );
     rsx! {
         div { class: "flex flex-col items-center gap-1 w-20",
-            div { style: "{card_style}",
+            FlipCard {
                 div { class: "text-3xl leading-none {pip_class}",
                     "{RANK_LABELS[rank as usize]}"
                     span { class: "opacity-70", "♠" }
