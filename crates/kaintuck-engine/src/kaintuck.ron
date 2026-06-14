@@ -941,4 +941,138 @@ Scenario(
             ],
         ),
     ),
+
+    // Trader "gossip": flavor for the shared (multiplayer) world. When the player
+    // is connected to a server, the crew talks about the OTHER traders — by name
+    // and temperament — on dock arrivals and quiet legs. Inert in single-player.
+    // Phrasing placeholders: {trader} {persona} {good} {town} {cause}.
+    gossip: (
+        names: [
+            "Lemuel Boggs", "Silas Crews", "Big Reuben Pike", "Ezekiel Tharp",
+            "Jeb Tolliver", "Casper Wendt", "Obed Marsh", "Asa Quill",
+            "Hiram Doss", "Noah Skaggs", "Gideon Burl", "Methuselah Crow",
+        ],
+        voices: [
+            "A passing boatman hails:",
+            "Your steersman jerks a thumb downriver:",
+            "The wharf talk runs:",
+            "A flatboat drifts past, its crew calling across the water:",
+            "Word comes up the river:",
+        ],
+        personas: [
+            (key: "greedy",   epithet: "a sharp dealer who buys cheap and sells dear"),
+            (key: "cautious", epithet: "a cautious hand who runs in company"),
+            (key: "reckless", epithet: "a reckless sort who'll gamble on anything"),
+        ],
+        lines: [
+            // Trades are keyed by side × price tier (vs the good's resting
+            // baseline), so the line carries the actionable signal a player
+            // heading to {town} wants: bid up, ordinary, or glutted.
+            (kind: "trade_buy_premium", templates: [
+                "{trader} paid through the nose for {good} at {town} — it's bid up there now.",
+                "They say {trader}, {persona}, bought {good} dear at {town}; the wharf's bid up.",
+            ]),
+            (kind: "trade_buy_fair", templates: [
+                "{trader}, {persona}, bought up the {good} at {town}.",
+                "They say {trader} took on a hold of {good} at {town}.",
+            ]),
+            (kind: "trade_buy_cheap", templates: [
+                "{trader} loaded {good} cheap at {town} — going for a song there.",
+                "Word is {trader} cleaned the cheap {good} off the wharf at {town}.",
+            ]),
+            (kind: "trade_sell_dear", templates: [
+                "{trader} sold {good} dear at {town} — they're short of it there.",
+                "{trader}, {persona}, got a fine price for {good} at {town}; it's scarce there.",
+            ]),
+            (kind: "trade_sell_fair", templates: [
+                "{trader} sold off a hold of {good} at {town}.",
+                "{trader}, {persona}, moved a load of {good} through {town}.",
+            ]),
+            (kind: "trade_sell_glut", templates: [
+                "{trader} dumped {good} into {town} — it's glutted, going cheap there now.",
+                "They say {trader} flooded {town} with {good}; it's cheap there now.",
+            ]),
+            (kind: "arrived", templates: [
+                "{trader} put in at {town}, they say.",
+                "Saw {trader}'s boat tied up at {town}.",
+            ]),
+            (kind: "reached_natchez", templates: [
+                "{trader} brought a boat down to Natchez — {persona}.",
+                "Word is {trader} reached the Under-the-Hill landing.",
+            ]),
+            (kind: "set_out_on_trace", templates: [
+                "{trader} sold the boat for lumber and struck out up the Trace.",
+                "{trader}'s walking the Trace home now.",
+            ]),
+            (kind: "robbed", templates: [
+                "Pirates took {trader} — {persona}, and it still cost them.",
+                "Heard {trader} got robbed downriver.",
+            ]),
+            (kind: "won", templates: [
+                "{trader} made Nashville rich — {persona}.",
+                "{trader} got home with the goods; a tidy reckoning.",
+            ]),
+            (kind: "lost", templates: [
+                "Word is {trader} {cause} — never made it home.",
+                "They say {trader} {cause}; a hard end.",
+            ]),
+        ],
+    ),
+    // Dockside rumors: advance word about how the NEXT landing will price a
+    // good. Each tip is attributed to a `source` with a reliability; over a run
+    // the player learns who to trust. Lines are keyed by predicted price band
+    // ("dear"/"cheap"/"ordinary"), `confirms` by the payoff ("held"/"wind").
+    // Placeholders: {good} {town}. (Authored corpus; regenerate via
+    // `just gen-rumors` — see scripts/gen-rumors.mjs.)
+    rumors: (
+        sources: [
+            (key: "harbormaster", voice: "The harbormaster looks up from his ledger:", reliability: 0.85),
+            (key: "factor",       voice: "A commission factor leans in, confidential:", reliability: 0.75),
+            (key: "pilot",        voice: "A packet pilot off the up-boat allows:",       reliability: 0.70),
+            (key: "keelboatmen",  voice: "A keelboat crew poling upstream call across the water:", reliability: 0.55),
+            (key: "drunk",        voice: "A flatboatman deep in his cups swears blind:", reliability: 0.35),
+            (key: "sharp",        voice: "A card sharp at the tavern grins and lets slip:", reliability: 0.30),
+        ],
+        lines: [
+            (kind: "dear", templates: [
+                "{good} is fetching a king's ransom down at {town} — load all you can carry.",
+                "They're fair crying for {good} at {town}; it'll sell dear there.",
+                "{town}'s short of {good} this season — a full hold would bring a premium.",
+                "Carry {good} down to {town} and you'll near name your price; they've none of their own.",
+                "The wharf at {town} is hungry for {good} — it's worth the hold.",
+                "If you've {good} to spare, hold it for {town}; they're paying through the nose.",
+            ]),
+            (kind: "cheap", templates: [
+                "Don't waste a hold on {good} for {town} — the levee's drowning in it, going for a song.",
+                "{good}'s a glut at {town}; you'll all but give it away there.",
+                "They've {good} to burn at {town} — no money in carrying it down.",
+                "Word is {town}'s flooded with {good}; you'd do better selling it elsewhere.",
+                "{good} fetches next to nothing at {town} just now — load something else.",
+                "Skip {good} for {town}, friend — it's cheap as dirt on that wharf.",
+            ]),
+            (kind: "ordinary", templates: [
+                "{good}'s moving at a fair price down at {town}, no better nor worse.",
+                "Nothing special on {good} at {town} — middling money.",
+                "They say {good} sits at about its usual rate at {town}.",
+                "{good}'ll fetch the going rate at {town}; no fortune in it.",
+                "Ordinary trade in {good} at {town}, by all accounts.",
+            ]),
+        ],
+        confirms: [
+            (kind: "held", templates: [
+                "The word held — {good} traded down at {town} just as you were told.",
+                "That tip was good as gold; {good} went at {town} exactly as promised.",
+                "Whoever steered you on {good} at {town} knew their business.",
+                "The rumor proved out — {good} at {town}, true to the letter.",
+                "Good word, that: {good} at {town} ran true.",
+            ]),
+            (kind: "wind", templates: [
+                "So much for that tip — {good} at {town} was nothing like the word.",
+                "That was wind: {good} at {town} traded clean against the rumor.",
+                "Whoever told you on {good} at {town} was lying or too deep in his cups.",
+                "The word was wrong — {good} at {town} went the other way entirely.",
+                "A bad steer, that one: {good} at {town} made a liar of the rumor.",
+            ]),
+        ],
+    ),
 )

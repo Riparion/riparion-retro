@@ -225,6 +225,11 @@ impl Game {
 
         self.message_keyed(format!("You make {}.", self.state.town_name()), town_cover(to));
         self.queue_market_reality(to);
+        // Did the word that brought us here hold, and what's the talk of the
+        // next landing? (Pre-rolls the next town's prices so the tip is honest.)
+        self.dock_rumors(to);
+        // In a shared world, the wharf is also full of news of other traders.
+        self.voice_trader_gossip();
         self.river_desertion();
 
         self.resume = if to == NATCHEZ {
@@ -254,9 +259,44 @@ impl Game {
         if self.state.heard_banter.contains(&key) {
             return;
         }
-        if let Some(line) = market_reality_line(town) {
+        if let Some(line) = market_reality_line(town, &self.state.hold) {
             self.message(line);
             self.state.heard_banter.insert(key);
+        }
+    }
+
+    /// Resolve the rumor that pointed at this landing (the payoff line), then
+    /// pick up fresh dock talk about the next one. The next town's prices are
+    /// pre-rolled here so the tip's truth is fixed before the player can load
+    /// cargo for the leg ahead; both the committed prices and the unresolved
+    /// rumor ride in `GameState` to that arrival. Voicing is queued as ordinary
+    /// messages; selection of the *phrasing* is RNG-free (see `rumor`).
+    fn dock_rumors(&mut self, to: usize) {
+        // Payoff: the prices are now revealed (generate_prices ran just above), so
+        // derive the verdict from what the player actually faces, not a stored flag.
+        if let Some(rumor) = self.state.pending_rumor.take() {
+            if rumor.town == to {
+                let held = rumor.held(&self.state.prices);
+                if let Some(line) = rumor.resolve_line(held) {
+                    self.message(line);
+                }
+            }
+        }
+        // Fresh word about the next landing (none below Natchez, the last stop).
+        let next = to + 1;
+        if next < NUM_RIVER_TOWNS {
+            let committed = prices::roll_prices(next, &mut self.rng);
+            let rumor = crate::rumor::generate(&mut self.rng, next, &committed);
+            // Tag the committed roll with its town so it can only ever be installed
+            // at the landing it was rolled for (see `prices::generate_prices`).
+            self.state.committed_prices = Some((next, committed));
+            if let Some(rumor) = rumor {
+                // Only let a tip count if the crew actually voiced it.
+                if let Some((voice, line)) = rumor.compose() {
+                    self.message(format!("{voice} {line}"));
+                    self.state.pending_rumor = Some(rumor);
+                }
+            }
         }
     }
 
@@ -520,12 +560,57 @@ fn town_cover(to: usize) -> String {
     format!("town-{}", TOWN_SLUGS[to.min(NUM_RIVER_TOWNS - 1)])
 }
 
+/// Below this ratio of downstream-mid to here-mid, the gradient isn't worth
+/// mentioning — the dock line stays quiet rather than hint at a thin margin.
+const GRADIENT_MIN: f64 = 1.25;
+
+/// Openers for the dock reality line, rotated deterministically per town so
+/// consecutive ports don't all read the same — RNG-free, like `gossip::rotate`.
+const WHARF_OPENERS: [&str; 4] = [
+    "A wharf factor talks shop:",
+    "A grizzled commission man leans on a hogshead:",
+    "Down on the levee, the talk is all trade:",
+    "A factor sizes up your boat and allows:",
+];
+
+/// A plain-English magnitude for how much more a good fetches downriver.
+fn gradient_phrase(ratio: f64) -> &'static str {
+    if ratio >= 2.0 {
+        "near double"
+    } else if ratio >= 1.5 {
+        "half again as much"
+    } else {
+        "a good deal more"
+    }
+}
+
+/// The downstream landing (below `town`, through Natchez) where `good` fetches
+/// the most relative to here, and that ratio — `None` if nothing downstream
+/// beats here by [`GRADIENT_MIN`]. Uses the RNG-free rank-mean ([`prices::expected_mid`]),
+/// so the hint is a true read of the distance gradient, not a dice roll.
+fn downstream_premium(town: usize, good: usize) -> Option<(usize, f64)> {
+    let here = prices::expected_mid(town, good);
+    if here <= 0.0 {
+        return None;
+    }
+    let mut best: Option<(usize, f64)> = None;
+    for d in (town + 1)..=NATCHEZ {
+        let ratio = prices::expected_mid(d, good) / here;
+        if ratio >= GRADIENT_MIN && best.is_none_or(|(_, r)| ratio > r) {
+            best = Some((d, ratio));
+        }
+    }
+    best
+}
+
 /// Compose the dock's *reality* line for `town` from its market bias — the
-/// strongest-discounted good (cheap) and the strongest-premium good (dear), in
-/// the wharf factor's voice. `None` when the town carries no bias (e.g. Natchez,
-/// whose premium lives in the distance gradient, not a local craving). Pure and
-/// RNG-free, so it can be asserted directly against the schema in tests.
-pub(crate) fn market_reality_line(town: usize) -> Option<String> {
+/// strongest-discounted good (cheap) and the strongest-premium good (dear), in a
+/// wharf factor's voice. The cheap good carries a *downstream* hint (where it
+/// fetches more), and the dear good notes when the player is actually holding it
+/// — so the line is something to act on, not just colour. `None` when the town
+/// carries no bias (e.g. Natchez, whose premium lives in the distance gradient,
+/// not a local craving). Pure and RNG-free, so it can be asserted in tests.
+pub(crate) fn market_reality_line(town: usize, hold: &[i64; NUM_GOODS]) -> Option<String> {
     let market = &scenario().river.towns[town].market;
     let cheapest = market
         .iter()
@@ -538,20 +623,37 @@ pub(crate) fn market_reality_line(town: usize) -> Option<String> {
     let mut parts: Vec<String> = Vec::new();
     if let Some(b) = cheapest {
         let good = b.good.to_lowercase();
-        parts.push(match &b.note {
-            Some(note) => format!("Cheap {good} here — {note}."),
-            None => format!("Cheap {good} here; they make it by the boatload."),
-        });
+        let lead = match &b.note {
+            Some(note) => format!("Cheap {good} here — {note}"),
+            None => format!("Cheap {good} here; they make it by the boatload"),
+        };
+        // Where downriver is it worth notably more? (RNG-free rank-mean.)
+        let tail = crate::flavor::good_index(&b.good)
+            .and_then(|g| downstream_premium(town, g))
+            .map(|(dtown, ratio)| {
+                let name = &scenario().river.towns[dtown].name;
+                format!("; they'll pay {} for it down at {name}.", gradient_phrase(ratio))
+            })
+            .unwrap_or_else(|| ".".to_string());
+        parts.push(format!("{lead}{tail}"));
     }
     if let Some(b) = dearest {
         let good = b.good.to_lowercase();
-        parts.push(match &b.note {
-            Some(note) => format!("Scarce {good} — {note}; they'll pay dear for it."),
-            None => format!("Scarce {good} here; they'll pay dear for it."),
+        let holding = crate::flavor::good_index(&b.good).is_some_and(|g| hold[g] > 0);
+        parts.push(match (&b.note, holding) {
+            (Some(note), true) => {
+                format!("Scarce {good} — {note}; and you've a hold of it, so they'll pay dear right here.")
+            }
+            (Some(note), false) => format!("Scarce {good} — {note}; they'll pay dear for it."),
+            (None, true) => {
+                format!("Scarce {good} here — and you're holding some; they'll pay dear right here.")
+            }
+            (None, false) => format!("Scarce {good} here; they'll pay dear for it."),
         });
     }
     if parts.is_empty() {
         return None;
     }
-    Some(format!("A wharf factor talks shop: {}", parts.join(" ")))
+    let opener = WHARF_OPENERS[(retro_core::hash::fnv1a(&[town as u8]) as usize) % WHARF_OPENERS.len()];
+    Some(format!("{opener} {}", parts.join(" ")))
 }

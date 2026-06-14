@@ -1,0 +1,16 @@
+[package]
+name = "retro-core"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Pure (wasm + native) retro-game primitives: seedable RNG and money/number formatting"
+
+[dependencies]
+serde = { workspace = true }
+rand = { workspace = true }
+rand_pcg = { workspace = true }
+getrandom = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

@@ -14,14 +14,28 @@
 //! and can interrupt for a minigame; [`Resume`] records where to pick back up
 //! when the queue drains, so a refresh resumes exactly in place.
 
+pub mod action;
+pub mod flavor;
+pub mod gossip;
 pub mod interaction;
 pub mod ledger;
+pub mod market;
+pub mod market_link;
+pub mod net;
+pub mod policy;
 pub mod prices;
-pub use retro_kit::rng;
+pub use retro_core::rng;
+pub mod rumor;
 pub mod scenario_data;
 pub mod scoring;
 pub mod state;
 pub mod tasks;
+pub mod world;
+
+// The autonomous economy simulator (Monte-Carlo balance + load harness). Pure,
+// but gated off the default build so the wasm UI never compiles it.
+#[cfg(feature = "sim")]
+pub mod sim;
 
 mod river;
 mod trace;
@@ -40,6 +54,11 @@ pub use river::Voyage;
 pub use trace::Leg;
 
 use trail_kit::{BanterGate, BanterPhase, EffectTarget, HazardArm};
+
+/// When this many shared-world gossip events are waiting, the crew airs one on a
+/// quiet leg even if an authored beat is still eligible — so a busy river drains
+/// the feed instead of overflowing it (`gossip::GossipFeed::CAP` is the ceiling).
+const GOSSIP_PRESSURE: usize = 8;
 
 /// Whether a hazard handler paused for a minigame/decision or ran straight through.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,6 +102,18 @@ pub struct Game {
     pub pending_stake: f64,
     pub outcome: Option<EndGame>,
     pub rng: GameRng,
+    /// Opt-in link to a shared market (the economy sim / multiplayer server).
+    /// `None` for the standalone single-player game, in which case pricing and
+    /// trading behave exactly as they always have. Never serialized — a save
+    /// reloads as an ordinary offline game, and the host re-attaches the link.
+    /// See [`market_link`].
+    #[serde(skip)]
+    pub market_link: Option<market_link::MarketLink>,
+    /// Opt-in feed of gossip about *other* traders in the shared world, fed by
+    /// the multiplayer client; the crew voices it as banter. `None` offline, so
+    /// single-player is unaffected. Never serialized. See [`gossip`].
+    #[serde(skip)]
+    pub gossip: Option<gossip::GossipFeed>,
 }
 
 impl Game {
@@ -99,6 +130,8 @@ impl Game {
             pending_stake: 0.0,
             outcome: None,
             rng: GameRng::from_seed(seed),
+            market_link: None,
+            gossip: None,
         }
     }
 
@@ -162,18 +195,36 @@ impl Game {
 
     // ----- Trading (engine re-clamps; UI input is advisory) -----
 
-    /// The ask (what you pay to buy one unit of `good` here): the mid quote in
-    /// `state.prices` lifted half a bid/ask spread. The market always costs more
-    /// to enter than it returns — see [`Game::sell_price`].
+    /// The mid quote for `good` at the current town. Normally `state.prices`
+    /// (the privately-rolled local mid); when a shared-market link is attached
+    /// (sim / multiplayer), the link's authoritative mid shadows it instead. The
+    /// spread/reputation math in `buy_price`/`sell_price` is identical either way.
+    ///
+    /// The link is only trusted when its `town` matches the current `state.town`:
+    /// the link's quote is a snapshot for one town, and a client refreshes it
+    /// asynchronously, so right after the player moves towns it can briefly lag.
+    /// On a mismatch we fall back to the local price rather than quote a stale
+    /// town's mid against this town's market (and `record_fill` stamps the trade
+    /// with `state.town`, so the host applies it to the correct market).
+    fn mid(&self, good: usize) -> f64 {
+        match &self.market_link {
+            Some(link) if link.town == self.state.town => link.quote.mid[good],
+            _ => self.state.prices[good],
+        }
+    }
+
+    /// The ask (what you pay to buy one unit of `good` here): the mid quote
+    /// lifted half a bid/ask spread. The market always costs more to enter than
+    /// it returns — see [`Game::sell_price`].
     pub fn buy_price(&self, good: usize) -> f64 {
-        self.state.prices[good] * (1.0 + prices::spread(self.state.town, good) / 2.0)
+        self.mid(good) * (1.0 + prices::spread(self.state.town, good) / 2.0)
     }
 
     /// The bid (what you net selling one unit of `good` here): the mid dropped
     /// half a spread, then nudged ±25% by reputation. The reputation edge applies
     /// to selling only, as before.
     pub fn sell_price(&self, good: usize) -> f64 {
-        let bid = self.state.prices[good] * (1.0 - prices::spread(self.state.town, good) / 2.0);
+        let bid = self.mid(good) * (1.0 - prices::spread(self.state.town, good) / 2.0);
         (bid * (1.0 + self.state.reputation / 200.0)).max(0.0)
     }
 
@@ -209,15 +260,36 @@ impl Game {
 
     pub fn buy(&mut self, good: usize, qty: i64) {
         let qty = qty.clamp(0, self.max_buy(good));
-        self.spend(qty as f64 * self.buy_price(good));
+        let unit_price = self.buy_price(good);
+        self.spend(qty as f64 * unit_price);
         self.state.hold[good] += qty;
+        self.record_fill(good, market_link::Side::Buy, qty, unit_price);
     }
 
     /// Sell `qty` of `good` at the current bid (see [`Game::sell_price`]).
     pub fn sell(&mut self, good: usize, qty: i64) {
         let qty = qty.clamp(0, self.state.hold[good]);
-        self.state.cash += qty as f64 * self.sell_price(good);
+        let unit_price = self.sell_price(good);
+        self.state.cash += qty as f64 * unit_price;
         self.state.hold[good] -= qty;
+        self.record_fill(good, market_link::Side::Sell, qty, unit_price);
+    }
+
+    /// Record a trade on the shared-market link, if one is attached. A no-op for
+    /// the standalone single-player game and for zero-quantity trades.
+    fn record_fill(&mut self, good: usize, side: market_link::Side, qty: i64, unit_price: f64) {
+        if qty == 0 {
+            return;
+        }
+        if let Some(link) = &mut self.market_link {
+            link.fills.push(market_link::TradeIntent {
+                town: self.state.town,
+                good,
+                side,
+                qty,
+                unit_price,
+            });
+        }
     }
 
     // ----- Moneylender -----
@@ -461,6 +533,13 @@ impl Game {
             ),
             Phase::Trace => (BanterPhase::Trace, self.state.miles),
         };
+        // When shared-world chatter is piling up, air some even on a beat-rich
+        // leg — so gossip cadence tracks how busy the river is, not the inverse of
+        // local authored-beat density (which would let the feed silently overflow
+        // exactly where beats are plentiful). Offline this is always false.
+        if self.gossip_pending() >= GOSSIP_PRESSURE && self.voice_trader_gossip() {
+            return true;
+        }
         let beat = scenario().banter.iter().find_map(|pool| {
             if pool.phase != phase || pos < pool.from_mile || pos >= pool.to_mile {
                 return None;
@@ -470,13 +549,39 @@ impl Game {
             })
         });
         let Some(beat) = beat else {
-            return false;
+            // No authored beat left for this region — let the crew trade gossip
+            // about other traders instead (occasional seasoning: it fills the gaps
+            // the hand-authored beats leave).
+            return self.voice_trader_gossip();
         };
         for line in &beat.lines {
             self.message(format!("{} {}", line.voice, line.text));
         }
         self.state.heard_banter.insert(beat.key.clone());
         true
+    }
+
+    /// Voice one piece of trader gossip from the shared-world feed, if any is
+    /// waiting. Composes the line from the scenario's gossip flavor; a no-op
+    /// (returns `false`) offline, where `gossip` is `None`. Never touches the RNG.
+    ///
+    /// Skips (drops) any event whose kind has no phrasing rather than stopping at
+    /// it — so a non-composable head-of-line event can't block the rest of the feed.
+    fn voice_trader_gossip(&mut self) -> bool {
+        while let Some(event) = self.gossip.as_mut().and_then(|f| f.take_oldest()) {
+            if let Some((voice, line)) = event.compose() {
+                self.message(format!("{voice} {line}"));
+                return true;
+            }
+            // Non-composable (a kind with no authored phrasing): drop and try the
+            // next rather than leaving it to stall the feed.
+        }
+        false
+    }
+
+    /// Pending shared-world gossip count (0 offline).
+    fn gossip_pending(&self) -> usize {
+        self.gossip.as_ref().map_or(0, |f| f.len())
     }
 
     /// Whether every gate on a banter beat passes against current state.

@@ -40,10 +40,24 @@ fn factors() -> &'static [[[f64; 3]; NUM_GOODS]] {
 }
 
 /// The local mid-price multiplier on `good` at `town`: `(1 - supply)(1 + demand)`.
-/// 1.0 where the town has no bias for the good.
-fn mid_factor(town: usize, good: usize) -> f64 {
+/// 1.0 where the town has no bias for the good. `pub(crate)` so the shared
+/// [`crate::market::Market`] seeds its baselines from the same formula.
+pub(crate) fn mid_factor(town: usize, good: usize) -> f64 {
     let [supply, demand, _] = factors()[town][good];
     (1.0 - supply) * (1.0 + demand)
+}
+
+/// The band-1 ("floor") mid price of `good` at `town`:
+/// `base_ranks[town][good] / 2 * mid_factor(town, good)` — i.e. [`generate_prices`]
+/// with the 1–3 visit band pinned to 1×. Pure, RNG-free, and defined for *every*
+/// town, so the dock line can compare a good's worth here against what it fetches
+/// downriver, and [`crate::rumor::band_of`] can recover the rolled band as
+/// `price / expected_mid`, without rolling any dice. (It's the band floor, not
+/// the average — the mean band is 2× — but ratios between towns cancel the
+/// constant, so the gradient hint is unaffected.)
+pub(crate) fn expected_mid(town: usize, good: usize) -> f64 {
+    let ranks = &scenario().river.towns[town].base_ranks;
+    ranks[good] as f64 / 2.0 * mid_factor(town, good)
 }
 
 /// Whether `town` locally produces `good` — it carries a supply (production)
@@ -59,20 +73,37 @@ pub fn spread(town: usize, good: usize) -> f64 {
     (scenario().start.base_spread + factors()[town][good][2]).clamp(0.0, 0.95)
 }
 
-/// Regenerate every good's mid price for the current town:
-/// `price[i] = base_ranks[town][i] / 2 * mid_factor[i] * (R(3)+1)`.
-pub fn generate_prices(state: &mut GameState, rng: &mut GameRng) {
-    let town = state.town;
+/// Roll every good's mid price for `town`: `base_ranks[town][i] / 2 *
+/// mid_factor[i] * (R(3)+1)`. The 1×/2×/3× band is the per-visit volatility a
+/// dockside rumor predicts. Pure RNG consumer — used both for the current town
+/// and to *pre-roll* the next landing's prices into [`GameState::committed_prices`].
+pub fn roll_prices(town: usize, rng: &mut GameRng) -> [f64; NUM_GOODS] {
     let ranks = &scenario().river.towns[town].base_ranks;
-    for (i, price) in state.prices.iter_mut().enumerate() {
+    let mut out = [0.0; NUM_GOODS];
+    for (i, price) in out.iter_mut().enumerate() {
         *price = ranks[i] as f64 / 2.0 * mid_factor(town, i) * (rng.ri(3) + 1) as f64;
     }
+    out
+}
+
+/// Set the current town's prices. If a pre-committed roll is stashed *for this
+/// town* (the prices a rumor was spoken against at the previous dock), install it
+/// verbatim and consume it — so the price the player faces is the one the tip
+/// referred to. Otherwise roll fresh from the stream (Pittsburgh start, a
+/// pre-rumor save, or — defensively — a commit whose tagged town doesn't match
+/// the landing actually reached, which only the strictly-+1 river ordering should
+/// ever prevent).
+pub fn generate_prices(state: &mut GameState, rng: &mut GameRng) {
+    state.prices = match state.committed_prices.take() {
+        Some((town, committed)) if town == state.town => committed,
+        _ => roll_prices(state.town, rng),
+    };
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::state::{GameState, NUM_GOODS, NUM_RIVER_TOWNS};
+    use crate::state::{GameState, NUM_GOODS, NUM_RIVER_TOWNS};
 
     #[test]
     fn prices_stay_within_the_one_to_three_band() {

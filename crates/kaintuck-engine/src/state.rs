@@ -261,6 +261,24 @@ pub struct GameState {
     /// `serde(default)` keeps pre-banter saves loading (they resume with none).
     #[serde(default)]
     pub heard_banter: std::collections::HashSet<String>,
+    // --- dockside rumors (single-player) ---
+    // These two ride together: both are set at one landing (in `river::dock_rumors`)
+    // describing the *next* one, and both are consumed at that next arrival —
+    // `committed_prices` by `prices::generate_prices` (which installs the prices),
+    // then `pending_rumor` by `dock_rumors` (which voices the payoff). They stay
+    // separate fields rather than one struct because they have two different
+    // consumers at two points in `arrive_at_town`; at any save point (the Town
+    // hub) they are either both set (a leg is pending) or both clear.
+    /// The next landing's prices, tagged with that town, rolled the moment you
+    /// arrive at the current one so a rumor's truth is fixed before you load
+    /// cargo. Installed verbatim on arrival *at the tagged town*. `serde(default)`
+    /// keeps pre-rumor saves loading — they simply roll fresh on the next arrival.
+    #[serde(default)]
+    pub committed_prices: Option<(usize, [f64; NUM_GOODS])>,
+    /// The unresolved rumor about the next landing, heard at this dock. Resolved
+    /// (held / wind) on arrival there. `serde(default)` for old saves.
+    #[serde(default)]
+    pub pending_rumor: Option<crate::rumor::Rumor>,
 }
 
 /// The flatboat. The `kind` fixes the derived numbers (capacity/draft/lumber),
@@ -324,6 +342,8 @@ impl GameState {
             crossed_mason: false,
             crew_at_natchez: 0,
             heard_banter: std::collections::HashSet::new(),
+            committed_prices: None,
+            pending_rumor: None,
         }
     }
 
@@ -496,6 +516,21 @@ pub enum GameOverCause {
 }
 
 impl GameOverCause {
+    /// A third-person fate fragment for trader gossip ("{trader} {fate}."), as
+    /// opposed to the second-person ending prose shown to the player. Reads as a
+    /// verb phrase: "Word is Obed Marsh starved on the Trace."
+    pub fn gossip_fate(self) -> &'static str {
+        match self {
+            GameOverCause::BoatWrecked => "wrecked on the river",
+            GameOverCause::Drowned => "drowned at a Trace crossing",
+            GameOverCause::BanditMurder => "was murdered by bandits on the Trace",
+            GameOverCause::Disease => "took sick and died on the long walk home",
+            GameOverCause::Starved => "starved on the Trace",
+            GameOverCause::LostInWoods => "was lost in the winter woods",
+            GameOverCause::Victory => "made it home",
+        }
+    }
+
     pub fn key(self) -> &'static str {
         match self {
             GameOverCause::BoatWrecked => "boat-wrecked",
@@ -541,8 +576,8 @@ pub struct EndGame {
     pub recorded: bool,
 }
 
-// Money formatting lives in retro-kit; re-export so engine/UI share the path.
-pub use retro_kit::format::fmt_money;
+// Money formatting lives in retro-core; re-export so engine/UI share the path.
+pub use retro_core::format::fmt_money;
 
 #[cfg(test)]
 mod tests {

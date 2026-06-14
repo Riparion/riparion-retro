@@ -46,6 +46,81 @@ pub struct Scenario {
     /// (e.g. a game with no boat condition) parses with the inert defaults.
     #[serde(default)]
     pub repair: RepairParams,
+    /// Flavor for "trader gossip" — the names, voices, persona epithets, and
+    /// phrasing templates the engine uses to compose crew banter about *other*
+    /// traders in a shared (multiplayer) world. Optional and inert in
+    /// single-player: an empty block means no gossip is ever composed.
+    #[serde(default)]
+    pub gossip: GossipFlavor,
+    /// Flavor for dockside "rumors" — advance word about how the *next* town
+    /// will price a good, attributed to a named source with a fixed reliability.
+    /// Single-player, deterministic. Optional and inert: an empty block (no
+    /// sources) means no rumor is ever composed.
+    #[serde(default)]
+    pub rumors: RumorFlavor,
+}
+
+/// Flavor pools for trader gossip (the multiplayer "living world" banter).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct GossipFlavor {
+    /// Trader names the server assigns to bots (round-robin).
+    #[serde(default)]
+    pub names: Vec<String>,
+    /// Crew voices that deliver a gossip line (e.g. "A passing boatman hails:").
+    #[serde(default)]
+    pub voices: Vec<String>,
+    /// Per-persona epithet, keyed by persona key ("greedy"/"cautious"/"reckless").
+    #[serde(default)]
+    pub personas: Vec<PersonaEpithet>,
+    /// Phrasing templates per gossip-kind key. Each template may use the
+    /// placeholders `{trader}`, `{persona}`, `{good}`, `{town}`; the engine fills
+    /// them in and picks among templates deterministically.
+    #[serde(default)]
+    pub lines: Vec<GossipPhrasing>,
+}
+
+/// A persona's epithet, e.g. `(key: "greedy", epithet: "a sharp dealer")`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PersonaEpithet {
+    pub key: String,
+    pub epithet: String,
+}
+
+/// Phrasing templates for one gossip-kind key (e.g. "reached_natchez").
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GossipPhrasing {
+    pub kind: String,
+    pub templates: Vec<String>,
+}
+
+/// Flavor pools for dockside rumors — advance word the crew picks up about how
+/// the next landing will price a good. Reuses [`GossipPhrasing`] for the actual
+/// lines: `lines` keyed by price band (`"cheap"`/`"ordinary"`/`"dear"`) compose
+/// the tip, and `confirms` keyed by `"held"`/`"wind"` compose the payoff line
+/// the player hears on arrival once a tip proves out or not.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct RumorFlavor {
+    /// Who the tips come from, each with its own dependability.
+    #[serde(default)]
+    pub sources: Vec<RumorSource>,
+    /// Tip templates keyed by predicted band (`"cheap"`/`"ordinary"`/`"dear"`);
+    /// placeholders `{good}`/`{town}` (the source's `voice` names the teller).
+    #[serde(default)]
+    pub lines: Vec<GossipPhrasing>,
+    /// Payoff templates keyed `"held"`/`"wind"`; placeholders `{good}`/`{town}`.
+    #[serde(default)]
+    pub confirms: Vec<GossipPhrasing>,
+}
+
+/// One rumor source: a named teller and how often their word proves true.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RumorSource {
+    /// Stable key (for deterministic selection / tests), e.g. "harbormaster".
+    pub key: String,
+    /// How the tip is introduced, naming the teller (e.g. "The harbormaster swears:").
+    pub voice: String,
+    /// Probability `[0, 1]` that this source's tip is true.
+    pub reliability: f64,
 }
 
 /// Tuning for the boat hull-damage and repair system (the River phase). Damage

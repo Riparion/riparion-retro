@@ -77,7 +77,7 @@ impl Ledger {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::state::GameOverCause;
+    use crate::state::GameOverCause;
 
     fn end(won: bool, cash: i64, debt: i64, reputation: i64, score: i64, miles: i64) -> EndGame {
         EndGame {

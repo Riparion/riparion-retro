@@ -1,0 +1,31 @@
+[package]
+name = "kaintuck-engine"
+version = "0.1.1"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Headless kaintuck game engine + shared-economy simulation (no UI deps; wasm + native)"
+
+[dependencies]
+retro-core = { workspace = true }
+# Data-driven scenario (content + flow) parsed from the embedded kaintuck.ron.
+trail-kit = { workspace = true }
+serde = { workspace = true }
+ron = { workspace = true }
+# Only the simulator emits JSON reports; the wasm UI never pulls it in.
+serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[features]
+default = []
+# The autonomous economy simulator (library API + report types). Pure; no async.
+sim = ["dep:serde_json"]
+# The `sim` command-line harness binary (Monte-Carlo + throughput). Implies `sim`.
+cli = ["sim"]
+
+# The CLI harness — native only; needs the `cli` feature for its deps.
+[[bin]]
+name = "sim"
+required-features = ["cli"]
