@@ -6,11 +6,13 @@ use crate::engine::scenario_data::scenario;
 use crate::engine::state::{fmt_money, Mode, GOOD_NAMES};
 use crate::engine::Game;
 use retro_kit::components::seg_button::SegButton;
+use retro_kit::components::sheet::Sheet;
 use retro_kit::theme::{ACTION_BAR, BTN, PANEL};
 
 #[component]
 pub fn Town() -> Element {
     let mut game = use_context::<Signal<Game>>();
+    let mut sheet_open = use_signal(|| false);
     let g = game.read();
     let s = &g.state;
     let town = s.town;
@@ -56,58 +58,80 @@ pub fn Town() -> Element {
                     }
                 }
             }
-            div { class: "{ACTION_BAR}",
-                div { class: "chip-label mb-1", "── COMPANY ──" }
-                div { class: "flex gap-2",
-                    SegButton {
-                        label: "Sail alone".to_string(),
-                        active: !convoy,
-                        onclick: move |_| game.write().set_river_convoy(false),
-                    }
-                    SegButton {
-                        label: "In company".to_string(),
-                        active: convoy,
-                        onclick: move |_| game.write().set_river_convoy(true),
-                    }
+            div { class: "{ACTION_BAR} grid grid-cols-2 gap-2",
+                button {
+                    class: "{BTN}",
+                    onclick: move |_| sheet_open.set(true),
+                    "MORE ▲"
                 }
-                p { class: "text-xs opacity-60 mb-2",
-                    "A convoy draws off river pirates and halves their take — but forming up costs a day on the water."
+                button {
+                    class: "crt-btn crt-btn-primary",
+                    onclick: move |_| game.write().depart(),
+                    "CAST OFF ⛵ ▸"
                 }
-                div { class: "grid grid-cols-2 gap-2",
+            }
+            Sheet {
+                open: sheet_open(),
+                on_close: move |_| sheet_open.set(false),
+                title: "── AT THE LANDING ──".to_string(),
+                div { class: "flex flex-col gap-2",
+                    div { class: "chip-label", "── COMPANY ──" }
+                    div { class: "flex gap-2",
+                        SegButton {
+                            label: "Sail alone".to_string(),
+                            active: !convoy,
+                            onclick: move |_| game.write().set_river_convoy(false),
+                        }
+                        SegButton {
+                            label: "In company".to_string(),
+                            active: convoy,
+                            onclick: move |_| game.write().set_river_convoy(true),
+                        }
+                    }
+                    p { class: "text-xs opacity-60",
+                        "A convoy draws off river pirates and halves their take — but forming up costs a day on the water."
+                    }
                     button {
-                        class: "{BTN} col-span-2",
-                        onclick: move |_| game.write().mode = Mode::Trade { can_buy: true, can_sell: true },
+                        class: "{BTN}",
+                        onclick: move |_| {
+                            sheet_open.set(false);
+                            game.write().mode = Mode::Trade { can_buy: true, can_sell: true };
+                        },
                         "TRADE ⇄"
                     }
                     if has_moneylender {
                         button {
-                            class: "{BTN} col-span-2",
-                            onclick: move |_| game.write().mode = Mode::Moneylender,
+                            class: "{BTN}",
+                            onclick: move |_| {
+                                sheet_open.set(false);
+                                game.write().mode = Mode::Moneylender;
+                            },
                             "MONEYLENDER"
                         }
                     }
                     if damaged {
-                        div { class: "col-span-2 chip-label mt-1", "── HULL: {hull} ──" }
+                        div { class: "chip-label mt-1", "── HULL: {hull} ──" }
                         if has_boatyard {
                             button {
-                                class: "{BTN} col-span-2",
-                                onclick: move |_| game.write().repair_in_port(),
+                                class: "{BTN}",
+                                onclick: move |_| {
+                                    sheet_open.set(false);
+                                    game.write().repair_in_port();
+                                },
                                 "BOATWRIGHT — REPAIR ({repair_cost})"
                             }
                         }
                         button {
-                            class: "{BTN} col-span-2",
-                            onclick: move |_| game.write().self_repair(),
+                            class: "{BTN}",
+                            onclick: move |_| {
+                                sheet_open.set(false);
+                                game.write().self_repair();
+                            },
                             "PATCH HER YOURSELF"
                         }
-                        p { class: "text-xs opacity-60 col-span-2 mb-1",
+                        p { class: "text-xs opacity-60",
                             "Mending her yourself costs days and risks a mishap while you lie up — but not a dollar."
                         }
-                    }
-                    button {
-                        class: "crt-btn crt-btn-primary col-span-2",
-                        onclick: move |_| game.write().depart(),
-                        "CAST OFF ⛵ ▸"
                     }
                 }
             }
