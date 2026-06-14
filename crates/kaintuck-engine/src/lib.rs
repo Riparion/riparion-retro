@@ -567,7 +567,16 @@ impl Game {
     ///
     /// Skips (drops) any event whose kind has no phrasing rather than stopping at
     /// it — so a non-composable head-of-line event can't block the rest of the feed.
+    ///
+    /// River-only: the shared feed is news of *river* trade, so once the player
+    /// steps onto the Trace it falls silent rather than narrating dockside chatter
+    /// to a crew walking overland. The feed keeps filling (it's `CAP`-bounded), it
+    /// just isn't voiced on foot — and the Trace is the last phase, so it's never
+    /// drained later either.
     fn voice_trader_gossip(&mut self) -> bool {
+        if self.phase != Phase::River {
+            return false;
+        }
         while let Some(event) = self.gossip.as_mut().and_then(|f| f.take_oldest()) {
             if let Some((voice, line)) = event.compose() {
                 self.message(format!("{voice} {line}"));

@@ -39,6 +39,23 @@ fn trader_gossip_is_voiced_as_a_named_banter_message() {
     }
     // The feed is drained — one event, one line.
     assert!(!g.voice_trader_gossip());
+
+    // On the Trace the shared *river* feed falls silent: a queued event is not
+    // voiced (and not drained) once the player has stepped off the water.
+    let mut feed = GossipFeed::default();
+    feed.push(GossipEvent {
+        trader: "Silas Crews".into(),
+        persona: Persona::Cautious,
+        kind: GossipKind::ReachedNatchez,
+    });
+    g.gossip = Some(feed);
+    g.phase = Phase::Trace;
+    let queued_before = g.pending.len();
+    assert!(!g.voice_trader_gossip(), "river gossip should stay silent on the Trace");
+    assert_eq!(g.pending.len(), queued_before, "no gossip message should be queued on the Trace");
+    // Returning to the river would voice it again (feed was never drained).
+    g.phase = Phase::River;
+    assert!(g.voice_trader_gossip());
 }
 
 /// Resolve any minigame/interaction at the head until we sit at a hub or end.
