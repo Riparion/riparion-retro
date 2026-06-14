@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/*", "games/*", "examples/*"]
+members = ["crates/*", "games/*", "examples/*", "server"]
 
 # Shared metadata for all game crates (inherit with `key.workspace = true`).
 [workspace.package]
@@ -11,6 +11,11 @@ license = "MIT OR Apache-2.0"
 # One version of everything, shared across games.
 [workspace.dependencies]
 retro-kit = { path = "crates/retro-kit" }
+# Pure (wasm + native) primitives — seedable RNG + money formatting — with no
+# UI/platform deps, shared by the headless engine and the native server.
+retro-core = { path = "crates/retro-core" }
+# The headless kaintuck game engine + shared-economy simulation (no UI deps).
+kaintuck-engine = { path = "crates/kaintuck-engine" }
 # Game-agnostic forgiving-input inference for limited-vocabulary text parsers.
 parser-kit = { path = "crates/parser-kit" }
 # Data-driven trail-game scenario engine: content + flow as an embedded RON file.
@@ -27,6 +32,8 @@ gloo-timers = { version = "0.3", features = ["futures"] }
 # Optional online leaderboards: the http client for talking to a riparion-cms
 # app backend, and web-sys for reading the injected API-base meta tag.
 gloo-net = { version = "0.6", default-features = false, features = ["http", "json"] }
+# Stream/Sink combinators for the optional multiplayer WebSocket client.
+futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
 web-sys = { version = "0.3", features = ["Window", "Document", "Element"] }
 rand = { version = "0.8", default-features = false }
 rand_pcg = { version = "0.3", features = ["serde1"] }
