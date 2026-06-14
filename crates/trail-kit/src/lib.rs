@@ -18,7 +18,7 @@ pub use effect::{apply_effects, Effect, EffectCtx, EffectTarget, Outcome, Tier};
 pub use minigame::{MiniParams, MinigameSpec};
 pub use scenario::{
     BanterBeat, BanterGate, BanterLine, BanterPhase, BanterPool, GossipFlavor, GossipPhrasing,
-    HazardArm, MarketBias, PersonaEpithet, Scenario,
+    HazardArm, MarketBias, PersonaEpithet, RumorFlavor, RumorSource, Scenario,
 };
 pub use setpiece::{Gate, Menus, SetPiece, SetPieceOption};
 

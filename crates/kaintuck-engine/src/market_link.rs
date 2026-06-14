@@ -18,9 +18,12 @@
 //!    drains and applies to the authoritative shared market (moving the price for
 //!    everyone) after the engine step.
 //!
-//! Crucially, the engine still *rolls* `generate_prices` on arrival even when a
-//! link is attached — the link merely *shadows* the rolled mid at the trade
-//! boundary. That keeps the RNG stream (and the golden trace) byte-identical.
+//! Crucially, attaching a link never changes the RNG stream: the engine still
+//! calls `generate_prices` on arrival, and the link merely *shadows* the local
+//! mid at the trade boundary. (Single-player now pre-rolls the next town's prices
+//! one dock earlier and `generate_prices` installs that committed roll instead of
+//! drawing again — see `prices::generate_prices` — but that pre-roll consumes the
+//! same draws either way, so attaching a link is still stream-neutral.)
 
 use serde::{Deserialize, Serialize};
 

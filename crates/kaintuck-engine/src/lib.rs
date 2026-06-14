@@ -15,6 +15,7 @@
 //! when the queue drains, so a refresh resumes exactly in place.
 
 pub mod action;
+pub mod flavor;
 pub mod gossip;
 pub mod interaction;
 pub mod ledger;
@@ -24,6 +25,7 @@ pub mod net;
 pub mod policy;
 pub mod prices;
 pub use retro_core::rng;
+pub mod rumor;
 pub mod scenario_data;
 pub mod scoring;
 pub mod state;

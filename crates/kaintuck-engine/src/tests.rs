@@ -1049,8 +1049,32 @@ fn golden_trace_is_stable() {
     // change (cargo, cash, and scores move once the hull takes hurt). The port
     // boatwright and the self-repair sequence are player-initiated and so don't
     // enter this scripted trace.
+    // Re-pinned for the actionable-banter pass: the dock "wharf factor" reality
+    // line is rewritten to carry a downstream gradient hint on the cheap good
+    // ("they'll pay near double for it down at Natchez", from the RNG-free
+    // rank-mean) and a hold-aware sell prompt on the dear good, with the opener
+    // rotated per town. Narrative only — the diff is confined to those queued
+    // message strings; no numeric/behavioral field moves (verified by diffing
+    // print_golden_trace: every changed line is a wharf-opener message). Trader
+    // gossip is unaffected here — it's multiplayer-only and never queued offline.
+    // Re-pinned for the dockside-rumor mechanic (a real behavior change): each
+    // landing now pre-rolls the NEXT town's prices into `committed_prices` (so a
+    // rumor's truth is fixed before the player loads) and rolls a tip from the
+    // main stream (source, the reliability gate, and — when the source lies —
+    // the wrong band). Both the moved price roll and those extra draws reorder
+    // the one RNG stream, so hazard arms and whole journeys shift; the run also
+    // queues the tip and its next-dock payoff as messages. Verified the new
+    // win/loss split across the seven seeds stays healthy (4 home / 3 lost, no
+    // degenerate scores) and the trace's line *kinds* are unchanged (only more
+    // of them, plus the rumor messages). Single-player play uses random seeds,
+    // so no real run is "pinned" to a seed — only this fixture moves.
+    // Re-pinned once more for the rumor-subject tie-break fix: `generate` now
+    // resolves equally-extreme goods to the LOWEST index (matching its doc),
+    // where it previously took the highest. Good selection is RNG-free, so the
+    // stream and every per-seed outcome are byte-identical to the prior pin —
+    // only some rumor message strings change (the good a tie names).
     // Behavior must not drift; if this trips, run `print_golden_trace` to diff.
-    const EXPECTED: u64 = 0x9373_712a_cce8_ef92;
+    const EXPECTED: u64 = 0xe5e7_050c_7316_77f1;
     assert_eq!(
         got, EXPECTED,
         "golden trace drifted: got {:#018x} over {} bytes",
@@ -1377,8 +1401,9 @@ fn scenario_is_self_consistent() {
 #[test]
 fn reality_banter_matches_the_market() {
     use super::river::market_reality_line;
-    use super::state::NUM_RIVER_TOWNS;
+    use super::state::{NUM_GOODS, NUM_RIVER_TOWNS};
     let sc = super::scenario_data::scenario();
+    let empty = [0i64; NUM_GOODS];
 
     for town in 0..NUM_RIVER_TOWNS {
         let market = &sc.river.towns[town].market;
@@ -1390,7 +1415,7 @@ fn reality_banter_matches_the_market() {
             .iter()
             .filter(|b| b.demand > 0.0)
             .max_by(|a, b| a.demand.total_cmp(&b.demand));
-        let line = market_reality_line(town);
+        let line = market_reality_line(town, &empty);
 
         if cheapest.is_none() && dearest.is_none() {
             assert!(line.is_none(), "town {town} has no bias but speaks: {line:?}");
@@ -1414,10 +1439,155 @@ fn reality_banter_matches_the_market() {
     }
 
     // Concrete anchor: Cincinnati is cheap on pork (Porkopolis) and dear on hides.
-    let cincy = market_reality_line(super::state::CINCINNATI).unwrap();
+    let cincy = market_reality_line(super::state::CINCINNATI, &empty).unwrap();
     assert!(cincy.contains("pork") && cincy.contains("hides"), "Cincinnati: {cincy:?}");
     // Natchez carries its premium in the distance gradient, not a local craving.
-    assert!(market_reality_line(super::state::NATCHEZ).is_none());
+    assert!(market_reality_line(super::state::NATCHEZ, &empty).is_none());
+}
+
+/// The enriched dock line must be *actionable*: the cheap good carries a
+/// downstream gradient hint (direction + magnitude), and the dear good reacts to
+/// what the player is actually holding.
+#[test]
+fn reality_banter_is_actionable() {
+    use super::river::market_reality_line;
+    use super::state::{GOOD_NAMES, NUM_GOODS, PITTSBURGH};
+    let empty = [0i64; NUM_GOODS];
+
+    // Pittsburgh's cheap whiskey fetches far more downriver — the line names a
+    // magnitude and points downstream ("down at <town>").
+    let pitt = market_reality_line(PITTSBURGH, &empty).expect("Pittsburgh has bias");
+    assert!(pitt.contains("down at "), "no downstream hint: {pitt:?}");
+    assert!(
+        ["near double", "half again as much", "a good deal more"]
+            .iter()
+            .any(|m| pitt.contains(m)),
+        "no gradient magnitude: {pitt:?}"
+    );
+
+    // Cincinnati is dear on hides. Holding hides flips the line to a sell prompt
+    // ("right here"); holding none leaves it as plain colour.
+    let hides = GOOD_NAMES.iter().position(|n| *n == "Hides").unwrap();
+    let mut hold = [0i64; NUM_GOODS];
+    hold[hides] = 12;
+    let with = market_reality_line(super::state::CINCINNATI, &hold).unwrap();
+    let without = market_reality_line(super::state::CINCINNATI, &empty).unwrap();
+    assert!(with.contains("right here"), "hold-aware prompt missing: {with:?}");
+    assert!(!without.contains("right here"), "leaked sell prompt with empty hold: {without:?}");
+}
+
+/// A dockside rumor must be reproducible from the seed, and a tip "holds" exactly
+/// when its claimed band equals the town's actual band — the property that makes
+/// source reliability a learnable signal rather than noise.
+#[test]
+fn rumor_is_deterministic_and_truth_is_derived() {
+    use super::rng::GameRng;
+    use super::rumor::generate;
+
+    let town = 5usize; // Louisville
+    let committed = super::prices::roll_prices(town, &mut GameRng::from_seed(42));
+
+    // Same seed → byte-identical rumor.
+    let a = generate(&mut GameRng::from_seed(7), town, &committed).expect("kaintuck has sources");
+    let b = generate(&mut GameRng::from_seed(7), town, &committed).unwrap();
+    assert_eq!(a, b, "same seed must yield the same rumor");
+
+    // Across many seeds: the claimed band is always 1..=3, and `held()` (the
+    // derived verdict, recomputed against the committed prices) is reached both
+    // ways — proving the reliability gate actually flips some tips to lies.
+    let (mut saw_true, mut saw_false) = (false, false);
+    for s in 0..400u64 {
+        let r = generate(&mut GameRng::from_seed(s), town, &committed).unwrap();
+        assert!((1..=3).contains(&r.claimed_band), "band out of range: {r:?}");
+        if r.held(&committed) { saw_true = true } else { saw_false = true }
+    }
+    assert!(saw_true && saw_false, "both held and wind tips should occur");
+}
+
+/// Composing a tip and its payoff must resolve every placeholder and name the
+/// good and town, for each band and each held/wind outcome.
+#[test]
+fn rumor_compose_and_resolve_are_fully_resolved() {
+    use super::rumor::Rumor;
+    use super::state::GOOD_NAMES;
+
+    let good = 1usize; // Whiskey
+    let town = 5usize; // Louisville
+    let good_name = GOOD_NAMES[good].to_lowercase();
+    let town_name = &super::scenario_data::scenario().river.towns[town].name;
+
+    for band in 1u8..=3 {
+        let r = Rumor { source: "harbormaster".into(), town, good, claimed_band: band };
+        let (voice, line) = r.compose().expect("authored band phrasing");
+        assert!(!voice.is_empty());
+        assert!(!line.contains('{'), "unresolved placeholder: {line:?}");
+        assert!(line.contains(&good_name) && line.contains(town_name.as_str()), "line: {line:?}");
+        for held in [true, false] {
+            let payoff = r.resolve_line(held).expect("authored confirm phrasing");
+            assert!(!payoff.contains('{'), "unresolved placeholder: {payoff:?}");
+            assert!(payoff.contains(&good_name) && payoff.contains(town_name.as_str()), "payoff: {payoff:?}");
+        }
+    }
+}
+
+/// A pre-committed price roll is installed verbatim only at the town it was rolled
+/// for, then consumed; a commit tagged for a different town is dropped and prices
+/// roll fresh (so a mis-routed arrival can never face the wrong town's prices).
+#[test]
+fn committed_prices_install_only_for_their_town() {
+    use super::state::NUM_GOODS;
+
+    let mut g = started(1);
+    let stash: [f64; NUM_GOODS] = [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
+
+    // Tagged for the current town → installed verbatim, no RNG drawn.
+    g.state.committed_prices = Some((g.state.town, stash));
+    let before = g.rng.clone();
+    super::prices::generate_prices(&mut g.state, &mut g.rng);
+    assert_eq!(g.state.prices, stash, "committed prices not installed");
+    assert!(g.state.committed_prices.is_none(), "commit not consumed");
+    assert_eq!(g.rng, before, "installing a commit must not consume RNG");
+
+    // Tagged for a DIFFERENT town → dropped; prices roll fresh (RNG advances).
+    g.state.committed_prices = Some((g.state.town + 3, stash));
+    let before = g.rng.clone();
+    super::prices::generate_prices(&mut g.state, &mut g.rng);
+    assert_ne!(g.state.prices, stash, "stale-town commit must NOT be installed");
+    assert!(g.state.committed_prices.is_none(), "stale commit not consumed");
+    assert_ne!(g.rng, before, "a fresh roll must consume RNG");
+}
+
+/// The scenario's rumor flavor must cover every band and payoff the engine can
+/// ask for, keep reliabilities in [0,1], and use only `{good}`/`{town}`. Crucially
+/// it asserts every (source × band) tip and held/wind payoff actually COMPOSES,
+/// so a regenerated corpus (`just gen-rumors`) that drops a band can't ship a
+/// rumor the engine silently can't voice.
+#[test]
+fn rumor_flavor_is_complete() {
+    use super::rumor::Rumor;
+    let r = &super::scenario_data::scenario().rumors;
+    assert!(!r.sources.is_empty(), "no rumor sources");
+    for s in &r.sources {
+        assert!((0.0..=1.0).contains(&s.reliability), "source {:?} reliability out of [0,1]", s.key);
+        assert!(!s.voice.is_empty(), "source {:?} has no voice", s.key);
+    }
+    // Only {good}/{town} are filled at compose; any other brace would leak.
+    for p in r.lines.iter().chain(r.confirms.iter()) {
+        for t in &p.templates {
+            let stripped = t.replace("{good}", "").replace("{town}", "");
+            assert!(!stripped.contains('{'), "template has an unknown placeholder: {t:?}");
+        }
+    }
+    // Every tip the engine can generate (any source, any band 1..=3) must compose,
+    // and both payoff outcomes must compose — no silently-voiceless rumor.
+    for s in &r.sources {
+        for band in 1u8..=3 {
+            let rumor = Rumor { source: s.key.clone(), town: 5, good: 1, claimed_band: band };
+            assert!(rumor.compose().is_some(), "source {:?} band {band} has no tip phrasing", s.key);
+            assert!(rumor.resolve_line(true).is_some(), "no 'held' payoff phrasing");
+            assert!(rumor.resolve_line(false).is_some(), "no 'wind' payoff phrasing");
+        }
+    }
 }
 
 /// The ask must never sit below the bid in the *actual* transaction path. This

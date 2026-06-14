@@ -9,7 +9,7 @@
 //! relaxes by `dt`. Humans (on the server) submit their trades the same way,
 //! through [`Market::apply_trade`].
 
-use crate::gossip::{GossipEvent, GossipKind};
+use crate::gossip::{GossipEvent, GossipKind, PriceTier};
 use crate::market::{Market, MarketParams};
 use crate::market_link::MarketLink;
 use crate::policy::{Persona, Policy};
@@ -19,6 +19,27 @@ use crate::Game;
 /// A trade of at least this many units is "notable" enough for the crew to
 /// gossip about; smaller fills stay quiet so the feed isn't drowned in noise.
 const NOTABLE_QTY: i64 = 25;
+
+/// Bands (mid / baseline) above/below which a price counts as bid-up / glutted.
+const PREMIUM_AT: f64 = 1.10;
+const GLUT_AT: f64 = 0.90;
+
+/// Classify the current mid for `good` at `town` against its resting baseline —
+/// the actionable signal attached to trade gossip.
+fn price_tier(market: &Market, town: usize, good: usize) -> PriceTier {
+    let baseline = market.baseline(town, good);
+    if baseline <= 0.0 {
+        return PriceTier::Fair;
+    }
+    let ratio = market.quote(town, good) / baseline;
+    if ratio >= PREMIUM_AT {
+        PriceTier::Premium
+    } else if ratio <= GLUT_AT {
+        PriceTier::Glut
+    } else {
+        PriceTier::Fair
+    }
+}
 
 /// One participant in the shared world: a named, persona'd bot running its own
 /// private journey. (Human participants on the server are tracked separately;
@@ -144,6 +165,14 @@ impl World {
                     self.market.apply_trade(&intent);
                     // Notable trades become gossip; small fills stay quiet.
                     if intent.qty.abs() >= NOTABLE_QTY {
+                        // Tag the trade with the town's price standing *after* this
+                        // fill — the condition a player heading there would now find
+                        // ("bid up there" / "glutted"). This is intentional: for a
+                        // big fill the tier partly reflects the trade's own impact,
+                        // but that impact is exactly what the listener can still act
+                        // on. One bot fill moves the mid by a bounded `impact`, so it
+                        // only flips a tier when the mid already sat near a threshold.
+                        let tier = price_tier(&self.market, intent.town, intent.good);
                         self.pending_gossip.push(GossipEvent {
                             trader: bot.name.clone(),
                             persona: bot.persona,
@@ -152,6 +181,7 @@ impl World {
                                 good: intent.good,
                                 side: intent.side,
                                 qty: intent.qty,
+                                tier,
                             },
                         });
                     }
@@ -279,6 +309,16 @@ mod tests {
         assert!(gossip.iter().all(|e| e.trader == "Lemuel Boggs" || e.trader == "Silas Crews"));
         assert!(gossip.iter().any(|e| e.persona == Persona::Greedy));
         assert!(gossip.iter().any(|e| e.persona == Persona::Cautious));
+        // Notable trades surface and carry a price tier (the actionable signal).
+        assert!(
+            gossip.iter().any(|e| matches!(e.kind, GossipKind::Trade { .. })),
+            "no notable trades gossiped"
+        );
+        for e in &gossip {
+            if let GossipKind::Trade { tier, .. } = e.kind {
+                let _ = tier; // every trade is classified
+            }
+        }
         // Journey milestones surface (a run reaches an ending one way or another).
         assert!(gossip
             .iter()

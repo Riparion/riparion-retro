@@ -101,6 +101,12 @@ play port="4317" static_port="8123":
 smoke *args:
     scripts/smoke-server.sh {{args}}
 
+# Regenerate the kaintuck dockside-rumor prose corpus with an LLM (needs
+# ANTHROPIC_API_KEY). The committed RON is the source of truth; this only
+# refreshes the writing. Re-run `just test` after to validate + re-pin.
+gen-rumors:
+    node scripts/gen-rumors.mjs
+
 # Run all workspace tests
 test:
     cargo test --workspace
