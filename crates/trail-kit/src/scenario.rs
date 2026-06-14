@@ -46,6 +46,45 @@ pub struct Scenario {
     /// (e.g. a game with no boat condition) parses with the inert defaults.
     #[serde(default)]
     pub repair: RepairParams,
+    /// Flavor for "trader gossip" — the names, voices, persona epithets, and
+    /// phrasing templates the engine uses to compose crew banter about *other*
+    /// traders in a shared (multiplayer) world. Optional and inert in
+    /// single-player: an empty block means no gossip is ever composed.
+    #[serde(default)]
+    pub gossip: GossipFlavor,
+}
+
+/// Flavor pools for trader gossip (the multiplayer "living world" banter).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct GossipFlavor {
+    /// Trader names the server assigns to bots (round-robin).
+    #[serde(default)]
+    pub names: Vec<String>,
+    /// Crew voices that deliver a gossip line (e.g. "A passing boatman hails:").
+    #[serde(default)]
+    pub voices: Vec<String>,
+    /// Per-persona epithet, keyed by persona key ("greedy"/"cautious"/"reckless").
+    #[serde(default)]
+    pub personas: Vec<PersonaEpithet>,
+    /// Phrasing templates per gossip-kind key. Each template may use the
+    /// placeholders `{trader}`, `{persona}`, `{good}`, `{town}`; the engine fills
+    /// them in and picks among templates deterministically.
+    #[serde(default)]
+    pub lines: Vec<GossipPhrasing>,
+}
+
+/// A persona's epithet, e.g. `(key: "greedy", epithet: "a sharp dealer")`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PersonaEpithet {
+    pub key: String,
+    pub epithet: String,
+}
+
+/// Phrasing templates for one gossip-kind key (e.g. "reached_natchez").
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GossipPhrasing {
+    pub kind: String,
+    pub templates: Vec<String>,
 }
 
 /// Tuning for the boat hull-damage and repair system (the River phase). Damage
