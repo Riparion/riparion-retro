@@ -1,6 +1,6 @@
 //! The engine ↔ UI contract: things the game needs to show or ask, and the
 //! player's possible answers. The UI renders the queue head; the player's
-//! [`Response`] is fed back through [`Game::resolve`](crate::engine::Game::resolve).
+//! [`Response`] is fed back through [`Game::resolve`](crate::Game::resolve).
 
 use serde::{Deserialize, Serialize};
 

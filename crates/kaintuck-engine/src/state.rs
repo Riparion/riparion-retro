@@ -496,6 +496,21 @@ pub enum GameOverCause {
 }
 
 impl GameOverCause {
+    /// A third-person fate fragment for trader gossip ("{trader} {fate}."), as
+    /// opposed to the second-person ending prose shown to the player. Reads as a
+    /// verb phrase: "Word is Obed Marsh starved on the Trace."
+    pub fn gossip_fate(self) -> &'static str {
+        match self {
+            GameOverCause::BoatWrecked => "wrecked on the river",
+            GameOverCause::Drowned => "drowned at a Trace crossing",
+            GameOverCause::BanditMurder => "was murdered by bandits on the Trace",
+            GameOverCause::Disease => "took sick and died on the long walk home",
+            GameOverCause::Starved => "starved on the Trace",
+            GameOverCause::LostInWoods => "was lost in the winter woods",
+            GameOverCause::Victory => "made it home",
+        }
+    }
+
     pub fn key(self) -> &'static str {
         match self {
             GameOverCause::BoatWrecked => "boat-wrecked",
@@ -541,8 +556,8 @@ pub struct EndGame {
     pub recorded: bool,
 }
 
-// Money formatting lives in retro-kit; re-export so engine/UI share the path.
-pub use retro_kit::format::fmt_money;
+// Money formatting lives in retro-core; re-export so engine/UI share the path.
+pub use retro_core::format::fmt_money;
 
 #[cfg(test)]
 mod tests {

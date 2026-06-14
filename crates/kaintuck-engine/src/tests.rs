@@ -11,6 +11,36 @@ fn started(seed: u64) -> Game {
     g
 }
 
+#[test]
+fn trader_gossip_is_voiced_as_a_named_banter_message() {
+    use gossip::{GossipEvent, GossipFeed, GossipKind};
+    use policy::Persona;
+
+    let mut g = started(1);
+    // Offline: no feed → nothing to voice, pending stays empty.
+    assert!(!g.voice_trader_gossip());
+    assert!(g.pending.is_empty());
+
+    // Attach a feed (as the multiplayer client would) and voice it.
+    let mut feed = GossipFeed::default();
+    feed.push(GossipEvent {
+        trader: "Lemuel Boggs".into(),
+        persona: Persona::Greedy,
+        kind: GossipKind::ReachedNatchez,
+    });
+    g.gossip = Some(feed);
+
+    assert!(g.voice_trader_gossip(), "a queued gossip event should be voiced");
+    match g.pending.front() {
+        Some(Interaction::Message { text, .. }) => {
+            assert!(text.contains("Lemuel Boggs"), "banter didn't name the trader: {text}");
+        }
+        other => panic!("expected a gossip Message, got {other:?}"),
+    }
+    // The feed is drained — one event, one line.
+    assert!(!g.voice_trader_gossip());
+}
+
 /// Resolve any minigame/interaction at the head until we sit at a hub or end.
 fn settle(g: &mut Game) {
     let mut guard = 0;
@@ -839,86 +869,22 @@ fn settle_feed(g: &mut Game, feed: &mut Feed, log: &mut String) {
                 };
                 g.resolve(resp);
             }
-            Mode::Steady => {
-                let (steady, acc) = match feed.next() % 5 {
-                    0 => (true, 0.95),
-                    1 => (false, 0.55),
-                    2 => (true, 0.80),
-                    3 => (false, 0.30),
-                    _ => (false, 0.12), // catastrophe for the falls/ford set-pieces
-                };
-                g.resolve_steady(steady, acc);
-            }
-            Mode::Quick => {
-                let (react, hit) = match feed.next() % 4 {
-                    0 => (0.5, true),
-                    1 => (1.4, true), // a hit, but slow
-                    2 => (2.0, false),
-                    _ => (0.8, true),
-                };
-                g.resolve_quick(react, hit);
-            }
-            Mode::Crowd => {
-                let (cleared, acc) = match feed.next() % 3 {
-                    0 => (true, 0.9),
-                    1 => (false, 0.35),
-                    _ => (true, 0.7),
-                };
-                g.resolve_crowd(cleared, acc);
-            }
-            Mode::Timing => {
-                let (hit, acc) = match feed.next() % 4 {
-                    0 => (true, 0.9),
-                    1 => (false, 0.5), // a plain loss
-                    2 => (false, 0.1), // the cutpurse loss
-                    _ => (true, 0.6),
-                };
-                g.resolve_timing(hit, acc);
-            }
-            Mode::Sequence => {
-                let (prefix, len, perfect) = match feed.next() % 3 {
-                    0 => (4, 4, true),
-                    1 => (2, 4, false),
-                    _ => (3, 4, false),
-                };
-                g.resolve_sequence(prefix, len, perfect);
-            }
-            Mode::Brigade => {
-                let (contained, leaked, cap) = match feed.next() % 3 {
-                    0 => (true, 0, 9),
-                    1 => (false, 5, 9),
-                    _ => (false, 2, 9),
-                };
-                g.resolve_brigade(contained, leaked, cap);
-            }
-            Mode::Heave => {
-                let (opened, slips, grip) = match feed.next() % 4 {
-                    0 => (true, 0, 0.60),  // clean heave
-                    1 => (false, 2, 0.00), // grip gone, poles snapped
-                    2 => (true, 1, 0.30),  // cleared, but a slip
-                    _ => (false, 1, 0.15), // floundered free
-                };
-                g.resolve_heave(opened, slips, grip);
-            }
-            Mode::HotCold => {
-                // 3rd arg is the search budget (max_probes); a find in the first
-                // half is sharp. Exercise sharp / slow / never-found.
-                let (found, probes, budget) = match feed.next() % 4 {
-                    0 => (true, 2, 7),  // sharp find
-                    1 => (false, 7, 7), // never found
-                    2 => (true, 6, 7),  // slow find (second half)
-                    _ => (true, 4, 7),  // borderline slow
-                };
-                g.resolve_hotcold(found, probes, budget);
-            }
-            Mode::Hunter => {
-                let (hit, shots) = match feed.next() % 4 {
-                    0 => (true, 1),  // clean first-shot kill
-                    1 => (false, 3), // empty gun — fatal for the Harpe band
-                    2 => (true, 3),  // a ragged kill
-                    _ => (true, 2),  // a clean kill
-                };
-                g.resolve_hunter(hit, shots);
+            // Every paused minigame resolves through the SAME outcome-band tables
+            // the bots use (crate::policy::minigame_action), single-sourced so the
+            // oracle and the bot stressor can't drift. One `feed.next()` per step,
+            // exactly as before, so the golden hash is unchanged.
+            Mode::Steady
+            | Mode::Quick
+            | Mode::Crowd
+            | Mode::Timing
+            | Mode::Sequence
+            | Mode::Brigade
+            | Mode::Heave
+            | Mode::HotCold
+            | Mode::Hunter => {
+                let action = crate::policy::minigame_action(g, feed.next())
+                    .expect("a paused minigame mode always yields a resolution");
+                g.apply(action);
             }
             _ => return,
         }
@@ -1017,12 +983,8 @@ fn golden_trace() -> String {
 }
 
 fn fnv1a(s: &str) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in s.as_bytes() {
-        h ^= *b as u64;
-        h = h.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    h
+    // Shared FNV-1a (same algorithm as before — golden hash unchanged).
+    retro_core::hash::fnv1a(s.as_bytes())
 }
 
 #[test]

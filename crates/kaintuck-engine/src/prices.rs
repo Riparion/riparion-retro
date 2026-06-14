@@ -40,8 +40,9 @@ fn factors() -> &'static [[[f64; 3]; NUM_GOODS]] {
 }
 
 /// The local mid-price multiplier on `good` at `town`: `(1 - supply)(1 + demand)`.
-/// 1.0 where the town has no bias for the good.
-fn mid_factor(town: usize, good: usize) -> f64 {
+/// 1.0 where the town has no bias for the good. `pub(crate)` so the shared
+/// [`crate::market::Market`] seeds its baselines from the same formula.
+pub(crate) fn mid_factor(town: usize, good: usize) -> f64 {
     let [supply, demand, _] = factors()[town][good];
     (1.0 - supply) * (1.0 + demand)
 }
@@ -72,7 +73,7 @@ pub fn generate_prices(state: &mut GameState, rng: &mut GameRng) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::state::{GameState, NUM_GOODS, NUM_RIVER_TOWNS};
+    use crate::state::{GameState, NUM_GOODS, NUM_RIVER_TOWNS};
 
     #[test]
     fn prices_stay_within_the_one_to_three_band() {

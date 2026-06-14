@@ -941,4 +941,62 @@ Scenario(
             ],
         ),
     ),
+
+    // Trader "gossip": flavor for the shared (multiplayer) world. When the player
+    // is connected to a server, the crew talks about the OTHER traders — by name
+    // and temperament — on dock arrivals and quiet legs. Inert in single-player.
+    // Phrasing placeholders: {trader} {persona} {good} {town} {cause}.
+    gossip: (
+        names: [
+            "Lemuel Boggs", "Silas Crews", "Big Reuben Pike", "Ezekiel Tharp",
+            "Jeb Tolliver", "Casper Wendt", "Obed Marsh", "Asa Quill",
+            "Hiram Doss", "Noah Skaggs", "Gideon Burl", "Methuselah Crow",
+        ],
+        voices: [
+            "A passing boatman hails:",
+            "Your steersman jerks a thumb downriver:",
+            "The wharf talk runs:",
+            "A flatboat drifts past, its crew calling across the water:",
+            "Word comes up the river:",
+        ],
+        personas: [
+            (key: "greedy",   epithet: "a sharp dealer who buys cheap and sells dear"),
+            (key: "cautious", epithet: "a cautious hand who runs in company"),
+            (key: "reckless", epithet: "a reckless sort who'll gamble on anything"),
+        ],
+        lines: [
+            (kind: "trade_buy", templates: [
+                "{trader}, {persona}, bought up the {good} at {town} — it'll fetch dear there now.",
+                "They say {trader} cleaned the {good} off the wharf at {town}.",
+            ]),
+            (kind: "trade_sell", templates: [
+                "{trader} dumped a hold of {good} at {town} — going cheap now.",
+                "{trader}, {persona}, flooded {town} with {good}.",
+            ]),
+            (kind: "arrived", templates: [
+                "{trader} put in at {town}, they say.",
+                "Saw {trader}'s boat tied up at {town}.",
+            ]),
+            (kind: "reached_natchez", templates: [
+                "{trader} brought a boat down to Natchez — {persona}.",
+                "Word is {trader} reached the Under-the-Hill landing.",
+            ]),
+            (kind: "set_out_on_trace", templates: [
+                "{trader} sold the boat for lumber and struck out up the Trace.",
+                "{trader}'s walking the Trace home now.",
+            ]),
+            (kind: "robbed", templates: [
+                "Pirates took {trader} — {persona}, and it still cost them.",
+                "Heard {trader} got robbed downriver.",
+            ]),
+            (kind: "won", templates: [
+                "{trader} made Nashville rich — {persona}.",
+                "{trader} got home with the goods; a tidy reckoning.",
+            ]),
+            (kind: "lost", templates: [
+                "Word is {trader} {cause} — never made it home.",
+                "They say {trader} {cause}; a hard end.",
+            ]),
+        ],
+    ),
 )

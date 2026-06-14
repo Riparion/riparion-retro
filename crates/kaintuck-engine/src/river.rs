@@ -225,6 +225,8 @@ impl Game {
 
         self.message_keyed(format!("You make {}.", self.state.town_name()), town_cover(to));
         self.queue_market_reality(to);
+        // In a shared world, the wharf is also full of news of other traders.
+        self.voice_trader_gossip();
         self.river_desertion();
 
         self.resume = if to == NATCHEZ {
