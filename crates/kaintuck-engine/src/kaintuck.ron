@@ -258,8 +258,14 @@ Scenario(
         // ambushes (arms 1 and 2). Arm 2 is the Harpes past the divide, the
         // swamp fever before it. A top band (50,56] is the chance to hunt for the
         // pot (arm 6) — a positive event, so it is not thinned by company.
+        //
+        // Band widths set the hazard mix. The Trace leans toward outlaws over
+        // sickness: the Mason ambush (arm 1) gets a wide 14% band while the
+        // swamp-fever dose (arm 3) is held to 6% and the mud crossing (arm 5) to
+        // 14% — clean stays 44%, so the road is no deadlier overall, just more
+        // lawless than feverish.
         hazards: (
-            thresholds: [8.0, 16.0, 26.0, 34.0, 50.0, 56.0],
+            thresholds: [14.0, 22.0, 28.0, 36.0, 50.0, 56.0],
             grouped_thins: [1, 2],
             arms: [
                 Clean(),
