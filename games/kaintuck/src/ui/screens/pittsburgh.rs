@@ -7,8 +7,9 @@ use crate::engine::state::{BoatKind, Mode, GOOD_NAMES};
 use crate::engine::Game;
 use retro_kit::components::error_banner::ErrorBanner;
 use retro_kit::components::seg_button::SegButton;
+use retro_kit::components::sheet::Sheet;
 use retro_kit::format::fmt_dollars_compact;
-use retro_kit::theme::{BTN, BTN_PRIMARY, PANEL, SCREEN};
+use retro_kit::theme::{ACTION_BAR, BTN, BTN_PRIMARY, PANEL, SCREEN};
 
 #[component]
 pub fn Pittsburgh() -> Element {
@@ -76,6 +77,7 @@ pub fn Pittsburgh() -> Element {
 #[component]
 fn LoadAndDepart() -> Element {
     let mut game = use_context::<Signal<Game>>();
+    let mut sheet_open = use_signal(|| false);
     let g = game.read();
     let s = &g.state;
     let rows: Vec<(usize, i64)> = (0..GOOD_NAMES.len()).map(|i| (i, s.hold[i])).collect();
@@ -84,34 +86,51 @@ fn LoadAndDepart() -> Element {
     drop(g);
 
     rsx! {
-        div { class: "{SCREEN} gap-3",
-            div { class: "text-center",
-                h2 { class: "text-lg tracking-widest", "LOAD THE BOAT" }
-                p { class: "opacity-80 text-sm", "Hold: {cargo} of {cap} units full." }
-            }
-            div { class: "{PANEL} p-3",
-                div { class: "chip-label mb-1", "── ABOARD ──" }
-                for (i, n) in rows {
-                    if n > 0 {
-                        div { key: "{i}", class: "flex justify-between text-sm",
-                            span { "{GOOD_NAMES[i]}" }
-                            span { "{n}" }
+        div { class: "flex-1 flex flex-col",
+            div { class: "flex-1 overflow-y-auto p-4 flex flex-col gap-3 max-w-md w-full mx-auto",
+                div { class: "text-center",
+                    h2 { class: "text-lg tracking-widest", "LOAD THE BOAT" }
+                    p { class: "opacity-80 text-sm", "Hold: {cargo} of {cap} units full." }
+                }
+                div { class: "{PANEL} p-3",
+                    div { class: "chip-label mb-1", "── ABOARD ──" }
+                    for (i, n) in rows {
+                        if n > 0 {
+                            div { key: "{i}", class: "flex justify-between text-sm",
+                                span { "{GOOD_NAMES[i]}" }
+                                span { "{n}" }
+                            }
                         }
                     }
-                }
-                if cargo == 0 {
-                    p { class: "text-sm opacity-60", "Empty. Buy cheap cargo on credit here to sell downriver." }
+                    if cargo == 0 {
+                        p { class: "text-sm opacity-60", "Empty. Buy cheap cargo on credit here to sell downriver." }
+                    }
                 }
             }
-            button {
-                class: "{BTN}",
-                onclick: move |_| game.write().mode = Mode::Trade { can_buy: true, can_sell: false },
-                "BUY CARGO"
+            div { class: "{ACTION_BAR} grid grid-cols-2 gap-2",
+                button {
+                    class: "{BTN}",
+                    onclick: move |_| sheet_open.set(true),
+                    "MORE ▲"
+                }
+                button {
+                    class: "{BTN_PRIMARY} py-4 text-lg",
+                    onclick: move |_| game.write().depart(),
+                    "CAST OFF ⛵ ▸"
+                }
             }
-            button {
-                class: "{BTN_PRIMARY} py-4 text-lg",
-                onclick: move |_| game.write().depart(),
-                "CAST OFF ⛵ ▸"
+            Sheet {
+                open: sheet_open(),
+                on_close: move |_| sheet_open.set(false),
+                title: "── THE BOATYARD ──".to_string(),
+                button {
+                    class: "{BTN} w-full",
+                    onclick: move |_| {
+                        sheet_open.set(false);
+                        game.write().mode = Mode::Trade { can_buy: true, can_sell: false };
+                    },
+                    "BUY CARGO"
+                }
             }
         }
     }

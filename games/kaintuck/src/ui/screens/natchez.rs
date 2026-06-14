@@ -7,15 +7,17 @@ use dioxus::prelude::*;
 use crate::engine::scenario_data::scenario;
 use crate::engine::state::{fmt_money, Mode};
 use crate::engine::Game;
-use crate::ui::components::set_piece_menu::SetPieceMenu;
+use crate::ui::components::set_piece_menu::{SetPieceMenu, Show};
 use retro_kit::components::number_entry::NumberEntry;
+use retro_kit::components::sheet::Sheet;
 use retro_kit::components::stat_row::StatRow;
-use retro_kit::theme::{PANEL, SCREEN};
+use retro_kit::theme::{ACTION_BAR, BTN, PANEL};
 
 #[component]
 pub fn Natchez() -> Element {
     let mut game = use_context::<Signal<Game>>();
     let mut gambling = use_signal(|| false);
+    let mut sheet_open = use_signal(|| false);
 
     let g = game.read();
     let s = &g.state;
@@ -45,27 +47,47 @@ pub fn Natchez() -> Element {
         };
     }
 
+    // One dispatcher shared by both menu renders (the visible primary "set out"
+    // and the secondary actions tucked in the sheet); it closes the sheet first.
+    let dispatch = move |(action, cost): (String, f64)| {
+        sheet_open.set(false);
+        match action.as_str() {
+            "sell-cargo" => game.write().mode = Mode::Trade { can_buy: false, can_sell: true },
+            "gamble" => gambling.set(true),
+            "moneylender" => game.write().mode = Mode::Moneylender,
+            _ => game.write().run_set_piece(&action, cost),
+        }
+    };
+    let options = scenario().menus.natchez.options.as_slice();
+
     rsx! {
-        div { class: "{SCREEN} gap-3",
-            div { class: "text-center",
-                h2 { class: "text-lg tracking-widest", "NATCHEZ UNDER-THE-HILL" }
-                p { class: "opacity-80 text-sm", "The wildest waterfront in America. End of the river — sell up and start the long walk home." }
+        div { class: "flex-1 flex flex-col",
+            div { class: "flex-1 overflow-y-auto p-4 flex flex-col gap-3 max-w-md w-full mx-auto",
+                div { class: "text-center",
+                    h2 { class: "text-lg tracking-widest", "NATCHEZ UNDER-THE-HILL" }
+                    p { class: "opacity-80 text-sm", "The wildest waterfront in America. End of the river — sell up and start the long walk home." }
+                }
+                div { class: "{PANEL} p-3 flex flex-col gap-1",
+                    StatRow { label: "Cash".to_string(), value: fmt_money(cash) }
+                    StatRow { label: "Cargo value".to_string(), value: fmt_money(cargo_value) }
+                    StatRow { label: "Boat as lumber".to_string(), value: fmt_money(boat_lumber) }
+                }
             }
-            div { class: "{PANEL} p-3 flex flex-col gap-1",
-                StatRow { label: "Cash".to_string(), value: fmt_money(cash) }
-                StatRow { label: "Cargo value".to_string(), value: fmt_money(cargo_value) }
-                StatRow { label: "Boat as lumber".to_string(), value: fmt_money(boat_lumber) }
+            div { class: "{ACTION_BAR} flex flex-col gap-2",
+                button {
+                    class: "{BTN}",
+                    onclick: move |_| sheet_open.set(true),
+                    "MORE ▲"
+                }
+                SetPieceMenu { options, onselect: dispatch, show: Show::Primary }
             }
-            SetPieceMenu {
-                options: scenario().menus.natchez.options.as_slice(),
-                onselect: move |(action, cost): (String, f64)| {
-                    match action.as_str() {
-                        "sell-cargo" => game.write().mode = Mode::Trade { can_buy: false, can_sell: true },
-                        "gamble" => gambling.set(true),
-                        "moneylender" => game.write().mode = Mode::Moneylender,
-                        _ => game.write().run_set_piece(&action, cost),
-                    }
-                },
+            Sheet {
+                open: sheet_open(),
+                on_close: move |_| sheet_open.set(false),
+                title: "── UNDER-THE-HILL ──".to_string(),
+                div { class: "flex flex-col gap-2",
+                    SetPieceMenu { options, onselect: dispatch, show: Show::Secondary }
+                }
             }
         }
     }

@@ -22,10 +22,22 @@ struct Btn {
     cost: f64,
 }
 
+/// Which options a menu render should include. Lets a screen pull the primary
+/// action out onto its action bar while tucking the rest into a sheet, with both
+/// renders sharing one `onselect` dispatch.
+#[derive(PartialEq, Clone, Copy, Default)]
+pub enum Show {
+    #[default]
+    All,
+    Primary,
+    Secondary,
+}
+
 #[component]
 pub fn SetPieceMenu(
     options: &'static [SetPieceOption<Gate>],
     onselect: EventHandler<(String, f64)>,
+    #[props(default)] show: Show,
 ) -> Element {
     let game = use_context::<Signal<Game>>();
     let g = game.read();
@@ -35,6 +47,11 @@ pub fn SetPieceMenu(
     // strings the MenuButton owns are cloned (not the whole menu).
     let buttons: Vec<Btn> = options
         .iter()
+        .filter(|o| match show {
+            Show::All => true,
+            Show::Primary => o.primary,
+            Show::Secondary => !o.primary,
+        })
         .filter(|o| gate_ok(&g, &o.gate))
         .map(|o| {
             // Disabled when a disable-gate fails or the option is unaffordable;

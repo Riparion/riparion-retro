@@ -111,6 +111,62 @@ body {
     background: var(--bg);
 }
 
+/* ── Bottom sheet ────────────────────────────────────────────── */
+/* A drawer that slides up over a dimming scrim; sits below the z-50
+   scanline overlay so the tube texture still reads over it. */
+
+.crt-sheet-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(0, 0, 0, 0.55);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+}
+
+.crt-sheet-scrim.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.crt-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    max-height: 85dvh;
+    overflow-y: auto;
+    padding: 0.5rem 0.75rem;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+    border-top: 1px double var(--phosphor-dim);
+    background: var(--bg);
+    transform: translateY(100%);
+    transition: transform 220ms ease;
+    pointer-events: none;
+}
+
+.crt-sheet.open {
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.crt-sheet-grip {
+    width: 2.5rem;
+    height: 3px;
+    margin: 0.25rem auto 0.5rem;
+    background: var(--phosphor-faint);
+    border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .crt-sheet,
+    .crt-sheet-scrim {
+        transition: none;
+    }
+}
+
 /* ── Touch buttons ───────────────────────────────────────────── */
 
 .crt-btn {
