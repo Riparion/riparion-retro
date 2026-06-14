@@ -9,6 +9,9 @@
 //!   crosses a target zone.
 //! - [`crowd_threading`] — memorize a lit route through a crowd, then walk it
 //!   from memory once the map closes.
+//! - [`faro`] — the Old-West banking card game: stake ranks (copper one to bet
+//!   it loses), deal the turn, and read the case keeper to grow your stake to a
+//!   target before the deck runs out.
 //! - [`hunter`] — track a quarry bouncing across the top row and shoot it; a
 //!   single-shot rifle with finite ammo.
 //! - [`steady_hands`] — a touch-first precision trace: drag to keep an offset
@@ -22,6 +25,9 @@
 //! - [`heave`] — a sustained-exertion test: press and hold to build force
 //!   against staged resistance without crossing the slip ceiling or draining
 //!   your grip; pacing, not mashing.
+//! - [`vingt_un`] — twenty-one, the ancestor of blackjack: lay a stake, draw
+//!   toward 21 against the dealer's fixed hand (a two-card 21 pays 3:2), and grow
+//!   your purse to a target before the round allowance runs out.
 //!
 //! A host can take only what it needs with
 //! `minigames-kit = { default-features = false, features = ["quickdraw"] }`.
@@ -32,8 +38,13 @@
 
 #[cfg(feature = "bucket_brigade")]
 pub mod bucket_brigade;
+/// Shared deck primitives and the flip-on-mount card for the card games (Faro, VingtUn).
+#[cfg(any(feature = "faro", feature = "vingt_un"))]
+pub mod cards;
 #[cfg(feature = "crowd_threading")]
 pub mod crowd_threading;
+#[cfg(feature = "faro")]
+pub mod faro;
 /// Shared inline styling for the grid-based minigames (Hunter, BucketBrigade, HotCold).
 #[cfg(any(feature = "hunter", feature = "bucket_brigade", feature = "hot_cold"))]
 pub mod grid;
@@ -51,3 +62,5 @@ pub mod sequence;
 pub mod steady_hands;
 #[cfg(feature = "timing_bar")]
 pub mod timing_bar;
+#[cfg(feature = "vingt_un")]
+pub mod vingt_un;
