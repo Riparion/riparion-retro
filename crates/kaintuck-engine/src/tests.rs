@@ -39,6 +39,23 @@ fn trader_gossip_is_voiced_as_a_named_banter_message() {
     }
     // The feed is drained — one event, one line.
     assert!(!g.voice_trader_gossip());
+
+    // On the Trace the shared *river* feed falls silent: a queued event is not
+    // voiced (and not drained) once the player has stepped off the water.
+    let mut feed = GossipFeed::default();
+    feed.push(GossipEvent {
+        trader: "Silas Crews".into(),
+        persona: Persona::Cautious,
+        kind: GossipKind::ReachedNatchez,
+    });
+    g.gossip = Some(feed);
+    g.phase = Phase::Trace;
+    let queued_before = g.pending.len();
+    assert!(!g.voice_trader_gossip(), "river gossip should stay silent on the Trace");
+    assert_eq!(g.pending.len(), queued_before, "no gossip message should be queued on the Trace");
+    // Returning to the river would voice it again (feed was never drained).
+    g.phase = Phase::River;
+    assert!(g.voice_trader_gossip());
 }
 
 /// Resolve any minigame/interaction at the head until we sit at a hub or end.
@@ -1073,8 +1090,16 @@ fn golden_trace_is_stable() {
     // where it previously took the highest. Good selection is RNG-free, so the
     // stream and every per-seed outcome are byte-identical to the prior pin —
     // only some rumor message strings change (the good a tie names).
+    // Re-pinned for the Trace hazard-mix retune (a deliberate tuning change): the
+    // Trace `hazards` band widths shift weight from sickness to outlaws — the
+    // Mason ambush widens 8%→14%, the swamp-fever dose narrows 10%→6%, and the
+    // mud crossing 16%→14%; clean stays 44%, so the road is no deadlier overall.
+    // The RNG stream is unchanged (same `uniform()` draws); only which arm each
+    // Trace roll lands in moves, so the diff is confined to `Trace|` lines
+    // (verified by diffing print_golden_trace — the River phase is byte-identical)
+    // and the fixture still ends in the same Victory (Boatman, crew 3, 40 days).
     // Behavior must not drift; if this trips, run `print_golden_trace` to diff.
-    const EXPECTED: u64 = 0xe5e7_050c_7316_77f1;
+    const EXPECTED: u64 = 0xb6aa_21bb_7fab_24c2;
     assert_eq!(
         got, EXPECTED,
         "golden trace drifted: got {:#018x} over {} bytes",
