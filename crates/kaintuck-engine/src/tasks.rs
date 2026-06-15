@@ -107,6 +107,19 @@ pub enum BrigadeTask {
     Bail,
 }
 
+/// Which card table the player sat down at Under-the-Hill. Faro and vingt-et-un
+/// were the professionals' games on the Natchez waterfront (RESEARCH_GAMBLING);
+/// both are player-initiated set-pieces, never hazard arms, so they have no
+/// [`Game::begin_minigame_for`] entry — they're launched straight off the
+/// Natchez menu via [`Game::play_faro`] / [`Game::play_vingt_un`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CardTask {
+    /// A faro bank Under-the-Hill at Natchez.
+    Faro,
+    /// A hand of vingt-et-un (twenty-one) at a Natchez table.
+    VingtUn,
+}
+
 /// The one minigame currently paused for the player. Holding a single tagged
 /// task (rather than six parallel `Option` fields) keeps the live task and the
 /// screen it belongs to from ever desyncing, and means a new minigame is one
@@ -122,6 +135,7 @@ pub enum MiniTask {
     Heave(HeaveTask),
     HotCold(HotColdTask),
     Hunter(HunterTask),
+    Card(CardTask),
 }
 
 impl MiniTask {
@@ -137,6 +151,8 @@ impl MiniTask {
             MiniTask::Heave(_) => Mode::Heave,
             MiniTask::HotCold(_) => Mode::HotCold,
             MiniTask::Hunter(_) => Mode::Hunter,
+            MiniTask::Card(CardTask::Faro) => Mode::Faro,
+            MiniTask::Card(CardTask::VingtUn) => Mode::VingtUn,
         }
     }
 
@@ -162,6 +178,8 @@ impl MiniTask {
             MiniTask::Sequence(SequenceTask::Patch) => "patch",
             MiniTask::Sequence(SequenceTask::SelfRepair) => "self-repair",
             MiniTask::Brigade(BrigadeTask::Bail) => "bail",
+            MiniTask::Card(CardTask::Faro) => "faro",
+            MiniTask::Card(CardTask::VingtUn) => "vingt-un",
         }
     }
 }
@@ -201,6 +219,9 @@ impl Game {
     }
     pub(crate) fn begin_hunter(&mut self, task: HunterTask) {
         self.begin_task(MiniTask::Hunter(task));
+    }
+    pub(crate) fn begin_card(&mut self, task: CardTask) {
+        self.begin_task(MiniTask::Card(task));
     }
 
     /// Begin the minigame whose result selects `outcome` — the bridge from a
@@ -631,6 +652,66 @@ impl Game {
         let tier = resolve_tier(o, base, quality);
         self.apply_outcome(id, tier, 0.0);
         self.advance();
+    }
+
+    /// Settle a faro session Under-the-Hill. Hand-coded like the timing gamble
+    /// (its economy turns on the live purse, not the tiered effect tables): the
+    /// buy-in was escrowed out of cash when the player sat down (see
+    /// [`Self::play_faro`]), so all that's left is to hand back the chips they
+    /// rose with and tell the tale. `final_stake` is those chips; `won` (reached
+    /// the table's mark) only colors the telling and a small reputation bump.
+    pub fn resolve_faro(&mut self, won: bool, final_stake: i64) {
+        if self.mode != Mode::Faro {
+            return;
+        }
+        if !matches!(self.pending_task, Some(MiniTask::Card(CardTask::Faro))) {
+            return;
+        }
+        self.pending_task = None;
+        self.settle_card_night("faro bank", won, final_stake);
+        self.advance();
+    }
+
+    /// Settle a vingt-et-un session — the twin of [`Self::resolve_faro`].
+    pub fn resolve_vingt_un(&mut self, won: bool, final_stake: i64) {
+        if self.mode != Mode::VingtUn {
+            return;
+        }
+        if !matches!(self.pending_task, Some(MiniTask::Card(CardTask::VingtUn))) {
+            return;
+        }
+        self.pending_task = None;
+        self.settle_card_night("vingt-et-un table", won, final_stake);
+        self.advance();
+    }
+
+    /// Return the chips a card session ended on to the purse and narrate the
+    /// swing against the escrowed buy-in. Shared by faro and vingt-et-un so the
+    /// two settle identically — only the table's name and the flavor differ.
+    fn settle_card_night(&mut self, table: &str, won: bool, final_stake: i64) {
+        let buy_in = self.pending_stake;
+        self.pending_stake = 0.0;
+        let chips = final_stake.max(0) as f64;
+        self.state.cash = (self.state.cash + chips).max(0.0);
+        let swing = chips - buy_in;
+        if swing > 0.0 {
+            // A clean win (you reached the mark) reads as skill at the table and
+            // is worth a little standing; merely walking up is just luck.
+            self.adjust_reputation(if won { 3.0 } else { 1.0 });
+            self.message(format!(
+                "You rise from the {table} {} to the good — and climb the hill with a fuller purse.",
+                fmt_money(swing)
+            ));
+        } else if swing < 0.0 {
+            self.message(format!(
+                "The {table} takes you for {} before the night is out.",
+                fmt_money(-swing)
+            ));
+        } else {
+            self.message(format!(
+                "You break even at the {table} — a night's amusement for nothing gained."
+            ));
+        }
     }
 
     /// Look up an outcome by id and apply its tier's effect list. The single seam

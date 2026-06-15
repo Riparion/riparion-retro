@@ -469,6 +469,10 @@ pub enum Mode {
     Heave,
     HotCold,
     Hunter,
+    /// A faro bank Under-the-Hill at Natchez (player-initiated card set-piece).
+    Faro,
+    /// A vingt-et-un table at Natchez (player-initiated card set-piece).
+    VingtUn,
     // --- shared ---
     Interaction,
     GameOver,

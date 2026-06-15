@@ -334,7 +334,8 @@ Scenario(
         natchez: (options: [
             (label: "Sell cargo",                   hint: "Top prices on the river — sell it all.", gate: [HasCargo], action: "sell-cargo"),
             (label: "Sell the boat for lumber",     hint: "She can't go back upstream. The wood is worth real money.", gate: [HasBoat], action: "sell-boat"),
-            (label: "Spend a night Under-the-Hill", hint: "Gambling, drinking, and thieves. Every dollar lost hurts the walk.", action: "gamble"),
+            (label: "Sit in on the faro bank",       hint: "The banker's game, and the busiest table Under-the-Hill. Buy in with what you dare.", action: "play-faro"),
+            (label: "Take a hand of vingt-et-un",    hint: "Twenty-one against the dealer, come up the river from New Orleans. Buy in with what you dare.", action: "play-vingt-un"),
             (label: "See the moneylender",          hint: "Settle your debt before the cash-out — or borrow against the boat.", action: "moneylender"),
             (label: "Buy a horse — {cost}",         hint: "Faster on the Trace, and the difference at the Duck River.", cost: 12.0, gate: [NoHorse], affordable_only: true, action: "buy-horse"),
             (label: "Set out on the Trace ▸",       hint: "The long walk home begins.", primary: true, action: "set-out"),
@@ -626,6 +627,14 @@ Scenario(
         (id: "side-trail", params: Crowd(prompt: "The Trace forks into a dozen side trails. Fix the way north in your mind.", crowd_size: 11, member_icon: "🌲", player_icon: "@", exit_icon: ">", reveal_ms: 2800, navigate_ms: 11000)),
         (id: "swamp",      params: Crowd(prompt: "A 'hell hole' of soupy mud — fix the firm line in your mind, then pick your way across before the mire takes you.", crowd_size: 12, member_icon: "🟫", player_icon: "@", exit_icon: ">", reveal_ms: 3000, navigate_ms: 10000)),
         (id: "dose",       params: Timing(prompt: "Swamp fever. Measure out the dose — too much or too little does no good.", action: "POUR",    tolerance: 0.12, period_ms: 1500)),
+        // Cards — the player buys a night at a Natchez table; the buy-in is the
+        // escrowed stake (chips), and `target_mult` sets the mark to "win" the
+        // night (× the buy-in). Faro was the era's dominant bank game; vingt-et-un
+        // the twenty-one that came up from New Orleans (RESEARCH_GAMBLING).
+        (id: "faro",       params: Faro(prompt: "Under-the-Hill — the faro bank is open. Lay your chips on the layout and call the turn.", target_mult: 2.0, min_bet: 2)),
+        (id: "vingt-un",   params: VingtUn(prompt: "Under-the-Hill — a chair opens at the vingt-et-un table. Twenty-one beats the dealer.", target_mult: 2.0, min_bet: 2, max_rounds: 10)),
+        // "gamble" stays for the autonomous economy (the bots gamble on a whim);
+        // its outcome is hand-coded, its timing bar data.
         (id: "gamble",     params: Timing(prompt: "Under-the-Hill — lay your stake and call it as the wheel comes round.",    action: "CALL IT", tolerance: 0.10, period_ms: 1300)),
         (id: "cave-tell",  params: Timing(prompt: "The stranger offers to pilot you past the cave. Watch his eyes — call it the instant you read the tell.", action: "READ HIM", tolerance: 0.11, period_ms: 1400)),
         (id: "patch",      params: Sequence(prompt: "A snag punches a hole in the hull — patch it in order before she fills.", symbols: ["🪵", "🧵", "🔨", "🪣"], length: 4)),

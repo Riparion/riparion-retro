@@ -10,6 +10,7 @@ use dioxus::prelude::*;
 
 use minigames_kit::bucket_brigade::{BucketBrigade, BucketBrigadeResult};
 use minigames_kit::crowd_threading::{CrowdThreading, CrowdThreadingResult};
+use minigames_kit::faro::{Faro, FaroResult};
 use minigames_kit::heave::{Heave, HeaveResult};
 use minigames_kit::hot_cold::{HotCold, HotColdResult};
 use minigames_kit::hunter::{Hunter, HunterResult};
@@ -17,6 +18,7 @@ use minigames_kit::quickdraw::{QuickDraw, QuickDrawResult};
 use minigames_kit::sequence::{Sequence as SequenceGame, SequenceResult};
 use minigames_kit::steady_hands::{SteadyHands, SteadyHandsResult};
 use minigames_kit::timing_bar::{TimingBar, TimingResult};
+use minigames_kit::vingt_un::{VingtUn, VingtUnResult};
 use trail_kit::MiniParams;
 
 use crate::engine::Game;
@@ -39,7 +41,13 @@ pub fn Minigame() -> Element {
         MiniParams::Heave { .. } => g.encounter_seed(0x4EA7_E000),
         MiniParams::HotCold { .. } => g.encounter_seed(0x40C0_1D00),
         MiniParams::Hunter { .. } => g.encounter_seed(0x40A7_E211),
+        MiniParams::Faro { .. } => g.encounter_seed(0xFA12_0000),
+        MiniParams::VingtUn { .. } => g.encounter_seed(0x2121_0000),
     };
+    // The card tables play for the buy-in escrowed when the player sat down
+    // (`play_faro` / `play_vingt_un`): it's the chips at the table, and the win
+    // mark is a multiple of it. Read it before the guard is dropped.
+    let buy_in = g.pending_stake as i64;
     // Hiding the money pays off in company: a kept night-watch (a party on the
     // road — RESEARCH_PIRATES §7) buys you time to reach your stash before
     // Mason's men do.
@@ -227,5 +235,45 @@ pub fn Minigame() -> Element {
                 },
             }
         },
+        MiniParams::Faro {
+            prompt,
+            target_mult,
+            min_bet,
+        } => {
+            let target = (buy_in as f64 * target_mult).round() as i64;
+            rsx! {
+                Faro {
+                    prompt: prompt.clone(),
+                    seed,
+                    starting_stake: buy_in,
+                    target_stake: target,
+                    min_bet: *min_bet,
+                    on_complete: move |res: FaroResult| {
+                        game.write().resolve_faro(res.won, res.final_stake);
+                    },
+                }
+            }
+        }
+        MiniParams::VingtUn {
+            prompt,
+            target_mult,
+            min_bet,
+            max_rounds,
+        } => {
+            let target = (buy_in as f64 * target_mult).round() as i64;
+            rsx! {
+                VingtUn {
+                    prompt: prompt.clone(),
+                    seed,
+                    starting_stake: buy_in,
+                    target_stake: target,
+                    min_bet: *min_bet,
+                    max_rounds: *max_rounds,
+                    on_complete: move |res: VingtUnResult| {
+                        game.write().resolve_vingt_un(res.won, res.final_stake);
+                    },
+                }
+            }
+        }
     }
 }

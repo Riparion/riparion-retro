@@ -648,10 +648,11 @@ impl Game {
             "set-out" => self.set_out_on_trace(),
             "rest" => self.rest_and_resupply(cost),
             "leave" => self.leave_stand(),
-            // `sell-cargo` (→ Trade screen), `gamble` (→ stake entry), and
-            // `moneylender` (→ Moneylender screen) are screen navigation,
-            // dispatched by the UI — an explicit no-op here.
-            "sell-cargo" | "gamble" | "moneylender" => {}
+            // `sell-cargo` (→ Trade screen), the card tables `play-faro` /
+            // `play-vingt-un` (→ buy-in entry), and `moneylender` (→ Moneylender
+            // screen) are screen navigation, dispatched by the UI — an explicit
+            // no-op here. (`gamble` is the bots' whim, never a menu action now.)
+            "sell-cargo" | "play-faro" | "play-vingt-un" | "moneylender" => {}
             // Anything else is a scenario/code mismatch; fail loudly like the
             // sibling dispatchers (begin_minigame_for, run_special).
             other => panic!("unknown set-piece action {other}"),

@@ -40,6 +40,8 @@ fn mode_key(mode: &Mode) -> &'static str {
         Mode::Heave => "heave",
         Mode::HotCold => "hot-cold",
         Mode::Hunter => "hunter",
+        Mode::Faro => "faro",
+        Mode::VingtUn => "vingt-un",
         Mode::Interaction => "interaction",
         Mode::GameOver => "game-over",
     }

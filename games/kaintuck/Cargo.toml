@@ -1,6 +1,6 @@
 [package]
 name = "kaintuck"
-version = "0.1.23"
+version = "0.1.24"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -18,8 +18,9 @@ trail-kit = { workspace = true }
 # money; QuickDraw the river-pirate boarding; CrowdThreading the side-trails and
 # the swamp firm-line route-find; TimingBar the Under-the-Hill gamble, medicine
 # dosing, and the Cave-in-Rock pilot tell; Sequence the snag hull-repair;
-# BucketBrigade bailing a flooded boat.
-minigames-kit = { workspace = true, features = ["quickdraw", "steady_hands", "crowd_threading", "timing_bar", "sequence", "bucket_brigade", "heave", "hot_cold", "hunter"] }
+# BucketBrigade bailing a flooded boat; Faro and VingtUn the Natchez card tables
+# Under-the-Hill.
+minigames-kit = { workspace = true, features = ["quickdraw", "steady_hands", "crowd_threading", "timing_bar", "sequence", "bucket_brigade", "heave", "hot_cold", "hunter", "faro", "vingt_un"] }
 
 dioxus = { workspace = true }
 serde = { workspace = true }

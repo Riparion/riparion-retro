@@ -82,6 +82,29 @@ pub enum MiniParams {
         step_ms: u32,
         reload_ms: u32,
     },
+    /// Sit in on a faro bank Under-the-Hill (the era's dominant game — see
+    /// RESEARCH_GAMBLING). The chips at the table are the player's *escrowed
+    /// buy-in*, set live when they sit down; these are the static table knobs the
+    /// host pairs with that stake. `starting_stake`/`target_stake` aren't here:
+    /// the host derives them from the buy-in (`target_stake = buy-in ×
+    /// target_mult`).
+    Faro {
+        prompt: String,
+        /// Stake to reach — as a multiple of the buy-in — to "win" the night (a
+        /// reputation bump and a richer telling; the money is the chips you leave
+        /// with either way).
+        target_mult: f64,
+        /// Chips added per tap on a rank.
+        min_bet: i64,
+    },
+    /// A hand of vingt-et-un (twenty-one) at a Natchez table — same escrowed
+    /// buy-in model as [`Self::Faro`], with a per-session round cap.
+    VingtUn {
+        prompt: String,
+        target_mult: f64,
+        min_bet: i64,
+        max_rounds: usize,
+    },
 }
 
 /// The kit's portable hunter glyph, used when a `Hunter` spec omits `hunter_icon`.
