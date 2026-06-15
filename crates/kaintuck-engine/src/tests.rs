@@ -1397,8 +1397,8 @@ fn scenario_is_self_consistent() {
     // shows match the economy the engine actually charges.
     let known = [
         "falls-pilot", "falls-run", "falls-wait", "gt-treat", "gt-duck", "cave-take", "cave-hire",
-        "cave-run", "sell-cargo", "sell-boat", "gamble", "play-faro", "play-vingt-un", "moneylender",
-        "buy-horse", "set-out", "rest", "leave",
+        "cave-run", "sell-cargo", "sell-boat", "gamble", "saloon", "play-faro", "play-vingt-un",
+        "moneylender", "buy-horse", "set-out", "rest", "leave",
     ];
     for menu in [
         &sc.menus.falls,

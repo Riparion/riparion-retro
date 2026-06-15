@@ -334,8 +334,9 @@ Scenario(
         natchez: (options: [
             (label: "Sell cargo",                   hint: "Top prices on the river — sell it all.", gate: [HasCargo], action: "sell-cargo"),
             (label: "Sell the boat for lumber",     hint: "She can't go back upstream. The wood is worth real money.", gate: [HasBoat], action: "sell-boat"),
-            (label: "Sit in on the faro bank",       hint: "The banker's game, and the busiest table Under-the-Hill. Buy in with what you dare.", action: "play-faro"),
-            (label: "Take a hand of vingt-et-un",    hint: "Twenty-one against the dealer, come up the river from New Orleans. Buy in with what you dare.", action: "play-vingt-un"),
+            (label: "Visit Under-the-Hill Saloon ▸", hint: "Faro and vingt-et-un by lamplight — the busiest tables on the river. Your purse rides as chips; leave the table whenever you like.", action: "saloon"),
+            (label: "Sit in on the faro bank",       hint: "The banker's game, and the busiest table Under-the-Hill. Sit straight down — your purse rides as chips, and you leave with what you've still got.", action: "play-faro", group: Some("saloon")),
+            (label: "Take a hand of vingt-et-un",    hint: "Twenty-one against the dealer, come up the river from New Orleans. Sit straight down — your purse rides as chips, and you leave with what you've still got.", action: "play-vingt-un", group: Some("saloon")),
             (label: "See the moneylender",          hint: "Settle your debt before the cash-out — or borrow against the boat.", action: "moneylender"),
             (label: "Buy a horse — {cost}",         hint: "Faster on the Trace, and the difference at the Duck River.", cost: 12.0, gate: [NoHorse], affordable_only: true, action: "buy-horse"),
             (label: "Set out on the Trace ▸",       hint: "The long walk home begins.", primary: true, action: "set-out"),

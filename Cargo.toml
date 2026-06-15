@@ -34,7 +34,7 @@ gloo-timers = { version = "0.3", features = ["futures"] }
 gloo-net = { version = "0.6", default-features = false, features = ["http", "json"] }
 # Stream/Sink combinators for the optional multiplayer WebSocket client.
 futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
-web-sys = { version = "0.3", features = ["Window", "Document", "Element"] }
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "Location"] }
 rand = { version = "0.8", default-features = false }
 rand_pcg = { version = "0.3", features = ["serde1"] }
 getrandom = { version = "0.2", features = ["js"] }
