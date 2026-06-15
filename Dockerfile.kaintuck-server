@@ -1,0 +1,62 @@
+# syntax=docker/dockerfile:1
+
+# ----------------------------------------------------------------------------
+# kaintuck-server — native (axum + WebSocket) shared-market game server.
+#
+# Unlike the games themselves (compiled to wasm and served as static bundles by
+# riparion-cms), this is a long-running native binary. It ships as its own
+# standalone image, deployed alongside the CMS (see docker-compose.kaintuck-server.yml
+# + server.just) and fronted by NPM at a dedicated subdomain. No wasm target,
+# Tailwind, or dx here — it's a plain `cargo build`.
+# ----------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------
+# Stage 1 — compile the release binary.
+#
+# BuildKit cache mounts keep the cargo registry/git checkouts and the target dir
+# warm across rebuilds. The target dir lives in a cache mount, so the binary is
+# copied out to /out within the same RUN — anything left in the cache mount is
+# NOT present in the image layer.
+# ----------------------------------------------------------------------------
+FROM rust:1.95-bookworm AS builder
+
+WORKDIR /app
+COPY . .
+
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cargo build --release --locked -p kaintuck-server \
+ && mkdir -p /out \
+ && cp -a target/release/kaintuck-server /out/
+
+# ----------------------------------------------------------------------------
+# Stage 2 — slim runtime. Only the server binary ships here; state is in-memory
+# so there are no volumes. ca-certificates is kept for any outbound TLS the
+# binary might need; the binary uses rustls, so no libssl is required.
+# ----------------------------------------------------------------------------
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl \
+ && rm -rf /var/lib/apt/lists/*
+
+# Run as a non-root user pinned to UID/GID 1000 to match the host convention
+# (same as the CMS image). Override at build time if your host UID differs:
+# docker compose build --build-arg UID=$(id -u) --build-arg GID=$(id -g)
+ARG UID=1000
+ARG GID=1000
+RUN groupadd --gid "$GID" app \
+ && useradd --uid "$UID" --gid "$GID" --no-create-home --shell /usr/sbin/nologin app
+
+COPY --from=builder --chown=$UID:$GID /out/kaintuck-server /usr/local/bin/kaintuck-server
+USER app
+
+# Defaults mirror `just server`; override via the compose `environment:` block or
+# the host .env. PORT is what the container listens on (NPM routes to it).
+ENV PORT=4317 \
+    BOTS=16 \
+    TICK_MS=300
+
+EXPOSE 4317
+CMD ["/usr/local/bin/kaintuck-server"]

@@ -7,6 +7,10 @@
 # spews the abort. Dropping debug symbols (you'd need a browser extension to use
 # them anyway) lets wasm-opt run clean.
 
+# Deploy recipes for the standalone kaintuck-server stack (deploy-server,
+# inprod-server). Optional so the justfile still works if the file is absent.
+import? 'server.just'
+
 # List available recipes
 default:
     @just --list

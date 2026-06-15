@@ -1,0 +1,10 @@
+# Keep the kaintuck-server build context lean (see Dockerfile.kaintuck-server).
+# The build runs `cargo build` inside the image, so none of these are needed and
+# shipping them just bloats the context sent to the daemon.
+target/
+node_modules/
+.git/
+# dx web bundle outputs / local artifacts.
+dist/
+**/dist-riparion/
+*.tar.gz
