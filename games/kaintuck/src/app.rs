@@ -148,7 +148,9 @@ fn GameRoot() -> Element {
                         | Mode::Brigade
                         | Mode::Heave
                         | Mode::HotCold
-                        | Mode::Hunter => rsx! { screens::minigame::Minigame {} },
+                        | Mode::Hunter
+                        | Mode::Faro
+                        | Mode::VingtUn => rsx! { screens::minigame::Minigame {} },
                         Mode::Interaction => rsx! { screens::interaction_host::InteractionHost {} },
                         Mode::GameOver => rsx! { screens::game_over::GameOver {} },
                     }}

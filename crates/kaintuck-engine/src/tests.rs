@@ -1327,6 +1327,8 @@ fn scenario_is_self_consistent() {
         ("patch", "sequence"),
         ("self-repair", "sequence"),
         ("bail", "brigade"),
+        ("faro", "faro"),
+        ("vingt-un", "vingtun"),
     ] {
         let p = sc
             .minigame_params(id)
@@ -1341,6 +1343,8 @@ fn scenario_is_self_consistent() {
             MiniParams::Heave { .. } => "heave",
             MiniParams::HotCold { .. } => "hotcold",
             MiniParams::Hunter { .. } => "hunter",
+            MiniParams::Faro { .. } => "faro",
+            MiniParams::VingtUn { .. } => "vingtun",
         };
         assert_eq!(actual, kind, "minigame {id} kind");
     }
@@ -1393,8 +1397,8 @@ fn scenario_is_self_consistent() {
     // shows match the economy the engine actually charges.
     let known = [
         "falls-pilot", "falls-run", "falls-wait", "gt-treat", "gt-duck", "cave-take", "cave-hire",
-        "cave-run", "sell-cargo", "sell-boat", "gamble", "moneylender", "buy-horse", "set-out",
-        "rest", "leave",
+        "cave-run", "sell-cargo", "sell-boat", "gamble", "play-faro", "play-vingt-un", "moneylender",
+        "buy-horse", "set-out", "rest", "leave",
     ];
     for menu in [
         &sc.menus.falls,

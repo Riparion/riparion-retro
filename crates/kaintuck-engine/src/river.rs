@@ -503,6 +503,34 @@ impl Game {
         self.begin_timing(super::tasks::TimingTask::Gamble);
     }
 
+    /// Buy in to a faro bank Under-the-Hill for `amount`. Same escrow as
+    /// [`Self::gamble`] — the buy-in is the chips you carry to the table, and
+    /// what you rise with returns to the purse (see [`Self::resolve_faro`]).
+    pub fn play_faro(&mut self, amount: f64) {
+        self.buy_in_card(amount, super::tasks::CardTask::Faro);
+    }
+
+    /// Buy in to a vingt-et-un table Under-the-Hill for `amount`.
+    pub fn play_vingt_un(&mut self, amount: f64) {
+        self.buy_in_card(amount, super::tasks::CardTask::VingtUn);
+    }
+
+    /// Escrow a card-table buy-in and switch to its screen — the shared front
+    /// half of [`Self::play_faro`] / [`Self::play_vingt_un`], mirroring
+    /// [`Self::gamble`]'s escrow so an abandoned night forfeits the stake.
+    fn buy_in_card(&mut self, amount: f64, task: super::tasks::CardTask) {
+        if self.mode != Mode::Natchez {
+            return;
+        }
+        let stake = amount.clamp(0.0, self.state.cash);
+        if stake <= 0.0 {
+            return;
+        }
+        self.state.cash -= stake;
+        self.pending_stake = stake;
+        self.begin_card(task);
+    }
+
     /// Buy a horse for the Trace — at Natchez or traded at a stand (Buzzard
     /// Roost). Guarded to those two screens so a stray dispatch can't conjure one
     /// elsewhere (the old `stand_buy_horse` carried the stand half of this guard).

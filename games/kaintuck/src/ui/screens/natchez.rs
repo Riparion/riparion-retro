@@ -1,6 +1,7 @@
-//! Natchez Under-the-Hill: sell the cargo, break the boat up for lumber, risk a
-//! night gambling, buy a horse, and set out up the Trace. The options come from
-//! the scenario; the gambling stake entry is the one bit of screen state.
+//! Natchez Under-the-Hill: sell the cargo, break the boat up for lumber, sit in
+//! at a card table (faro or vingt-et-un), buy a horse, and set out up the Trace.
+//! The options come from the scenario; the table buy-in entry is the one bit of
+//! screen state.
 
 use dioxus::prelude::*;
 
@@ -13,10 +14,18 @@ use retro_kit::components::sheet::Sheet;
 use retro_kit::components::stat_row::StatRow;
 use retro_kit::theme::{ACTION_BAR, BTN, PANEL};
 
+/// Which card table the player is buying in to — drives the stake-entry prompt
+/// and which engine launcher the buy-in calls.
+#[derive(Clone, Copy, PartialEq)]
+enum Table {
+    Faro,
+    VingtUn,
+}
+
 #[component]
 pub fn Natchez() -> Element {
     let mut game = use_context::<Signal<Game>>();
-    let mut gambling = use_signal(|| false);
+    let mut buy_in = use_signal(|| None::<Table>);
     let mut sheet_open = use_signal(|| false);
 
     let g = game.read();
@@ -30,18 +39,31 @@ pub fn Natchez() -> Element {
     let boat_lumber = s.boat.map(|b| b.salvage_value()).unwrap_or(0.0);
     drop(g);
 
-    if gambling() {
+    if let Some(table) = buy_in() {
+        let (place, blurb) = match table {
+            Table::Faro => (
+                "faro bank",
+                "Bet the cards as the banker turns them — you rise with whatever chips you've still got.",
+            ),
+            Table::VingtUn => (
+                "vingt-et-un table",
+                "Beat the dealer to twenty-one — you rise with whatever chips you've still got.",
+            ),
+        };
         return rsx! {
             div { class: "flex-1 flex flex-col justify-center",
                 NumberEntry {
-                    prompt: "Lay your stake at the gambling house. Win and you double it; lose and it's gone — along with whatever a cutpurse can lift.".to_string(),
+                    prompt: format!("Buy in at the {place}. {blurb}"),
                     max: cash as i64,
-                    confirm: "Lay it down".to_string(),
+                    confirm: "Buy in".to_string(),
                     on_submit: move |amt: i64| {
-                        gambling.set(false);
-                        game.write().gamble(amt as f64);
+                        buy_in.set(None);
+                        match table {
+                            Table::Faro => game.write().play_faro(amt as f64),
+                            Table::VingtUn => game.write().play_vingt_un(amt as f64),
+                        }
                     },
-                    on_cancel: move |_| gambling.set(false),
+                    on_cancel: move |_| buy_in.set(None),
                 }
             }
         };
@@ -53,7 +75,8 @@ pub fn Natchez() -> Element {
         sheet_open.set(false);
         match action.as_str() {
             "sell-cargo" => game.write().mode = Mode::Trade { can_buy: false, can_sell: true },
-            "gamble" => gambling.set(true),
+            "play-faro" => buy_in.set(Some(Table::Faro)),
+            "play-vingt-un" => buy_in.set(Some(Table::VingtUn)),
             "moneylender" => game.write().mode = Mode::Moneylender,
             _ => game.write().run_set_piece(&action, cost),
         }
