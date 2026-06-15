@@ -1646,7 +1646,7 @@ dependencies = [
 
 [[package]]
 name = "kaintuck"
-version = "0.1.26"
+version = "0.1.27"
 dependencies = [
  "dioxus",
  "futures",
