@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/*", "games/*", "examples/*", "server"]
+members = ["crates/*", "games/*", "examples/*"]
 
 # Shared metadata for all game crates (inherit with `key.workspace = true`).
 [workspace.package]
