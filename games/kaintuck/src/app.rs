@@ -9,7 +9,6 @@ use crate::engine::Game;
 use crate::leaderboard::{ScorePayload, BOARD, SLUG};
 use crate::storage;
 use crate::ui::components::cover::Cover;
-use crate::ui::components::shared_market::SharedMarket;
 use crate::ui::components::status_bar::StatusBar;
 use crate::ui::screens;
 
@@ -123,10 +122,6 @@ fn GameRoot() -> Element {
             if in_game && mode.is_port() {
                 StatusBar {}
             }
-            // Multiplayer connection + live gossip, on every screen (incl. the
-            // splash, so a player can see they're connected before setting out).
-            // Self-hides entirely in offline play.
-            SharedMarket {}
             div { class: "flex-1 overflow-y-auto flex flex-col",
                 if show_splash {
                     screens::splash::Splash {}

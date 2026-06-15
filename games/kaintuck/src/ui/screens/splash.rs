@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 
 use crate::engine::state::Mode;
 use crate::engine::Game;
+use crate::net_client::RemoteMarket;
 use crate::leaderboard::{ScorePayload, BOARD, SLUG};
 use crate::storage;
 use retro_kit::components::score_board::ScoreBoard;
@@ -49,12 +50,29 @@ pub fn Splash() -> Element {
 
     let version = env!("CARGO_PKG_VERSION");
 
+    // Shared-market connection chip — only when this build is wired to a server
+    // (the signal is `None` in offline single-player, so nothing shows then).
+    let remote = use_context::<Signal<Option<RemoteMarket>>>();
+    let connection: Option<bool> = remote.read().as_ref().map(|r| r.connected);
+
     rsx! {
         div { class: "{SCREEN_HERO} gap-6 p-6",
             div {
                 h1 { class: "splash-title", "KAINTUCK" }
                 p { class: "opacity-80 mt-2 max-w-xs mx-auto leading-snug",
                     "Run a flatboat down the Ohio and Mississippi to Natchez, sell everything, then walk 450 miles home up the Natchez Trace. Two phases. One life. Don't get robbed."
+                }
+            }
+            if let Some(connected) = connection {
+                div { class: "chip",
+                    style: "display: inline-flex; align-items: center; gap: 0.4rem; width: auto;",
+                    span {
+                        style: if connected { "color: var(--phosphor); text-shadow: var(--glow);" } else { "color: var(--danger);" },
+                        if connected { "●" } else { "○" }
+                    }
+                    span { class: "tracking-widest text-xs",
+                        if connected { "shared market" } else { "connecting…" }
+                    }
                 }
             }
             div { class: "w-full max-w-xs flex flex-col gap-3",
