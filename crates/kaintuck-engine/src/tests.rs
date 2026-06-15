@@ -1707,3 +1707,53 @@ fn run_set_piece_dispatches_to_the_engine_op() {
     assert_eq!(g.mode, Mode::Natchez, "engine dispatch left navigation to the UI");
 }
 
+#[test]
+fn setting_out_offers_a_horse_once_when_afoot_and_affordable() {
+    let price = started(7)
+        .natchez_horse_price()
+        .expect("natchez sells horses");
+    assert!(price > 0.0);
+
+    // Afoot with the price in pocket: the offer is raised on setting out, and
+    // accepting buys the mount for exactly the dock price, then clears the offer.
+    let mut g = started(7);
+    g.dev_begin_at_natchez("Tester".into(), price + 50.0);
+    assert!(!g.state.has_horse);
+    g.set_out_on_trace();
+    assert_eq!(g.mode, Mode::TraceHub);
+    assert!(g.state.horse_offer, "afoot + affordable should offer a horse");
+    let cash_before = g.state.cash;
+    g.answer_trace_horse(true);
+    assert!(g.state.has_horse);
+    assert_eq!(g.state.cash, cash_before - price);
+    assert!(!g.state.horse_offer, "answering clears the offer");
+
+    // Declining clears the offer and leaves you afoot with your cash intact.
+    let mut g = started(7);
+    g.dev_begin_at_natchez("Tester".into(), price + 50.0);
+    g.set_out_on_trace();
+    let cash_before = g.state.cash;
+    g.answer_trace_horse(false);
+    assert!(!g.state.has_horse);
+    assert_eq!(g.state.cash, cash_before);
+    assert!(!g.state.horse_offer);
+
+    // Already mounted: not asked at all.
+    let mut g = started(7);
+    g.dev_begin_at_natchez("Tester".into(), price + 50.0);
+    g.state.has_horse = true;
+    g.set_out_on_trace();
+    assert!(!g.state.horse_offer, "a mounted traveller is not asked");
+
+    // Broke and afoot (no boat salvage to tip them over the price): not asked,
+    // and a stray accept can't conjure a horse from an empty purse.
+    let mut g = started(7);
+    g.dev_begin_at_natchez("Tester".into(), 1.0);
+    g.state.boat = None;
+    g.set_out_on_trace();
+    assert!(g.state.cash < price);
+    assert!(!g.state.horse_offer, "a broke traveller is not asked");
+    g.answer_trace_horse(true);
+    assert!(!g.state.has_horse);
+}
+

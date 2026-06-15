@@ -531,6 +531,38 @@ impl Game {
         self.begin_card(task);
     }
 
+    /// The price a horse fetches at Natchez, read from the set-piece menu so the
+    /// post-set-out offer charges exactly what the dock would. `None` if the
+    /// scenario's Natchez menu has no horse to sell.
+    pub fn natchez_horse_price(&self) -> Option<f64> {
+        scenario()
+            .menus
+            .natchez
+            .options
+            .iter()
+            .find(|o| o.action == "buy-horse")
+            .map(|o| o.cost)
+    }
+
+    /// Answer the one-time "buy a horse before the walk?" offer raised when you
+    /// set out on the Trace (see [`Self::enter_trace`]). Buys the mount if `buy`
+    /// and it's still affordable; either answer clears the offer so it's asked
+    /// only once.
+    pub fn answer_trace_horse(&mut self, buy: bool) {
+        if !self.state.horse_offer {
+            return;
+        }
+        self.state.horse_offer = false;
+        if buy {
+            if let Some(price) = self.natchez_horse_price() {
+                if !self.state.has_horse && price <= self.state.cash {
+                    self.state.cash -= price;
+                    self.state.has_horse = true;
+                }
+            }
+        }
+    }
+
     /// Buy a horse for the Trace — at Natchez or traded at a stand (Buzzard
     /// Roost). Guarded to those two screens so a stray dispatch can't conjure one
     /// elsewhere (the old `stand_buy_horse` carried the stand half of this guard).
@@ -566,6 +598,13 @@ impl Game {
 
     /// Flip to the Trace phase and reset for the walk.
     pub(crate) fn enter_trace(&mut self) {
+        // Offer a horse for the long walk — but only once, and only if you're on
+        // foot with the price in pocket (no nagging a broke or already-mounted
+        // traveller). The hub raises it; `answer_trace_horse` settles it.
+        self.state.horse_offer = !self.state.has_horse
+            && self
+                .natchez_horse_price()
+                .is_some_and(|p| p > 0.0 && p <= self.state.cash);
         self.state.crew_at_natchez = self.state.crew;
         self.phase = Phase::Trace;
         self.state.miles = 0.0;
