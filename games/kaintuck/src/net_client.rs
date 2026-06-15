@@ -16,8 +16,6 @@
 //! and forwards them as [`ClientMsg::TradeOrder`]s, and applies the server's
 //! [`ServerMsg`] updates back onto the link's quote.
 
-use std::collections::VecDeque;
-
 use dioxus::prelude::*;
 use futures::future::FutureExt;
 use futures::stream::StreamExt;
@@ -34,11 +32,6 @@ use crate::engine::Game;
 /// sent anything — so a quiet server can't strand a player's orders.
 const FLUSH_INTERVAL_MS: u32 = 250;
 
-/// Most recent composed crew remarks kept for the UI's live gossip feed (the
-/// engine drains its own copy for travel banter; this is a separate, bounded
-/// view buffer so the feed survives independent of that).
-const GOSSIP_LOG_CAP: usize = 8;
-
 /// The shared market as this client currently knows it, mirrored into a Dioxus
 /// signal so the UI can show "connected" state and live quotes.
 #[derive(Clone, PartialEq, Default)]
@@ -47,9 +40,6 @@ pub struct RemoteMarket {
     pub participant_id: Option<u64>,
     /// `mids[town][good]` from the server.
     pub mids: Vec<[f64; NUM_GOODS]>,
-    /// Recent composed remarks about the *other* traders on the river, newest
-    /// last — the UI's live gossip feed. Bounded by [`GOSSIP_LOG_CAP`].
-    pub gossip_log: VecDeque<String>,
 }
 
 /// The WebSocket endpoint, from the server-injected meta tag. `None` → run
@@ -155,25 +145,6 @@ pub fn use_shared_market() {
                     },
                     _ = gloo_timers::future::TimeoutFuture::new(FLUSH_INTERVAL_MS).fuse() => false,
                 };
-
-                // Mirror incoming gossip into the live UI feed (the engine drains
-                // its own copy below for travel banter — this buffer is the
-                // always-visible "news from the river" the UI renders).
-                if !incoming_gossip.is_empty() {
-                    let lines: Vec<String> = incoming_gossip
-                        .iter()
-                        .filter_map(|e| e.compose().map(|(_voice, line)| line))
-                        .collect();
-                    let mut guard = remote.write();
-                    let rm = guard.get_or_insert_with(RemoteMarket::default);
-                    rm.connected = true;
-                    for line in lines {
-                        if rm.gossip_log.len() >= GOSSIP_LOG_CAP {
-                            rm.gossip_log.pop_front();
-                        }
-                        rm.gossip_log.push_back(line);
-                    }
-                }
 
                 let (afloat, town) = {
                     let g = game.read();
