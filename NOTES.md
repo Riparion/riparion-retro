@@ -288,4 +288,38 @@ per-slug manifest (`name`, `start_url`/`scope` = `/apps/<slug>/run/`, shared
 `theme_color`/`background_color`) and the `<head>` links (`manifest`,
 `apple-touch-icon`, `theme-color`); this repo only provides the art.
 
+## Server-backed games (companion native servers)
+
+riparion-cms hosts games as **static wasm bundles only** — it has no path for a
+long-running backend. A game that needs one (so far just **kaintuck**, whose
+shared-market multiplayer runs against `crates/kaintuck-server`) ships that server
+as its **own standalone Docker stack**, deployed beside the CMS and fronted by NPM
+at a dedicated subdomain. The bundle stays static; it connects opt-in.
+
+The wasm client finds its server from a `<meta name="riparion-ws-base">` tag in
+`index.html` (read at `games/kaintuck/src/net_client.rs`). No tag ⇒ offline
+single-player. Locally, `just server` + `just play` wire this up (`just play`
+`sed`-injects the tag); nothing about local dev changes.
+
+To deploy a server-backed game, four pieces (kaintuck is the template):
+
+1. **`Dockerfile.<game>-server`** — native multi-stage build of the server crate
+   (no wasm/dx/Tailwind). See `Dockerfile.kaintuck-server`.
+2. **`docker-compose.<game>-server.yml`** — one service, **no host ports**, joins
+   the external `npm-network`, in-memory so no volumes. See
+   `docker-compose.kaintuck-server.yml`.
+3. **Deploy recipes** in `server.just` (imported by the justfile):
+   `just deploy-server` (QA `edge.bekkey.com`) / `just inprod-server`
+   (prod `vpn.bekkey.com`) — build → `docker save` → rsync → `docker load` + up.
+4. **Wire the deployed bundle** to the server via the CMS's **per-target build
+   script** (stored in the CMS DB, edited with the `riparion-apps` MCP
+   `set_build_script` tool): take the default `dx` template and append a `sed` that
+   injects the `<meta name="riparion-ws-base" content="wss://<game>-ws.<host>/ws">`
+   tag into `$BUNDLE_DIR/index.html` — QA URL for `target:"qa"`, prod URL for
+   `target:"prod"`. The injection then survives every rebuild; ship via the normal
+   `build_app` → `publish_app` → `push_to_prod` flow.
+
+Out-of-repo, one-time per game: a DNS record for `<game>-ws.<host>` and an NPM
+proxy host routing it to the container's port (WebSocket support + TLS on).
+
 

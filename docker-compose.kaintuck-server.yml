@@ -1,0 +1,38 @@
+# Standalone stack for kaintuck's shared-market game server.
+#
+# Deployed on its own to the CMS hosts (see server.just): QA edge.bekkey.com,
+# prod vpn.bekkey.com. It joins the pre-existing external `npm-network` (shared
+# with the CMS + Nginx Proxy Manager) and exposes NO host port — NPM fronts it
+# with TLS at a dedicated subdomain (kaintuck-ws.<host>) routing to port 4317.
+#
+# State is in-memory (bots + market reset on restart by design), so there are no
+# volumes. Tune the sim via a host-local .env (BOTS / PORT / TICK_MS).
+
+services:
+  kaintuck-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.kaintuck-server
+    image: kaintuck-server:latest
+    restart: unless-stopped
+    environment:
+      BOTS: ${BOTS:-16}
+      PORT: ${PORT:-4317}
+      TICK_MS: ${TICK_MS:-300}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:4317/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - proxynet
+
+networks:
+  # The pre-existing reverse-proxy network NPM lives on (shared with the CMS).
+  # Its name differs per host — prod uses `npm-network`, QA uses `proxy` — so it's
+  # set via PROXY_NETWORK at `up` time (the deploy recipes pass the right value).
+  # NPM resolves this service by its name (`kaintuck-server`) over this network.
+  proxynet:
+    external: true
+    name: ${PROXY_NETWORK:-npm-network}
