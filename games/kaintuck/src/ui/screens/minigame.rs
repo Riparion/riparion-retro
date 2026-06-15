@@ -52,6 +52,9 @@ pub fn Minigame() -> Element {
     // road — RESEARCH_PIRATES §7) buys you time to reach your stash before
     // Mason's men do.
     let in_company = g.state.grouped || g.state.river_convoy;
+    // A horse in the stable rides the Trace's route-memory games as a mount; on
+    // foot the scenario's own glyph (a boot) stands in. Read before the guard drops.
+    let has_horse = g.state.has_horse;
     // Self-repair's sequence length scales with the hull damage (the engine owns
     // the rule); every other sequence uses the scenario's own length.
     let seq_len_override = g.self_repair_seq_len();
@@ -114,21 +117,30 @@ pub fn Minigame() -> Element {
             exit_icon,
             reveal_ms,
             navigate_ms,
-        } => rsx! {
-            CrowdThreading {
-                prompt: prompt.clone(),
-                crowd_size: *crowd_size,
-                member_icon: member_icon.clone(),
-                player_icon: player_icon.clone(),
-                exit_icon: exit_icon.clone(),
-                reveal_ms: *reveal_ms,
-                navigate_ms: *navigate_ms,
-                seed,
-                on_complete: move |res: CrowdThreadingResult| {
-                    game.write().resolve_crowd(res.cleared, res.accuracy);
-                },
+        } => {
+            // Mounted, you ride the route; afoot, you tramp it. The scenario sets
+            // the on-foot glyph; a horse in the stable swaps in a mount.
+            let player_glyph = if has_horse {
+                "🐎".to_string()
+            } else {
+                player_icon.clone()
+            };
+            rsx! {
+                CrowdThreading {
+                    prompt: prompt.clone(),
+                    crowd_size: *crowd_size,
+                    member_icon: member_icon.clone(),
+                    player_icon: player_glyph,
+                    exit_icon: exit_icon.clone(),
+                    reveal_ms: *reveal_ms,
+                    navigate_ms: *navigate_ms,
+                    seed,
+                    on_complete: move |res: CrowdThreadingResult| {
+                        game.write().resolve_crowd(res.cleared, res.accuracy);
+                    },
+                }
             }
-        },
+        }
         MiniParams::Sequence {
             prompt,
             symbols,

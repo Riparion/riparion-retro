@@ -83,6 +83,12 @@ pub struct SetPieceOption<G> {
     /// Render with the primary/commit styling.
     #[serde(default)]
     pub primary: bool,
+    /// Optional submenu the option belongs to. Grouped options are pulled out of
+    /// the main menu and shown only under their own entry (e.g. the card tables
+    /// `group: "saloon"` live behind Natchez's "Visit Under-the-Hill Saloon"),
+    /// so the host can render a nested menu without a bespoke schema.
+    #[serde(default)]
+    pub group: Option<String>,
     /// The tag the host maps to an engine op or a screen action.
     pub action: String,
 }

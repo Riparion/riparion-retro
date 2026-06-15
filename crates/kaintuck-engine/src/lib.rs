@@ -157,6 +157,25 @@ impl Game {
         self.mode = Mode::Pittsburgh;
     }
 
+    /// Dev shortcut: warp a fresh trader straight to the Natchez waterfront with
+    /// `cash` in pocket, a sound flatboat to break up, and a small crew — so the
+    /// Natchez set-piece and the Trace beyond it can be exercised without playing
+    /// the whole river run. Not reachable in normal play; wired only behind the
+    /// `?dev_start=natchez` URL flag in the web shell.
+    pub fn dev_begin_at_natchez(&mut self, trader: String, cash: f64) {
+        self.begin_with(trader, ledger::Carryover::fresh());
+        self.state.cash = cash;
+        self.state.boat = Some(Boat::new(state::BoatKind::Flatboat));
+        self.state.crew = 3;
+        self.state.crew_at_natchez = 3;
+        self.state.morale = 100.0;
+        self.state.town = state::NATCHEZ;
+        // Re-roll prices for the Natchez market (begin_with rolled Pittsburgh's).
+        prices::generate_prices(&mut self.state, &mut self.rng);
+        self.resume = Resume::Natchez;
+        self.mode = Mode::Natchez;
+    }
+
     // ----- Pittsburgh: build & outfit -----
 
     /// Commission a boat and hire a crew, paying with cash (and boatyard credit
@@ -648,11 +667,12 @@ impl Game {
             "set-out" => self.set_out_on_trace(),
             "rest" => self.rest_and_resupply(cost),
             "leave" => self.leave_stand(),
-            // `sell-cargo` (→ Trade screen), the card tables `play-faro` /
-            // `play-vingt-un` (→ buy-in entry), and `moneylender` (→ Moneylender
-            // screen) are screen navigation, dispatched by the UI — an explicit
-            // no-op here. (`gamble` is the bots' whim, never a menu action now.)
-            "sell-cargo" | "play-faro" | "play-vingt-un" | "moneylender" => {}
+            // `sell-cargo` (→ Trade screen), the `saloon` submenu and its card
+            // tables `play-faro` / `play-vingt-un` (→ buy-in entry), and
+            // `moneylender` (→ Moneylender screen) are screen navigation,
+            // dispatched by the UI — an explicit no-op here. (`gamble` is the
+            // bots' whim, never a menu action now.)
+            "sell-cargo" | "saloon" | "play-faro" | "play-vingt-un" | "moneylender" => {}
             // Anything else is a scenario/code mismatch; fail loudly like the
             // sibling dispatchers (begin_minigame_for, run_special).
             other => panic!("unknown set-piece action {other}"),

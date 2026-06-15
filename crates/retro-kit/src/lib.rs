@@ -43,3 +43,17 @@ pub fn meta_content(name: &str) -> Option<String> {
     let trimmed = content.trim();
     (!trimmed.is_empty()).then(|| trimmed.to_string())
 }
+
+/// Read a `?name=value` query parameter from the current URL. `None` outside a
+/// browser or when the param is absent. Unlike [`meta_content`] (server-injected
+/// config) this is a developer-typed switch: use it for opt-in dev shortcuts
+/// that must never be baked into the bundle — e.g. `?dev_start=natchez`. Values
+/// are returned raw (not percent-decoded), which is fine for simple flag words.
+pub fn query_param(name: &str) -> Option<String> {
+    let search = web_sys::window()?.location().search().ok()?;
+    let query = search.strip_prefix('?').unwrap_or(&search);
+    query.split('&').find_map(|pair| {
+        let (k, v) = pair.split_once('=')?;
+        (k == name).then(|| v.to_string())
+    })
+}

@@ -237,6 +237,12 @@ pub struct GameState {
     #[serde(default)]
     pub extra_days: u32,
     pub has_horse: bool,
+    /// One-time offer flag: set when you set out on the Trace without a horse and
+    /// with the price in pocket, so the hub asks once whether to buy a mount for
+    /// the walk. Cleared the moment it's answered. `serde(default)` keeps older
+    /// saves loading. See [`Game::answer_trace_horse`](crate::Game::answer_trace_horse).
+    #[serde(default)]
+    pub horse_offer: bool,
     pub pace: Pace,
     pub grouped: bool,
     /// River-side analogue of `grouped`: the boat runs the lower river in a
@@ -332,6 +338,7 @@ impl GameState {
             health: 100.0,
             extra_days: 0,
             has_horse: false,
+            horse_offer: false,
             pace: Pace::Steady,
             grouped: false,
             river_convoy: false,

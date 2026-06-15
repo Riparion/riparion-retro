@@ -1,7 +1,7 @@
 //! Natchez Under-the-Hill: sell the cargo, break the boat up for lumber, sit in
 //! at a card table (faro or vingt-et-un), buy a horse, and set out up the Trace.
-//! The options come from the scenario; the table buy-in entry is the one bit of
-//! screen state.
+//! The options come from the scenario; the two open-sheet flags (the main menu
+//! and the saloon submenu) are the only screen state.
 
 use dioxus::prelude::*;
 
@@ -9,24 +9,15 @@ use crate::engine::scenario_data::scenario;
 use crate::engine::state::{fmt_money, Mode};
 use crate::engine::Game;
 use crate::ui::components::set_piece_menu::{SetPieceMenu, Show};
-use retro_kit::components::number_entry::NumberEntry;
 use retro_kit::components::sheet::Sheet;
 use retro_kit::components::stat_row::StatRow;
 use retro_kit::theme::{ACTION_BAR, BTN, PANEL};
 
-/// Which card table the player is buying in to — drives the stake-entry prompt
-/// and which engine launcher the buy-in calls.
-#[derive(Clone, Copy, PartialEq)]
-enum Table {
-    Faro,
-    VingtUn,
-}
-
 #[component]
 pub fn Natchez() -> Element {
     let mut game = use_context::<Signal<Game>>();
-    let mut buy_in = use_signal(|| None::<Table>);
     let mut sheet_open = use_signal(|| false);
+    let mut saloon_open = use_signal(|| false);
 
     let g = game.read();
     let s = &g.state;
@@ -39,44 +30,24 @@ pub fn Natchez() -> Element {
     let boat_lumber = s.boat.map(|b| b.salvage_value()).unwrap_or(0.0);
     drop(g);
 
-    if let Some(table) = buy_in() {
-        let (place, blurb) = match table {
-            Table::Faro => (
-                "faro bank",
-                "Bet the cards as the banker turns them — you rise with whatever chips you've still got.",
-            ),
-            Table::VingtUn => (
-                "vingt-et-un table",
-                "Beat the dealer to twenty-one — you rise with whatever chips you've still got.",
-            ),
-        };
-        return rsx! {
-            div { class: "flex-1 flex flex-col justify-center",
-                NumberEntry {
-                    prompt: format!("Buy in at the {place}. {blurb}"),
-                    max: cash as i64,
-                    confirm: "Buy in".to_string(),
-                    on_submit: move |amt: i64| {
-                        buy_in.set(None);
-                        match table {
-                            Table::Faro => game.write().play_faro(amt as f64),
-                            Table::VingtUn => game.write().play_vingt_un(amt as f64),
-                        }
-                    },
-                    on_cancel: move |_| buy_in.set(None),
-                }
-            }
-        };
-    }
-
-    // One dispatcher shared by both menu renders (the visible primary "set out"
-    // and the secondary actions tucked in the sheet); it closes the sheet first.
+    // One dispatcher shared by every menu render (the visible primary "set out",
+    // the secondary actions in the main sheet, and the saloon's card tables).
+    // "saloon" swaps the main sheet for the saloon submenu; everything else
+    // closes both sheets first. Sitting at a table carries the whole purse to it
+    // as chips (the engine clamps to cash and escrows it); you control your risk
+    // per hand and rise with whatever chips you leave with.
     let dispatch = move |(action, cost): (String, f64)| {
+        if action == "saloon" {
+            sheet_open.set(false);
+            saloon_open.set(true);
+            return;
+        }
         sheet_open.set(false);
+        saloon_open.set(false);
         match action.as_str() {
             "sell-cargo" => game.write().mode = Mode::Trade { can_buy: false, can_sell: true },
-            "play-faro" => buy_in.set(Some(Table::Faro)),
-            "play-vingt-un" => buy_in.set(Some(Table::VingtUn)),
+            "play-faro" => game.write().play_faro(cash),
+            "play-vingt-un" => game.write().play_vingt_un(cash),
             "moneylender" => game.write().mode = Mode::Moneylender,
             _ => game.write().run_set_piece(&action, cost),
         }
@@ -110,6 +81,14 @@ pub fn Natchez() -> Element {
                 title: "── UNDER-THE-HILL ──".to_string(),
                 div { class: "flex flex-col gap-2",
                     SetPieceMenu { options, onselect: dispatch, show: Show::Secondary }
+                }
+            }
+            Sheet {
+                open: saloon_open(),
+                on_close: move |_| saloon_open.set(false),
+                title: "── THE SALOON ──".to_string(),
+                div { class: "flex flex-col gap-2",
+                    SetPieceMenu { options, onselect: dispatch, show: Show::Group("saloon") }
                 }
             }
         }

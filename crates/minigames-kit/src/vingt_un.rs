@@ -27,7 +27,7 @@ use dioxus::prelude::*;
 
 use retro_kit::format::fmt_dollars_compact;
 use retro_kit::rng::GameRng;
-use retro_kit::theme::{BTN, BTN_PRIMARY};
+use retro_kit::theme::{BTN, BTN_PRIMARY, BTN_WIDE};
 
 use crate::cards::{session_over, shuffle, FlipCard, DECK, RANKS, RANK_LABELS};
 
@@ -421,6 +421,19 @@ pub fn VingtUn(
                         }
                     },
                     if bet() > 0 { "Deal — {fmt_dollars_compact(bet() as f64)} at stake" } else { "Lay a stake to deal" }
+                }
+                // Walk away between rounds with the chips you've still got — the
+                // host folds them back into the purse just as a cash-out would.
+                button {
+                    class: "{BTN_WIDE}",
+                    onclick: move |_| {
+                        on_complete.call(VingtUnResult {
+                            won: stake() > 0 && stake() >= target_stake,
+                            final_stake: stake().max(0),
+                            rounds_played: round_idx(),
+                        });
+                    },
+                    "Leave the table — keep your chips"
                 }
             }
         }

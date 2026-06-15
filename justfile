@@ -28,6 +28,13 @@ dev game:
 build game:
     dx build --release --package {{game}} --debug-symbols=false --keep-names
 
+# Serve kaintuck for dev and open it warped to Natchez with $200 in pocket
+# (the `?dev_start=natchez` flag the web shell reads). dx serve won't apply the
+# query param itself, so open the printed URL in your browser.
+kaintuck-natchez:
+    @echo "▸ open http://localhost:8080/?dev_start=natchez"
+    dx serve --debug-symbols=false --package kaintuck
+
 # Per-game release shortcuts
 oregon-trail:
     dx serve --release --debug-symbols=false --package oregon-trail

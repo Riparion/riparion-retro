@@ -334,8 +334,9 @@ Scenario(
         natchez: (options: [
             (label: "Sell cargo",                   hint: "Top prices on the river — sell it all.", gate: [HasCargo], action: "sell-cargo"),
             (label: "Sell the boat for lumber",     hint: "She can't go back upstream. The wood is worth real money.", gate: [HasBoat], action: "sell-boat"),
-            (label: "Sit in on the faro bank",       hint: "The banker's game, and the busiest table Under-the-Hill. Buy in with what you dare.", action: "play-faro"),
-            (label: "Take a hand of vingt-et-un",    hint: "Twenty-one against the dealer, come up the river from New Orleans. Buy in with what you dare.", action: "play-vingt-un"),
+            (label: "Visit Under-the-Hill Saloon ▸", hint: "Faro and vingt-et-un by lamplight — the busiest tables on the river. Your purse rides as chips; leave the table whenever you like.", action: "saloon"),
+            (label: "Sit in on the faro bank",       hint: "The banker's game, and the busiest table Under-the-Hill. Sit straight down — your purse rides as chips, and you leave with what you've still got.", action: "play-faro", group: Some("saloon")),
+            (label: "Take a hand of vingt-et-un",    hint: "Twenty-one against the dealer, come up the river from New Orleans. Sit straight down — your purse rides as chips, and you leave with what you've still got.", action: "play-vingt-un", group: Some("saloon")),
             (label: "See the moneylender",          hint: "Settle your debt before the cash-out — or borrow against the boat.", action: "moneylender"),
             (label: "Buy a horse — {cost}",         hint: "Faster on the Trace, and the difference at the Duck River.", cost: 12.0, gate: [NoHorse], affordable_only: true, action: "buy-horse"),
             (label: "Set out on the Trace ▸",       hint: "The long walk home begins.", primary: true, action: "set-out"),
@@ -624,8 +625,8 @@ Scenario(
         (id: "trace-hunt", params: Hunter(prompt: "Provisions run low. Game in the canebrake — bag it for the pot before it bolts.",               hunter_icon: "🤠", hunted_icon: "🦌", cols: 7, rows: 5, ammo: 5, step_ms: 330, reload_ms: 800)),
         // Crowd — route-memory: fix the way in mind, then thread it. The Trace
         // forking into side trails, and the firm line across a swamp's soupy mud.
-        (id: "side-trail", params: Crowd(prompt: "The Trace forks into a dozen side trails. Fix the way north in your mind.", crowd_size: 11, member_icon: "🌲", player_icon: "@", exit_icon: ">", reveal_ms: 2800, navigate_ms: 11000)),
-        (id: "swamp",      params: Crowd(prompt: "A 'hell hole' of soupy mud — fix the firm line in your mind, then pick your way across before the mire takes you.", crowd_size: 12, member_icon: "🟫", player_icon: "@", exit_icon: ">", reveal_ms: 3000, navigate_ms: 10000)),
+        (id: "side-trail", params: Crowd(prompt: "The Trace forks into a dozen side trails. Fix the way north in your mind.", crowd_size: 11, member_icon: "🌲", player_icon: "🥾", exit_icon: "🚩", reveal_ms: 2800, navigate_ms: 11000)),
+        (id: "swamp",      params: Crowd(prompt: "A 'hell hole' of soupy mud — fix the firm line in your mind, then pick your way across before the mire takes you.", crowd_size: 12, member_icon: "🟤", player_icon: "🥾", exit_icon: "🚩", reveal_ms: 3000, navigate_ms: 10000)),
         (id: "dose",       params: Timing(prompt: "Swamp fever. Measure out the dose — too much or too little does no good.", action: "POUR",    tolerance: 0.12, period_ms: 1500)),
         // Cards — the player buys a night at a Natchez table; the buy-in is the
         // escrowed stake (chips), and `target_mult` sets the mark to "win" the

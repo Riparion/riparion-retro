@@ -44,6 +44,18 @@ fn use_persistence(game: Signal<Game>) {
     });
 }
 
+/// Honor the `?dev_start=…` query flag exactly once per load: warp the game to a
+/// known mid-journey state and drop straight in (past the splash). A developer
+/// switch only — absent in normal play, so this is a no-op for real players.
+fn use_dev_start(mut game: Signal<Game>, mut on_splash: Signal<bool>) {
+    use_hook(move || {
+        if retro_kit::query_param("dev_start").as_deref() == Some("natchez") {
+            game.write().dev_begin_at_natchez("Dev".to_string(), 200.0);
+            on_splash.set(false);
+        }
+    });
+}
+
 /// A journey has ended: clear the save and, if the outcome has not yet been
 /// recorded, post its score to the hall of fame and mark it recorded.
 fn finish_journey(mut game: Signal<Game>) {
@@ -112,6 +124,11 @@ fn GameRoot() -> Element {
 
     // Persist every transition; finished journeys clear the save and post a score.
     use_persistence(game);
+
+    // Dev shortcut: `?dev_start=natchez` drops you straight onto the Natchez
+    // waterfront with $200 in pocket and a boat to break up, skipping the river
+    // run. Runs once on load; no-op in normal play (no such query param).
+    use_dev_start(game, on_splash);
 
     let mode = game.read().mode.clone();
     let show_splash = on_splash();

@@ -29,8 +29,14 @@ struct Btn {
 pub enum Show {
     #[default]
     All,
+    /// The single primary/commit action (the action bar).
     Primary,
+    /// Non-primary, ungrouped actions (the main sheet) — grouped options are held
+    /// back for their own submenu render.
     Secondary,
+    /// Only the options belonging to the named submenu group (e.g. the saloon's
+    /// card tables).
+    Group(&'static str),
 }
 
 #[component]
@@ -50,7 +56,8 @@ pub fn SetPieceMenu(
         .filter(|o| match show {
             Show::All => true,
             Show::Primary => o.primary,
-            Show::Secondary => !o.primary,
+            Show::Secondary => !o.primary && o.group.is_none(),
+            Show::Group(name) => o.group.as_deref() == Some(name),
         })
         .filter(|o| gate_ok(&g, &o.gate))
         .map(|o| {
