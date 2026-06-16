@@ -2,8 +2,7 @@
 
 use dioxus::prelude::*;
 
-use crate::engine::scenario_data::scenario;
-use crate::engine::state::{fmt_money, Mode, GOOD_NAMES};
+use crate::engine::state::{fmt_money, GOOD_NAMES};
 use crate::engine::Game;
 use retro_kit::components::seg_button::SegButton;
 use retro_kit::components::sheet::Sheet;
@@ -15,15 +14,10 @@ pub fn Town() -> Element {
     let mut sheet_open = use_signal(|| false);
     let g = game.read();
     let s = &g.state;
-    let town = s.town;
-    let has_moneylender = scenario().river.towns[town].moneylender;
     let convoy = s.river_convoy;
-    // Hull repair: a self-patch is offered at any landing once she's hurt; a
-    // boatwright (Louisville, Memphis) will mend her whole for a fee.
-    let damaged = s.boat_damage() > 0.0;
-    let hull = s.hull_label();
-    let has_boatyard = g.is_boatyard();
-    let repair_cost = fmt_money(g.repair_cost());
+    // Trade, the moneylender, and hull repairs are reached by tapping the CARGO,
+    // DEBT, and HULL chips in the status bar; the landing sheet keeps the one
+    // choice that has no chip of its own — how you'll travel.
     // Quote the prices the player actually transacts at: the ask to buy, the bid
     // to sell (spread folded in), not the bare mid in `state.prices`.
     let rows: Vec<(usize, String, String, i64)> = (0..GOOD_NAMES.len())
@@ -90,48 +84,6 @@ pub fn Town() -> Element {
                     }
                     p { class: "text-xs opacity-60",
                         "A convoy draws off river pirates and halves their take — but forming up costs a day on the water."
-                    }
-                    button {
-                        class: "{BTN}",
-                        onclick: move |_| {
-                            sheet_open.set(false);
-                            game.write().mode = Mode::Trade { can_buy: true, can_sell: true };
-                        },
-                        "TRADE ⇄"
-                    }
-                    if has_moneylender {
-                        button {
-                            class: "{BTN}",
-                            onclick: move |_| {
-                                sheet_open.set(false);
-                                game.write().mode = Mode::Moneylender;
-                            },
-                            "MONEYLENDER"
-                        }
-                    }
-                    if damaged {
-                        div { class: "chip-label mt-1", "── HULL: {hull} ──" }
-                        if has_boatyard {
-                            button {
-                                class: "{BTN}",
-                                onclick: move |_| {
-                                    sheet_open.set(false);
-                                    game.write().repair_in_port();
-                                },
-                                "BOATWRIGHT — REPAIR ({repair_cost})"
-                            }
-                        }
-                        button {
-                            class: "{BTN}",
-                            onclick: move |_| {
-                                sheet_open.set(false);
-                                game.write().self_repair();
-                            },
-                            "PATCH HER YOURSELF"
-                        }
-                        p { class: "text-xs opacity-60",
-                            "Mending her yourself costs days and risks a mishap while you lie up — but not a dollar."
-                        }
                     }
                 }
             }
