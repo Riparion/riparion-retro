@@ -23,3 +23,12 @@ pub enum Response {
     Yes,
     No,
 }
+
+/// A market report logged to the notification center rather than popped up:
+/// wharf-factor lines, rumor payoffs, next-leg price tips, and trader gossip.
+/// `read` flips once the player has opened the center.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Notification {
+    pub text: String,
+    pub read: bool,
+}

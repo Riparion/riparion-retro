@@ -1646,7 +1646,7 @@ dependencies = [
 
 [[package]]
 name = "kaintuck"
-version = "0.1.30"
+version = "0.1.31"
 dependencies = [
  "dioxus",
  "futures",
@@ -1662,7 +1662,7 @@ dependencies = [
 
 [[package]]
 name = "kaintuck-engine"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "retro-core",
  "ron",
@@ -2478,7 +2478,7 @@ dependencies = [
 
 [[package]]
 name = "retro-kit"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "dioxus",
  "getrandom 0.2.17",
