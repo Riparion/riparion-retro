@@ -21,8 +21,16 @@ pub fn NotificationButton() -> Element {
     // Only materialize the list while the sheet is open — this component
     // re-renders on every game mutation, so cloning the log each time it's closed
     // is pure waste. Newest first: the most recent dock talk sits at the top.
-    let reports: Vec<String> = if open() {
-        g.state.reports.iter().rev().map(|r| r.text.clone()).collect()
+    // Each report is one or more lines: an assertion, plus any later affirm/disprove
+    // verdict appended onto it (joined with a newline). Split so each reads on its
+    // own line without leaning on a `whitespace-pre-line` utility (not in our CSS).
+    let reports: Vec<Vec<String>> = if open() {
+        g.state
+            .reports
+            .iter()
+            .rev()
+            .map(|r| r.text.lines().map(str::to_string).collect())
+            .collect()
     } else {
         Vec::new()
     };
@@ -60,8 +68,12 @@ pub fn NotificationButton() -> Element {
                 }
             } else {
                 div { class: "flex flex-col gap-2",
-                    for line in reports {
-                        div { class: "{PANEL} p-2 text-sm leading-snug", "{line}" }
+                    for entry in reports {
+                        div { class: "{PANEL} p-2 text-sm leading-snug flex flex-col gap-1",
+                            for line in entry {
+                                div { "{line}" }
+                            }
+                        }
                     }
                 }
             }

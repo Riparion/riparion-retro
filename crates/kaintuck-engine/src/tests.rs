@@ -63,6 +63,35 @@ fn trader_gossip_is_logged_to_the_notification_center() {
     assert_eq!(g.state.reports.len(), 2);
 }
 
+/// A verdict that affirms or disproves an earlier keyed assertion folds onto that
+/// report rather than stacking up as a separate message, and re-flags it unread so
+/// the update surfaces in the badge. With no matching key it logs fresh.
+#[test]
+fn a_verdict_appends_onto_the_assertion_it_resolves() {
+    let mut g = started(1);
+
+    g.report_keyed("rumor:2:1", "The harbormaster swears whiskey is dear at Marietta.");
+    assert_eq!(g.state.reports.len(), 1);
+
+    // Mark it read (as opening the center would), then append the payoff.
+    g.state.reports[0].read = true;
+    g.report_verdict("rumor:2:1", "The rumor proved out — true to the letter.");
+
+    // No new entry: the verdict folded onto the tip, joined by a newline.
+    assert_eq!(g.state.reports.len(), 1, "the verdict should not add an entry");
+    assert!(
+        g.state.reports[0].text.contains("swears whiskey is dear")
+            && g.state.reports[0].text.contains("proved out"),
+        "tip and verdict should read as one report: {}",
+        g.state.reports[0].text
+    );
+    assert!(!g.state.reports[0].read, "an appended verdict re-flags the report unread");
+
+    // A verdict with no matching key (the tip was trimmed away) logs fresh.
+    g.report_verdict("rumor:9:0", "Word of distant Natchez, with no tip to resolve.");
+    assert_eq!(g.state.reports.len(), 2, "an orphan verdict logs as a new report");
+}
+
 /// Resolve any minigame/interaction at the head until we sit at a hub or end.
 fn settle(g: &mut Game) {
     let mut guard = 0;
@@ -1116,8 +1145,15 @@ fn golden_trace_is_stable() {
     // used to produce (verified by diffing print_golden_trace: every changed line is a
     // deleted River|Interaction frame whose numeric state matches its neighbors — no
     // value moves), plus the report strings now folded in under the new `r{..}` line.
+    // Re-pinned for affirm/disprove folding (narrative-routing only, RNG-neutral): a
+    // dockside rumor tip is now logged with a `key`, and the payoff heard at the next
+    // landing is appended onto that report (re-flagging it unread) instead of logged as
+    // a separate message. No RNG draw is added or reordered; the diff is confined to the
+    // `r{..}` line — each tip gains a `key: Some("rumor:..")`, the payoff folds into its
+    // tip's text, and the standalone payoff Notification disappears (verified by diffing
+    // print_golden_trace: every changed line is a report line, no numeric state moves).
     // Behavior must not drift; if this trips, run `print_golden_trace` to diff.
-    const EXPECTED: u64 = 0xe015_1b42_80b6_9cf0;
+    const EXPECTED: u64 = 0x2f1a_fcf9_715f_afe5;
     assert_eq!(
         got, EXPECTED,
         "golden trace drifted: got {:#018x} over {} bytes",

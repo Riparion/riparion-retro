@@ -417,14 +417,48 @@ impl Game {
     /// Does not touch `pending`, so it never triggers an `Interaction` prompt;
     /// the player reads it from the upper-left badge at their leisure.
     pub(crate) fn report(&mut self, text: impl Into<String>) {
+        self.push_report(text.into(), None);
+    }
+
+    /// Log a market report tagged with `key`, so a later report can affirm or
+    /// disprove this assertion by appending onto it (see [`Game::report_verdict`]).
+    pub(crate) fn report_keyed(&mut self, key: impl Into<String>, text: impl Into<String>) {
+        self.push_report(text.into(), Some(key.into()));
+    }
+
+    /// Append a verdict — a line that affirms or disproves an earlier assertion —
+    /// onto the keyed report it resolves, and re-flag that report unread so the
+    /// update surfaces in the badge. The assertion and its verdict then read as a
+    /// single entry rather than two stray messages. If the original was already
+    /// trimmed away by the cap, the verdict is logged fresh under the same key.
+    pub(crate) fn report_verdict(&mut self, key: impl Into<String>, text: impl Into<String>) {
+        let key = key.into();
+        let text = text.into();
+        if let Some(n) = self
+            .state
+            .reports
+            .iter_mut()
+            .find(|r| r.key.as_deref() == Some(key.as_str()))
+        {
+            n.text.push('\n');
+            n.text.push_str(&text);
+            n.read = false;
+            return;
+        }
+        self.push_report(text, Some(key));
+    }
+
+    /// Shared report sink: append the entry, then trim to the cap by dropping the
+    /// oldest *read* report first, so an unopened center never silently loses
+    /// unread market reports (which would also make the badge undercount). Unread
+    /// is only ever dropped when the whole log is unread and still over cap — an
+    /// unavoidable bound.
+    fn push_report(&mut self, text: String, key: Option<String>) {
         self.state.reports.push(Notification {
-            text: text.into(),
+            text,
             read: false,
+            key,
         });
-        // Trim to the cap by dropping the oldest *read* report first, so an
-        // unopened center never silently loses unread market reports (which would
-        // also make the badge undercount). Unread is only ever dropped when the
-        // whole log is unread and still over cap — an unavoidable bound.
         const CAP: usize = 40;
         while self.state.reports.len() > CAP {
             let idx = self
