@@ -102,6 +102,15 @@ body {
     text-shadow: 0 0 4px rgba(255, 184, 77, 0.5);
 }
 
+.chip-clickable {
+    cursor: pointer;
+    border-color: var(--phosphor-dim);
+}
+
+.chip-clickable:active {
+    background: var(--phosphor-faint);
+}
+
 .action-bar {
     position: sticky;
     bottom: 0;
