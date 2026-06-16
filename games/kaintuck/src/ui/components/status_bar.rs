@@ -6,6 +6,7 @@ use dioxus::prelude::*;
 use crate::engine::scenario_data::scenario;
 use crate::engine::state::Phase;
 use crate::engine::Game;
+use crate::ui::components::notifications::NotificationButton;
 use retro_kit::components::chip::Chip;
 use retro_kit::format::{fmt_dollars_compact, fmt_num, group_thousands};
 
@@ -25,7 +26,7 @@ pub fn StatusBar() -> Element {
             rsx! {
                 header { class: "status-bar shrink-0",
                     div { class: "flex justify-between items-baseline px-3 pt-2 pb-1",
-                        span { class: "font-bold tracking-widest truncate", "{s.trader}" }
+                        NotificationButton {}
                         span { class: "opacity-80", "⚓ {s.town_name()}" }
                     }
                     div { class: "px-3 pb-1 text-xs opacity-70",
@@ -49,7 +50,7 @@ pub fn StatusBar() -> Element {
             rsx! {
                 header { class: "status-bar shrink-0",
                     div { class: "flex justify-between items-baseline px-3 pt-2 pb-1",
-                        span { class: "font-bold tracking-widest truncate", "{s.trader}" }
+                        NotificationButton {}
                         span { class: "opacity-80", "Day {s.day}" }
                     }
                     div { class: "flex justify-between items-baseline px-3 pb-1",

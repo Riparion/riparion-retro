@@ -152,6 +152,50 @@ body {
     pointer-events: auto;
 }
 
+/* Top variant: anchors to the top edge and drops down (a notification center). */
+.crt-sheet-top {
+    top: 0;
+    bottom: auto;
+    transform: translateY(-100%);
+    border-top: none;
+    border-bottom: 1px double var(--phosphor-dim);
+    padding-bottom: 0.75rem;
+    padding-top: calc(0.5rem + env(safe-area-inset-top));
+}
+
+.crt-sheet-top.open {
+    transform: translateY(0);
+}
+
+/* Name-as-button for the notification center: looks like the bare name label
+   but taps to open the report sheet, with an unread-count badge. */
+.notif-name-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: transparent;
+    border: none;
+    color: inherit;
+    font: inherit;
+    padding: 0;
+    cursor: pointer;
+    text-shadow: var(--glow);
+    touch-action: manipulation;
+}
+
+.notif-badge {
+    min-width: 1.15rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    background: var(--danger);
+    color: var(--bg);
+    font-size: 0.65rem;
+    font-weight: bold;
+    line-height: 1.15rem;
+    text-align: center;
+    text-shadow: none;
+}
+
 .crt-sheet-grip {
     width: 2.5rem;
     height: 3px;

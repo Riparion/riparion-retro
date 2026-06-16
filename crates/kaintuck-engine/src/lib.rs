@@ -44,7 +44,7 @@ use std::collections::VecDeque;
 
 use serde::{Deserialize, Serialize};
 
-use interaction::{Interaction, Response};
+use interaction::{Interaction, Notification, Response};
 use rng::GameRng;
 use scenario_data::scenario;
 use state::{Boat, EndGame, GameOverCause, GameState, Mode, Pace, Phase, NUM_GOODS};
@@ -54,11 +54,6 @@ pub use river::Voyage;
 pub use trace::Leg;
 
 use trail_kit::{BanterGate, BanterPhase, EffectTarget, HazardArm};
-
-/// When this many shared-world gossip events are waiting, the crew airs one on a
-/// quiet leg even if an authored beat is still eligible — so a busy river drains
-/// the feed instead of overflowing it (`gossip::GossipFeed::CAP` is the ceiling).
-const GOSSIP_PRESSURE: usize = 8;
 
 /// Whether a hazard handler paused for a minigame/decision or ran straight through.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -418,6 +413,30 @@ impl Game {
         });
     }
 
+    /// Log a market report to the notification center instead of popping it up.
+    /// Does not touch `pending`, so it never triggers an `Interaction` prompt;
+    /// the player reads it from the upper-left badge at their leisure.
+    pub(crate) fn report(&mut self, text: impl Into<String>) {
+        self.state.reports.push(Notification {
+            text: text.into(),
+            read: false,
+        });
+        // Trim to the cap by dropping the oldest *read* report first, so an
+        // unopened center never silently loses unread market reports (which would
+        // also make the badge undercount). Unread is only ever dropped when the
+        // whole log is unread and still over cap — an unavoidable bound.
+        const CAP: usize = 40;
+        while self.state.reports.len() > CAP {
+            let idx = self
+                .state
+                .reports
+                .iter()
+                .position(|r| r.read)
+                .unwrap_or(0);
+            self.state.reports.remove(idx);
+        }
+    }
+
     /// Show queued messages, or — if none — resume immediately.
     pub(crate) fn advance(&mut self) {
         if self.pending.is_empty() {
@@ -552,13 +571,11 @@ impl Game {
             ),
             Phase::Trace => (BanterPhase::Trace, self.state.miles),
         };
-        // When shared-world chatter is piling up, air some even on a beat-rich
-        // leg — so gossip cadence tracks how busy the river is, not the inverse of
-        // local authored-beat density (which would let the feed silently overflow
-        // exactly where beats are plentiful). Offline this is always false.
-        if self.gossip_pending() >= GOSSIP_PRESSURE && self.voice_trader_gossip() {
-            return true;
-        }
+        // Shared-world chatter is logged silently to the notification center, so it
+        // no longer competes for the popup beat slot — drain whatever's waiting into
+        // the report log whenever a leg is evaluated. Offline this is a no-op (the
+        // feed is `None`); it never touches the RNG.
+        self.voice_trader_gossip();
         let beat = scenario().banter.iter().find_map(|pool| {
             if pool.phase != phase || pos < pool.from_mile || pos >= pool.to_mile {
                 return None;
@@ -568,10 +585,9 @@ impl Game {
             })
         });
         let Some(beat) = beat else {
-            // No authored beat left for this region — let the crew trade gossip
-            // about other traders instead (occasional seasoning: it fills the gaps
-            // the hand-authored beats leave).
-            return self.voice_trader_gossip();
+            // No authored beat left for this region — nothing pops up (gossip, if
+            // any, was already logged above).
+            return false;
         };
         for line in &beat.lines {
             self.message(format!("{} {}", line.voice, line.text));
@@ -580,9 +596,10 @@ impl Game {
         true
     }
 
-    /// Voice one piece of trader gossip from the shared-world feed, if any is
-    /// waiting. Composes the line from the scenario's gossip flavor; a no-op
-    /// (returns `false`) offline, where `gossip` is `None`. Never touches the RNG.
+    /// Drain the shared-world feed into the notification center: each waiting event
+    /// is composed from the scenario's gossip flavor and logged as a market report
+    /// (it never pops up). A no-op offline, where `gossip` is `None`. Never touches
+    /// the RNG.
     ///
     /// Skips (drops) any event whose kind has no phrasing rather than stopping at
     /// it — so a non-composable head-of-line event can't block the rest of the feed.
@@ -592,24 +609,17 @@ impl Game {
     /// to a crew walking overland. The feed keeps filling (it's `CAP`-bounded), it
     /// just isn't voiced on foot — and the Trace is the last phase, so it's never
     /// drained later either.
-    fn voice_trader_gossip(&mut self) -> bool {
+    fn voice_trader_gossip(&mut self) {
         if self.phase != Phase::River {
-            return false;
+            return;
         }
         while let Some(event) = self.gossip.as_mut().and_then(|f| f.take_oldest()) {
             if let Some((voice, line)) = event.compose() {
-                self.message(format!("{voice} {line}"));
-                return true;
+                self.report(format!("{voice} {line}"));
             }
-            // Non-composable (a kind with no authored phrasing): drop and try the
-            // next rather than leaving it to stall the feed.
+            // Non-composable (a kind with no authored phrasing): drop and continue
+            // rather than leaving it to stall the feed.
         }
-        false
-    }
-
-    /// Pending shared-world gossip count (0 offline).
-    fn gossip_pending(&self) -> usize {
-        self.gossip.as_ref().map_or(0, |f| f.len())
     }
 
     /// Whether every gate on a banter beat passes against current state.

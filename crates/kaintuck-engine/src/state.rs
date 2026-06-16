@@ -285,6 +285,12 @@ pub struct GameState {
     /// (held / wind) on arrival there. `serde(default)` for old saves.
     #[serde(default)]
     pub pending_rumor: Option<crate::rumor::Rumor>,
+    // --- notification center ---
+    /// Per-run log of market reports (wharf-factor lines, rumor payoffs, next-leg
+    /// price tips, trader gossip). Shown in the notification center instead of
+    /// popping up. `serde(default)` keeps older saves loading (empty log).
+    #[serde(default)]
+    pub reports: Vec<crate::interaction::Notification>,
 }
 
 /// The flatboat. The `kind` fixes the derived numbers (capacity/draft/lumber),
@@ -351,6 +357,7 @@ impl GameState {
             heard_banter: std::collections::HashSet::new(),
             committed_prices: None,
             pending_rumor: None,
+            reports: Vec::new(),
         }
     }
 

@@ -12,16 +12,17 @@ fn started(seed: u64) -> Game {
 }
 
 #[test]
-fn trader_gossip_is_voiced_as_a_named_banter_message() {
+fn trader_gossip_is_logged_to_the_notification_center() {
     use gossip::{GossipEvent, GossipFeed, GossipKind};
     use policy::Persona;
 
     let mut g = started(1);
-    // Offline: no feed → nothing to voice, pending stays empty.
-    assert!(!g.voice_trader_gossip());
+    // Offline: no feed → nothing logged, and gossip never pops up.
+    g.voice_trader_gossip();
+    assert!(g.state.reports.is_empty());
     assert!(g.pending.is_empty());
 
-    // Attach a feed (as the multiplayer client would) and voice it.
+    // Attach a feed (as the multiplayer client would) and drain it.
     let mut feed = GossipFeed::default();
     feed.push(GossipEvent {
         trader: "Lemuel Boggs".into(),
@@ -30,18 +31,22 @@ fn trader_gossip_is_voiced_as_a_named_banter_message() {
     });
     g.gossip = Some(feed);
 
-    assert!(g.voice_trader_gossip(), "a queued gossip event should be voiced");
-    match g.pending.front() {
-        Some(Interaction::Message { text, .. }) => {
-            assert!(text.contains("Lemuel Boggs"), "banter didn't name the trader: {text}");
-        }
-        other => panic!("expected a gossip Message, got {other:?}"),
-    }
-    // The feed is drained — one event, one line.
-    assert!(!g.voice_trader_gossip());
+    g.voice_trader_gossip();
+    // Gossip is logged as a report, never queued as a popup.
+    assert!(g.pending.is_empty(), "gossip should not pop up");
+    assert_eq!(g.state.reports.len(), 1, "the event should be logged once");
+    assert!(
+        g.state.reports[0].text.contains("Lemuel Boggs"),
+        "report didn't name the trader: {}",
+        g.state.reports[0].text
+    );
+    assert!(!g.state.reports[0].read, "a fresh report starts unread");
+    // The feed is drained — voicing again logs nothing more.
+    g.voice_trader_gossip();
+    assert_eq!(g.state.reports.len(), 1);
 
     // On the Trace the shared *river* feed falls silent: a queued event is not
-    // voiced (and not drained) once the player has stepped off the water.
+    // logged (and not drained) once the player has stepped off the water.
     let mut feed = GossipFeed::default();
     feed.push(GossipEvent {
         trader: "Silas Crews".into(),
@@ -50,12 +55,12 @@ fn trader_gossip_is_voiced_as_a_named_banter_message() {
     });
     g.gossip = Some(feed);
     g.phase = Phase::Trace;
-    let queued_before = g.pending.len();
-    assert!(!g.voice_trader_gossip(), "river gossip should stay silent on the Trace");
-    assert_eq!(g.pending.len(), queued_before, "no gossip message should be queued on the Trace");
-    // Returning to the river would voice it again (feed was never drained).
+    g.voice_trader_gossip();
+    assert_eq!(g.state.reports.len(), 1, "no gossip should be logged on the Trace");
+    // Returning to the river would log it (feed was never drained).
     g.phase = Phase::River;
-    assert!(g.voice_trader_gossip());
+    g.voice_trader_gossip();
+    assert_eq!(g.state.reports.len(), 2);
 }
 
 /// Resolve any minigame/interaction at the head until we sit at a hub or end.
@@ -857,6 +862,10 @@ fn snap(g: &Game, log: &mut String) {
     // of the data-driven port — into the hash, closing the gap where the numeric
     // snapshot alone couldn't catch a dropped cover key or a reworded message.
     let _ = write!(log, "  q{:?}\n", g.pending);
+    // The notification center log: market reports (wharf-factor lines, rumor
+    // payoffs, next-leg tips) now land here instead of `pending`, so fold them in
+    // too — same closing-the-gap rationale as the queue snapshot above.
+    let _ = write!(log, "  r{:?}\n", g.state.reports);
 }
 
 /// Resolve whatever sits at the head with a varied-but-deterministic answer,
@@ -1098,8 +1107,17 @@ fn golden_trace_is_stable() {
     // Trace roll lands in moves, so the diff is confined to `Trace|` lines
     // (verified by diffing print_golden_trace — the River phase is byte-identical)
     // and the fixture still ends in the same Victory (Boatman, crew 3, 40 days).
+    // Re-pinned for the notification center (narrative-routing only, RNG-neutral):
+    // market reports — the dock "wharf factor" reality line, the rumor payoff
+    // (held/wind), the next-leg price tip, and (multiplayer-only) trader gossip — now
+    // log to `state.reports` via `report()` instead of queueing as `pending` popups.
+    // The RNG stream is untouched (no draw added or reordered); the diff is confined
+    // to the snapshot losing the extra `Mode::Interaction` pause-frames those reports
+    // used to produce (verified by diffing print_golden_trace: every changed line is a
+    // deleted River|Interaction frame whose numeric state matches its neighbors — no
+    // value moves), plus the report strings now folded in under the new `r{..}` line.
     // Behavior must not drift; if this trips, run `print_golden_trace` to diff.
-    const EXPECTED: u64 = 0xb6aa_21bb_7fab_24c2;
+    const EXPECTED: u64 = 0xe015_1b42_80b6_9cf0;
     assert_eq!(
         got, EXPECTED,
         "golden trace drifted: got {:#018x} over {} bytes",

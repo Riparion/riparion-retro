@@ -260,7 +260,7 @@ impl Game {
             return;
         }
         if let Some(line) = market_reality_line(town, &self.state.hold) {
-            self.message(line);
+            self.report(line);
             self.state.heard_banter.insert(key);
         }
     }
@@ -278,7 +278,7 @@ impl Game {
             if rumor.town == to {
                 let held = rumor.held(&self.state.prices);
                 if let Some(line) = rumor.resolve_line(held) {
-                    self.message(line);
+                    self.report(line);
                 }
             }
         }
@@ -293,7 +293,7 @@ impl Game {
             if let Some(rumor) = rumor {
                 // Only let a tip count if the crew actually voiced it.
                 if let Some((voice, line)) = rumor.compose() {
-                    self.message(format!("{voice} {line}"));
+                    self.report(format!("{voice} {line}"));
                     self.state.pending_rumor = Some(rumor);
                 }
             }
