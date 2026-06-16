@@ -27,8 +27,15 @@ pub enum Response {
 /// A market report logged to the notification center rather than popped up:
 /// wharf-factor lines, rumor payoffs, next-leg price tips, and trader gossip.
 /// `read` flips once the player has opened the center.
+///
+/// `key` tags a report that a *later* report may affirm or disprove (a dockside
+/// rumor tip, keyed by the landing it points at): when the payoff lands, it's
+/// appended onto the keyed tip rather than logged as a separate message, so the
+/// assertion and its verdict read as one entry. `None` for one-off reports.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Notification {
     pub text: String,
     pub read: bool,
+    #[serde(default)]
+    pub key: Option<String>,
 }

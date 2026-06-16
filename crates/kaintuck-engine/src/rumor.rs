@@ -121,6 +121,13 @@ impl Rumor {
         self.claimed_band == band_of(prices[self.good], self.town, self.good)
     }
 
+    /// A stable notification key for this tip, so the payoff heard at the next
+    /// landing can be appended onto the tip's report rather than logged anew. The
+    /// river is one-directional, so a (town, good) pair names a single tip per run.
+    pub fn report_key(&self) -> String {
+        format!("rumor:{}:{}", self.town, self.good)
+    }
+
     /// Compose the tip as `(voice, line)` from the scenario flavor, filling
     /// `{good}`/`{town}`; the voice names the teller. `None` if the source or the
     /// claimed band carries no phrasing. RNG-free.

@@ -278,7 +278,9 @@ impl Game {
             if rumor.town == to {
                 let held = rumor.held(&self.state.prices);
                 if let Some(line) = rumor.resolve_line(held) {
-                    self.report(line);
+                    // Affirm or disprove the tip by appending the verdict onto the
+                    // original report rather than logging a stray new message.
+                    self.report_verdict(rumor.report_key(), line);
                 }
             }
         }
@@ -291,9 +293,10 @@ impl Game {
             // at the landing it was rolled for (see `prices::generate_prices`).
             self.state.committed_prices = Some((next, committed));
             if let Some(rumor) = rumor {
-                // Only let a tip count if the crew actually voiced it.
+                // Only let a tip count if the crew actually voiced it. Key the
+                // report so the payoff heard at the next landing appends onto it.
                 if let Some((voice, line)) = rumor.compose() {
-                    self.report(format!("{voice} {line}"));
+                    self.report_keyed(rumor.report_key(), format!("{voice} {line}"));
                     self.state.pending_rumor = Some(rumor);
                 }
             }
